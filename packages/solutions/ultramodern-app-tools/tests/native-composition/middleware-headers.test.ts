@@ -57,6 +57,12 @@ describe('native server middleware headers', () => {
     expect(native.has('content-length')).toBe(false);
     expect(native.has('transfer-encoding')).toBe(false);
     expect(native.get('content-encoding')).toBe('br');
+    const unencoded = new Headers();
+    applyMiddlewareHeaders(
+      new Headers({ 'content-encoding': 'gzip' }),
+      unencoded,
+    );
+    expect(unencoded.has('content-encoding')).toBe(false);
   });
 
   it('lets a singleton field from the applied source win over the native one', () => {

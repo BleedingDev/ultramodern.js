@@ -266,8 +266,13 @@ function applyRouteResponseHeaders(response, route) {
   for (const [rawName, rawValue] of configured) {
     const name = rawName.toLowerCase();
     const value = String(rawValue);
-    // The renderer owns its body framing.
-    if (name === 'content-length' || name === 'transfer-encoding') continue;
+    // The renderer owns its body framing and content coding.
+    if (
+      name === 'content-length' ||
+      name === 'transfer-encoding' ||
+      name === 'content-encoding'
+    )
+      continue;
     if (CUMULATIVE_RESPONSE_HEADERS.has(name)) headers.append(name, value);
     else if (name === 'vary') {
       const fields = new Map();
@@ -277,10 +282,7 @@ function applyRouteResponseHeaders(response, route) {
           fields.set(item.toLowerCase(), item);
       }
       headers.set('vary', [...fields.values()].join(', '));
-    } else if (
-      (name !== 'content-type' && name !== 'content-encoding') ||
-      !headers.has(name)
-    )
+    } else if (name !== 'content-type' || !headers.has(name))
       headers.set(name, value);
   }
   return new Response(response.body, {
