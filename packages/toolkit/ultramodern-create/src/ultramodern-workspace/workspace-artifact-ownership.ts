@@ -260,8 +260,16 @@ export function preserveConsumerWorkspaceArtifacts(
     }
     inspected.push(inspection);
   }
+  // A before/next pair needs no consumer formatting once either source matches.
+  const matchedPaths = new Set(
+    inspected
+      .filter(inspection => inspection.recognized)
+      .map(inspection => inspection.relativePath),
+  );
   const pending = inspected.filter(
-    inspection => !inspection.recognized && inspection.normalized !== undefined,
+    inspection =>
+      !matchedPaths.has(inspection.relativePath) &&
+      inspection.normalized !== undefined,
   );
   const normalizedSources = formatConsumerSources(
     pending.map(

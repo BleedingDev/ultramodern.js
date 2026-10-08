@@ -195,22 +195,28 @@ describe.each([
 ])('generated workspace lint and contracts: $state', ({ state, verticals }) => {
   let tempRoot: string;
   let workspaceDir: string;
+  let setup: Promise<void> | undefined;
 
-  beforeAll(async () => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-generated-lint-'));
-    workspaceDir = path.join(tempRoot, 'generated-lint');
-    await createWorkspace('generated-lint', { workspaceDir });
-    provisionGeneratedLintDependencies(workspaceDir);
-    for (const name of verticals) {
-      await addUltramodernVertical({
-        workspaceRoot: workspaceDir,
-        name,
-        modernVersion: '3.2.1',
-      });
-    }
+  beforeAll(() => {
+    setup = (async () => {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-generated-lint-'));
+      workspaceDir = path.join(tempRoot, 'generated-lint');
+      await createWorkspace('generated-lint', { workspaceDir });
+      provisionGeneratedLintDependencies(workspaceDir);
+      for (const name of verticals) {
+        await addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name,
+          modernVersion: '3.2.1',
+        });
+      }
+    })();
+    return setup;
   }, 30000);
 
-  afterAll(() => {
+  afterAll(async () => {
+    // A hook timeout leaves setup running; drain it before removing the fixture.
+    if (setup) await Promise.allSettled([setup]);
     if (tempRoot) fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
