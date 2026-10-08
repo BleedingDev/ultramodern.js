@@ -140,10 +140,13 @@ export function createNativeI18n(
       return { language: currentLanguage() ?? routing.fallbackLanguage };
     },
     syncWithRouter(router, instance) {
-      // History navigation to another language prefix switches the instance.
+      // Navigation to another language prefix switches the instance. A
+      // masked location (LocalizedLink to another language) publishes its
+      // language on the mask; the unmasked location stays canonical.
       (router as LanguageRouter).subscribe('onBeforeLoad', ({ toLocation }) => {
-        const pathname = new URL(toLocation.publicHref, window.location.origin)
-          .pathname;
+        const publicHref =
+          toLocation.maskedLocation?.publicHref ?? toLocation.publicHref;
+        const pathname = new URL(publicHref, window.location.origin).pathname;
         const language = languageFromPathname(
           pathname,
           routing.languages,
@@ -165,6 +168,11 @@ export function createNativeI18n(
 interface LanguageRouter {
   subscribe(
     event: 'onBeforeLoad',
-    listener: (event: { toLocation: { publicHref: string } }) => void,
+    listener: (event: {
+      toLocation: {
+        publicHref: string;
+        maskedLocation?: { publicHref: string };
+      };
+    }) => void,
   ): () => void;
 }

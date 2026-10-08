@@ -1,3 +1,4 @@
+import { createNativeI18n } from '@modern-js/i18n-runtime-extensions/native';
 import { createI18nUrlRewrite } from '@modern-js/i18n-runtime-extensions/urlRewrite';
 import { createElement, createRoot, flushSync } from 'octane';
 import { I18nProvider } from '../src/i18n/I18nProvider';
@@ -60,7 +61,7 @@ async function mount(
   instance: FakeInstance,
   rewrite: boolean,
   basepath = '/',
-  replace?: boolean,
+  link?: Record<string, unknown>,
 ) {
   const router = createRouter({
     routeTree: createRootRoute({
@@ -68,10 +69,10 @@ async function mount(
         createElement(I18nProvider, {
           instance,
           languages: ['en', 'cs'],
-          children: replace
+          children: link
             ? createElement(
                 LocalizedLink,
-                { to: '/products', language: 'cs', replace },
+                { to: '/products', language: 'cs', ...link },
                 'Česky',
               )
             : createElement(Consumer),
@@ -91,6 +92,11 @@ async function mount(
         }
       : {}),
   });
+  // The entry's router language synchronization, as `entry-client` wires it.
+  createNativeI18n(
+    { languages: ['en', 'cs'], fallbackLanguage: 'en', basePath: basepath },
+    {},
+  ).syncWithRouter(router, instance as never);
   await router.load();
   const root = document.createElement('div');
   document.body.appendChild(root);
@@ -120,24 +126,32 @@ const sameLanguageHref = (root: HTMLElement) =>
   root.querySelector('a:not([hreflang])')?.getAttribute('href');
 
 describe('Octane i18n binding', () => {
-  test('a rejected language load uses native document navigation to the anchor URL', async () => {
+  test('a link to another language is the native Link with its router props', async () => {
     const instance = createFakeI18nInstance('en');
-    const changeLanguage = rstest.fn(() =>
-      Promise.reject(new Error('The lazy language bundle is unavailable')),
-    );
-    instance.changeLanguage = changeLanguage;
-    const { router, root, dispose } = await mount(
-      instance,
-      true,
-      '/store',
-      true,
-    );
-    const replaceDocument = rstest
-      .spyOn(window.location, 'replace')
-      .mockImplementation(() => undefined);
+    const { router, root, dispose } = await mount(instance, true, '/store', {
+      to: '/dashboard',
+      class: 'switch',
+      activeProps: { class: 'is-active' },
+      inactiveProps: { class: 'is-inactive' },
+      preload: 'intent',
+    });
+    const preloadRoute = rstest.spyOn(router, 'preloadRoute');
     try {
       const anchor = root.querySelector<HTMLAnchorElement>('a[hreflang="cs"]');
-      expect(anchor?.getAttribute('href')).toBe('/store/cs/products');
+      expect(anchor?.getAttribute('href')).toBe('/store/cs/dashboard');
+      // The canonical route is the current one, so the native active state applies.
+      expect(anchor?.className).toContain('is-active');
+      expect(anchor?.className).not.toContain('is-inactive');
+      expect(anchor?.getAttribute('data-status')).toBe('active');
+
+      anchor?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      anchor?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      await rstest.waitFor(() => expect(preloadRoute).toHaveBeenCalled());
+      expect(preloadRoute.mock.calls[0]?.[0]).toMatchObject({
+        to: '/dashboard',
+        mask: { to: '/cs/dashboard' },
+      });
+
       const modified = new MouseEvent('click', {
         bubbles: true,
         cancelable: true,
@@ -146,25 +160,18 @@ describe('Octane i18n binding', () => {
       });
       anchor?.dispatchEvent(modified);
       expect(modified.defaultPrevented).toBe(false);
-      expect(changeLanguage).not.toHaveBeenCalled();
 
-      const click = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        button: 0,
-      });
-      anchor?.dispatchEvent(click);
-      expect(click.defaultPrevented).toBe(true);
-      await rstest.waitFor(() =>
-        expect(replaceDocument).toHaveBeenCalledWith('/store/cs/products'),
+      // Switching the language of the current page still pushes a location.
+      anchor?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }),
       );
-      expect(changeLanguage).toHaveBeenCalledOnce();
-      expect(changeLanguage).toHaveBeenCalledWith('cs');
-      expect(instance.language).toBe('en');
-      expect(router.state.location.publicHref).toBe('/store/en/dashboard');
+      await until(() => instance.language === 'cs');
+      expect(router.history.location.pathname).toBe('/store/cs/dashboard');
+      expect(router.history.length).toBe(2);
+      expect(router.state.location.pathname).toBe('/dashboard');
     } finally {
+      preloadRoute.mockRestore();
       dispose();
-      replaceDocument.mockRestore();
     }
   });
 
@@ -190,20 +197,32 @@ describe('Octane i18n binding', () => {
     },
   );
 
-  test('a link to another language switches the instance, then navigates client-side', async () => {
-    const instance = createFakeI18nInstance('en');
-    const { router, root, dispose } = await mount(instance, true);
-    try {
-      const anchor = root.querySelector<HTMLAnchorElement>('a[hreflang="cs"]');
-      expect(anchor?.getAttribute('href')).toBe('/cs/products');
-      anchor?.dispatchEvent(
-        new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }),
-      );
-      await until(() => router.state.location.publicHref === '/cs/products');
-      expect(instance.language).toBe('cs');
-      expect(router.state.location.pathname).toBe('/products');
-    } finally {
-      dispose();
-    }
-  });
+  test.each([false, true])(
+    'a link to another language navigates through the router (router rewrite: %s)',
+    async rewrite => {
+      const instance = createFakeI18nInstance('en');
+      const { router, root, dispose } = await mount(instance, rewrite);
+      try {
+        const anchor =
+          root.querySelector<HTMLAnchorElement>('a[hreflang="cs"]');
+        expect(anchor?.getAttribute('href')).toBe('/cs/products');
+        anchor?.dispatchEvent(
+          new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+          }),
+        );
+        await until(() => instance.language === 'cs');
+        expect(router.history.location.pathname).toBe('/cs/products');
+        expect(router.state.location.pathname).toBe(
+          rewrite ? '/products' : '/cs/products',
+        );
+        // Once the instance follows, the link is a same-language link.
+        await until(() => sameLanguageHref(root) === '/cs/products');
+      } finally {
+        dispose();
+      }
+    },
+  );
 });
