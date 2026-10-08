@@ -56,10 +56,12 @@ export default {
       );
     }
 
-    const localeRedirectResponse = createLocaleRedirectResponseForRequest(
-      route,
-      request,
-    );
+    // Native entries resolve the request language in their own handler, with
+    // the same resolver the Node host uses; the legacy detector would differ.
+    const localeRedirectResponse =
+      route?.worker && getNativeRouteIdentity(route)
+        ? null
+        : createLocaleRedirectResponseForRequest(route, request);
 
     if (localeRedirectResponse) {
       return finalizeResponseForRequest(

@@ -418,6 +418,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
             'last-modified': 'yesterday',
             'content-range': 'bytes 1-2/3',
             'content-disposition': 'attachment',
+            'content-location': '/data.json',
             'cache-control': 'public, max-age=60, s-maxage=120',
             'x-owner': 'route',
             'content-security-policy': "default-src 'self'",
@@ -442,6 +443,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
       'last-modified',
       'content-range',
       'content-disposition',
+      'content-location',
     ])
       expect(headers.has(name)).toBe(false);
     expect(headers.get('x-owner')).toBe('route');
@@ -618,6 +620,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
         'content-range': 'bytes 1-2/3',
         'accept-ranges': 'bytes',
         'content-disposition': 'attachment; filename="data.json"',
+        'content-location': '/data.json',
         'Content-Digest': 'sha-256=:bG9hZGVyLWJvZHk=:',
         'rEpR-DiGeSt': 'sha-256=:bG9hZGVyLXJlcHJlc2VudGF0aW9u=:',
         DIGEST: 'sha-256=bG9hZGVyLWJvZHk=',
@@ -645,6 +648,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
         'content-range',
         'accept-ranges',
         'content-disposition',
+        'content-location',
         'content-digest',
         'repr-digest',
         'digest',

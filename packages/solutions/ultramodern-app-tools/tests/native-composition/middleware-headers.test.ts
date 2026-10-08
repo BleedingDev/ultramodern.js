@@ -31,4 +31,13 @@ describe('native server middleware headers', () => {
     expect(native.get('content-type')).toBe('text/html; charset=utf-8');
     expect(native.getSetCookie()).toEqual([]);
   });
+
+  it('lets a singleton field from the applied source win over the native one', () => {
+    const native = new Headers({ 'x-frame-options': 'DENY' });
+    applyMiddlewareHeaders(
+      new Headers({ 'x-frame-options': 'SAMEORIGIN' }),
+      native,
+    );
+    expect(native.get('x-frame-options')).toBe('SAMEORIGIN');
+  });
 });
