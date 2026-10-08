@@ -180,6 +180,7 @@ describe.each(['solid', 'octane'] as const)(
       expect(response.headers.get('content-type')).toBe(
         'text/html; charset=utf-8',
       );
+      expect(response.headers.has('content-length')).toBe(false);
       expect(
         JSON.parse(response.headers.get('x-ultramodern-renderer-identity')!),
       ).toEqual(identity(renderer));
@@ -283,6 +284,7 @@ describe.each(['solid', 'octane'] as const)(
                 responseHeaders: {
                   'x-route': 'configured',
                   'content-type': 'application/json',
+                  'content-length': '0',
                   'server-timing': 'route;dur=1',
                   link: '</r.css>; rel=preload; as=style',
                   'content-security-policy': "script-src 'self'",

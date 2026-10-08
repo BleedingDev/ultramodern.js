@@ -44,6 +44,21 @@ describe('native server middleware headers', () => {
     expect(native.getSetCookie()).toEqual([]);
   });
 
+  it('keeps the renderer body framing over another source', () => {
+    const native = new Headers({ 'content-encoding': 'br' });
+    applyMiddlewareHeaders(
+      new Headers({
+        'content-length': '12',
+        'transfer-encoding': 'chunked',
+        'content-encoding': 'gzip',
+      }),
+      native,
+    );
+    expect(native.has('content-length')).toBe(false);
+    expect(native.has('transfer-encoding')).toBe(false);
+    expect(native.get('content-encoding')).toBe('br');
+  });
+
   it('lets a singleton field from the applied source win over the native one', () => {
     const native = new Headers({ 'x-frame-options': 'DENY' });
     applyMiddlewareHeaders(
