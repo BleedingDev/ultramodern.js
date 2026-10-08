@@ -241,4 +241,23 @@ describe('native Link reactive target', () => {
       view.cleanup();
     }
   });
+
+  test('state props that name ref or onClick do not replace the Link handlers', async () => {
+    const stateClick = rstest.fn();
+    const view = await renderLink(() => (
+      <Link
+        to="/next"
+        activeProps={{ onClick: stateClick, ref: () => {} } as any}
+        inactiveProps={{ onClick: stateClick } as any}
+      >
+        Next
+      </Link>
+    ));
+    try {
+      click(view.anchor());
+      expect(view.navigate).toHaveBeenCalledTimes(1);
+    } finally {
+      view.cleanup();
+    }
+  });
 });
