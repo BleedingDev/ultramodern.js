@@ -1201,6 +1201,40 @@ describe('renderer-neutral HTTP data outcomes', () => {
     ).rejects.toThrow(/protocol/);
     expect(DATA_CODEC).toBe('seroval-json@1.6.8');
   });
+
+  it('rejects success and not-found envelopes that omit their value', async () => {
+    const encoded = async (value: unknown) =>
+      parsePublicData(
+        await createDataResponse(
+          await normalizeDataResult(value),
+          identity,
+          expected,
+        ).text(),
+      ) as { outcome: Record<string, unknown> };
+    const read = (envelope: unknown) =>
+      readDataResponse(
+        new Response(serializePublicData(envelope), {
+          headers: { 'content-type': 'application/vnd.ultramodern.data+json' },
+        }),
+        expected,
+      );
+    // An explicit undefined result is a value; a missing field is not.
+    const explicit = await encoded(undefined);
+    expect(Object.hasOwn(explicit.outcome, 'value')).toBe(true);
+    await expect(read(explicit)).resolves.toMatchObject({
+      kind: 'success',
+      value: undefined,
+    });
+    for (const envelope of [
+      await encoded({ ok: true }),
+      await encoded(new Response('not found', { status: 404 })),
+    ]) {
+      delete envelope.outcome.value;
+      await expect(read(envelope)).rejects.toThrow(
+        'Missing data protocol field',
+      );
+    }
+  });
 });
 
 describe('deferred data stream', () => {
@@ -1405,6 +1439,26 @@ describe('deferred data stream', () => {
         expected,
       ),
     ).rejects.toThrow(/before the initial/);
+  });
+
+  it('rejects a resolve frame that omits its value', async () => {
+    const outcome = await normalizeDataResult(
+      deferData({}, { late: Promise.resolve(1) }),
+    );
+    const text = await createDataResponse(outcome, identity, expected).text();
+    const [initial] = text.split('\n');
+    const decoded = await readDataResponse(
+      new Response(
+        `${initial}\n${serializePublicData({ type: 'resolve', key: 'late' })}\n`,
+        { headers: { 'content-type': DATA_STREAM_CONTENT_TYPE } },
+      ),
+      expected,
+    );
+    const value = success(decoded) as { late: Promise<unknown> };
+    await expect(value.late).rejects.toThrow('Missing data protocol field');
+    await expect(decoded.completion).rejects.toThrow(
+      'Missing data protocol field',
+    );
   });
 
   it('exposes terminal integrity failure after every deferred value already resolved', async () => {

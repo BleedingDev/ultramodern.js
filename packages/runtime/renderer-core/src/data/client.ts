@@ -5,6 +5,7 @@ import { DataProtocolError, MAX_DATA_BYTES, parsePublicData } from './codec';
 import {
   isPrerenderedDocument,
   isStaticDataPayload,
+  STATIC_DATA_PAYLOAD_MAX_BYTES,
   staticDataPayloadPath,
 } from './static';
 import {
@@ -23,9 +24,17 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-function assertKeys(record: Record<string, unknown>, keys: string[]): void {
+function assertKeys(
+  record: Record<string, unknown>,
+  keys: string[],
+  required: string[] = [],
+): void {
   if (Object.keys(record).some(key => !keys.includes(key))) {
     throw new DataProtocolError('Unknown data protocol field');
+  }
+  // A missing field must not decode as an `undefined` result.
+  if (required.some(key => !Object.hasOwn(record, key))) {
+    throw new DataProtocolError('Missing data protocol field');
   }
 }
 
@@ -92,7 +101,7 @@ function assertEnvelope(
   }
   switch (outcome['kind']) {
     case 'success':
-      assertKeys(outcome, ['kind', 'value', 'status']);
+      assertKeys(outcome, ['kind', 'value', 'status'], ['value']);
       break;
     case 'redirect':
       assertKeys(outcome, ['kind', 'location', 'status']);
@@ -104,7 +113,7 @@ function assertEnvelope(
       }
       break;
     case 'not-found':
-      assertKeys(outcome, ['kind', 'value', 'thrown', 'status']);
+      assertKeys(outcome, ['kind', 'value', 'thrown', 'status'], ['value']);
       if (outcome['status'] !== 404 || typeof outcome['thrown'] !== 'boolean')
         throw new DataProtocolError('Malformed not-found outcome');
       break;
@@ -242,12 +251,9 @@ async function readDeferredResponse(
     }
     if (frame['type'] !== 'resolve' && frame['type'] !== 'reject')
       throw new DataProtocolError('Unknown data stream frame');
-    assertKeys(
-      frame,
-      frame['type'] === 'resolve'
-        ? ['type', 'key', 'value']
-        : ['type', 'key', 'error'],
-    );
+    if (frame['type'] === 'resolve')
+      assertKeys(frame, ['type', 'key', 'value'], ['value']);
+    else assertKeys(frame, ['type', 'key', 'error']);
     if (typeof frame['key'] !== 'string' || !pending.has(frame['key']))
       throw new DataProtocolError('Unknown or duplicate deferred data key');
     const promise = pending.get(frame['key'])!;
@@ -343,12 +349,6 @@ export async function readDataResponse(
 }
 
 /**
- * A payload wraps one data response as a JSON string, whose escaping can
- * grow it up to six times.
- */
-const STATIC_PAYLOAD_MAX_BYTES = MAX_DATA_BYTES * 6 + 1024;
-
-/**
  * A prerendered document can be hosted without a server. Its search-free
  * loader payloads were captured beside it at build time; anything missing
  * falls through to the server data request.
@@ -385,7 +385,7 @@ async function readStaticPayload(
       await readBoundedDataText(
         response,
         request.signal,
-        STATIC_PAYLOAD_MAX_BYTES,
+        STATIC_DATA_PAYLOAD_MAX_BYTES,
       ),
     );
   } catch {
