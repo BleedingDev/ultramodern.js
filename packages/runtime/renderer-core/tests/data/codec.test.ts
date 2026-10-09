@@ -263,6 +263,17 @@ describe('public data codec', () => {
     }
   });
 
+  it('counts sparse array holes toward the node budget before serialization', () => {
+    expect(() => serializePublicData(new Array(0xffff_fffe))).toThrow(
+      /size or depth limit/,
+    );
+    // Many moderately sparse arrays add up too.
+    expect(() =>
+      serializePublicData(Array.from({ length: 15 }, () => new Array(2000))),
+    ).toThrow(/size or depth limit/);
+    expect(() => serializePublicData(new Array(100))).not.toThrow();
+  });
+
   it('preserves sparse arrays, explicit undefined, nonenumerable indexes and shared values', () => {
     const shared = { public: 'value' };
     const value = new Array(5);
@@ -340,6 +351,9 @@ describe('public data codec', () => {
 
   it('rejects rich values that exceed decoder structural limits before emitting', () => {
     expect(() => serializePublicData(10n ** 10000n)).toThrow(/codec limits/);
-    expect(() => serializePublicData(new Array(20000))).toThrow(/codec limits/);
+    // A sparse array's holes are rejected by the node budget even earlier.
+    expect(() => serializePublicData(new Array(20000))).toThrow(
+      /size or depth limit/,
+    );
   });
 });

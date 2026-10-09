@@ -97,6 +97,19 @@ export function assertPublicData(
         'Public data arrays must contain only length and canonical index properties',
       );
     }
+    if (prototype === Array.prototype) {
+      // The serializer writes every hole of a sparse array, so holes count
+      // toward the node budget before it runs.
+      const length: unknown = Object.getOwnPropertyDescriptor(
+        object,
+        'length',
+      )?.value;
+      if (typeof length === 'number') count += length - (ownKeys.length - 1);
+      if (count > MAX_NODES)
+        throw new DataProtocolError(
+          'Public data exceeds its size or depth limit',
+        );
+    }
     // Native serializers may read nonenumerable method overrides too. Validate
     // every own value before using a container, without calling its properties.
     for (const descriptor of descriptors) visit(descriptor.value, depth + 1);
