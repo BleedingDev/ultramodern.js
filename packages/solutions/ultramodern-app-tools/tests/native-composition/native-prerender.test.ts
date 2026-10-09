@@ -267,6 +267,7 @@ describe('native prerender output', () => {
 
   it('writes the rendered document and matching loader payloads', async () => {
     const requests: string[] = [];
+    const ssgMarkers: (string | null)[] = [];
     await prerenderRoute({
       route,
       entry: {} as never,
@@ -275,6 +276,7 @@ describe('native prerender output', () => {
       async dispatch(_entry, request) {
         const url = new URL(request.url);
         requests.push(url.pathname + url.search);
+        ssgMarkers.push(request.headers.get('x-modern-ssg-render'));
         const loader = url.searchParams.get('__loader');
         if (!loader)
           return new Response(
@@ -295,6 +297,8 @@ describe('native prerender output', () => {
       '/items/42?__loader=layout&__ssrDirect=true',
       '/items/42?__loader=items%2F%28id%29%2Fpage&__ssrDirect=true',
     ]);
+    // Loaders see the same SSG marker for the document and its payloads.
+    expect(ssgMarkers).toEqual(['true', 'true', 'true']);
     const html = await fs.readFile(
       path.join(distDirectory, 'html/index/items/42/index.html'),
       'utf8',

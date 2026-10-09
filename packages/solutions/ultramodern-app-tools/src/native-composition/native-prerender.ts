@@ -372,9 +372,13 @@ export async function prerenderRoute(options: {
     const dataUrl = new URL(url);
     dataUrl.searchParams.set(LOADER_ID_PARAM, routeId);
     dataUrl.searchParams.set(DIRECT_PARAM, 'true');
+    // Loaders see the same SSG marker as the document render, so the
+    // payload matches the prerendered HTML.
     const data = await render(
       entry,
-      new Request(dataUrl, { headers: route.headers }),
+      new Request(dataUrl, {
+        headers: { ...route.headers, 'x-modern-ssg-render': 'true' },
+      }),
     );
     const type = data.headers.get('content-type')?.split(';')[0]?.trim();
     // The handler answers 403 for loaders that do not match this document.
