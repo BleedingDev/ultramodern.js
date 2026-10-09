@@ -226,11 +226,16 @@ export async function renderOctaneApplication<Bindings extends object>(
       cancellation = reader.cancel(reason).finally(release);
       return cancellation;
     };
+    // Cleanup starts native cancellation without waiting for it: a native
+    // stream that never finishes cancelling must not hold the session.
+    const releaseNative = (reason: unknown) => {
+      void cancelNative(reason).catch(() => {});
+    };
     try {
-      session.registerCleanup(() => cancelNative(session.signal.reason));
+      session.registerCleanup(() => releaseNative(session.signal.reason));
     } catch (error) {
       // The request can abort between native shell readiness and registration.
-      await cancelNative(error);
+      releaseNative(error);
       throw error;
     }
     const body = new ReadableStream<Uint8Array>(
@@ -272,13 +277,13 @@ export async function renderOctaneApplication<Bindings extends object>(
             phase = 'done';
             // An errored ReadableStream does not invoke its cancel callback.
             // Release the native owner here as well as on consumer cancellation.
-            await cancelNative(error).catch(() => {});
+            releaseNative(error);
             controller.error(error);
           }
         },
-        async cancel(reason) {
+        cancel(reason) {
           phase = 'done';
-          await cancelNative(reason);
+          releaseNative(reason);
         },
       },
       { highWaterMark: 0 },

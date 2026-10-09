@@ -586,6 +586,24 @@ describe('native Octane server application', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  test('completes a session whose native stream never finishes cancelling', async () => {
+    const session = createSession();
+    const { App } = streamedApp();
+    const response = await renderOctaneApplication({ session, App, document });
+    const reading = response.text().catch(() => undefined);
+    const cancel = rstest
+      .spyOn(ReadableStreamDefaultReader.prototype, 'cancel')
+      .mockImplementation(() => new Promise<void>(() => {}));
+    try {
+      session.abort(new Error('client went away'));
+      expect((await session.completion).state).toBe('aborted');
+      expect(cancel).toHaveBeenCalled();
+    } finally {
+      cancel.mockRestore();
+    }
+    await reading;
+  });
+
   test('propagates request abort after shell delivery without changing committed headers', async () => {
     const abortController = new AbortController();
     const session = createSession(
