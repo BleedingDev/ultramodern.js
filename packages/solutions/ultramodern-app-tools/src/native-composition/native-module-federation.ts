@@ -75,7 +75,8 @@ export function readNativeFederationRemotes(
         return [remote.slice(0, remote.indexOf('@')), remote];
       })
     : Object.entries(remotes);
-  const result: Record<string, string> = {};
+  // A valid alias such as `__proto__` must stay an own entry.
+  const result: Record<string, string> = Object.create(null);
   for (const [alias, remote] of entries) {
     const entry =
       typeof remote === 'string'

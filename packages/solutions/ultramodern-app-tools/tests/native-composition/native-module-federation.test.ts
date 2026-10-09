@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
 import {
   createNativeClientFederationOptions,
+  createNativeRuntimeRemotes,
   createNativeServerFederationOptions,
   createNativeSharedConfig,
   findNativeFederationConfig,
@@ -108,6 +109,24 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     expect(readNativeFederationRemotes({ remotes: [manifestRemote] })).toEqual({
       remote: manifestRemote,
     });
+  });
+
+  it('keeps a prototype-named remote alias as an own registration', () => {
+    const remote = '__proto__@https://remote.test/mf-manifest.json';
+    for (const remotes of [
+      [remote],
+      JSON.parse(`{"__proto__": ${JSON.stringify(remote)}}`),
+    ]) {
+      const result = readNativeFederationRemotes({ remotes });
+      expect(Object.keys(result)).toEqual(['__proto__']);
+      expect(createNativeRuntimeRemotes(result)).toEqual([
+        {
+          name: '__proto__',
+          alias: '__proto__',
+          entry: 'https://remote.test/mf-manifest.json',
+        },
+      ]);
+    }
   });
 
   const versions = (renderer: NativeRenderer = 'solid') =>
