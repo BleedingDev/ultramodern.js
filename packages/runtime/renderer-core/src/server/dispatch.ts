@@ -447,7 +447,8 @@ export async function dispatchNativeRequest<Bindings extends object>(
     }
     response = normalizeTerminalResponse(response, session);
     if (request.method === 'HEAD' && response.body) {
-      await response.body.cancel();
+      // A HEAD answer never waits on, or fails with, its discarded body.
+      void response.body.cancel().catch(() => {});
       return new Response(null, {
         status: response.status,
         statusText: response.statusText,
@@ -481,7 +482,7 @@ export async function dispatchNativeRequest<Bindings extends object>(
         throw new TypeError('Native fallback must return a Fetch Response.');
       const owned = normalizeTerminalResponse(response, session);
       if (request.method === 'HEAD' && owned.body) {
-        await owned.body.cancel();
+        void owned.body.cancel().catch(() => {});
         return new Response(null, {
           status: owned.status,
           statusText: owned.statusText,

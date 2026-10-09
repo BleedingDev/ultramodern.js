@@ -339,6 +339,26 @@ describe('production native Node Fetch dispatch', () => {
     expect(cancelled).toHaveBeenCalledTimes(1);
   });
 
+  it('answers HEAD without waiting on, or failing with, its body cancellation', async () => {
+    for (const cancel of [
+      () => new Promise<void>(() => {}),
+      () => Promise.reject(new Error('cancel failed')),
+    ]) {
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/', { method: 'HEAD' }),
+        options(
+          () =>
+            new Response(new ReadableStream({ cancel }), {
+              status: 200,
+              headers: { 'content-type': 'text/html' },
+            }),
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(response.body).toBeNull();
+    }
+  });
+
   it('rejects conflicting bundle identity before lookup or handler execution', async () => {
     const handler = rstest.fn();
     const cache = store();
