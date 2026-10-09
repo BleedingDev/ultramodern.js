@@ -125,6 +125,7 @@ describe('Solid i18n binding', () => {
         '/cs/products?sort=price#reviews',
       );
       // A blocked or failed navigation keeps the page's URL and language.
+      const realNavigate = router.navigate.bind(router);
       router.navigate = (async () => undefined) as never;
       await binding!.changeLanguage('en');
       expect(instance.language).toBe('cs');
@@ -138,6 +139,24 @@ describe('Solid i18n binding', () => {
       expect(router.state.location.href).toBe(
         '/cs/products?sort=price#reviews',
       );
+      // A switch that fails after a later one succeeded leaves the later
+      // language in place.
+      let failFirst!: (error: Error) => void;
+      let calls = 0;
+      router.navigate = ((options: never) =>
+        ++calls === 1
+          ? new Promise((_resolve, reject) => {
+              failFirst = reject;
+            })
+          : realNavigate(options)) as never;
+      const first = binding!.changeLanguage('en');
+      await binding!.changeLanguage('en');
+      failFirst(new Error('stale navigation'));
+      await expect(first).rejects.toThrow('stale navigation');
+      expect(router.state.location.href).toBe(
+        '/en/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('en');
     } finally {
       dispose();
       flush();

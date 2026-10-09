@@ -19,6 +19,9 @@ export interface UseI18nReturn {
   changeLanguage: (language: string) => Promise<void>;
 }
 
+/** The latest `changeLanguage` call per instance; only it may restore. */
+const languageSwitches = new WeakMap<object, number>();
+
 /**
  * Must render under `I18nProvider`; `useContext` on the default-less
  * `I18nContext` throws `ContextNotFoundError` otherwise, rather than
@@ -40,6 +43,8 @@ export function useI18n(): UseI18nReturn {
   const router = useRouter({ warn: false });
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
+    const generation = (languageSwitches.get(instance) ?? 0) + 1;
+    languageSwitches.set(instance, generation);
     const previous = instance.language;
     await instance.changeLanguage?.(nextLanguage);
     if (!router) return;
@@ -50,8 +55,12 @@ export function useI18n(): UseI18nReturn {
       localisedUrls,
     });
     // A failed or blocked navigation leaves the page on its URL, so the
-    // language returns to the one that URL renders.
-    const restore = () => instance.changeLanguage?.(previous);
+    // language returns to the one that URL renders, unless a later switch
+    // has taken over.
+    const restore = () =>
+      languageSwitches.get(instance) === generation
+        ? instance.changeLanguage?.(previous)
+        : undefined;
     try {
       await router.navigate({ to: '.', href, replace: true });
     } catch (error) {
