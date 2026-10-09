@@ -190,6 +190,9 @@ export function createNativeI18n(
         // biome-ignore lint/suspicious/noDocumentCookie: the server's language detector reads this cookie; CookieStore is not in every browser.
         document.cookie = `${cookie}=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`;
       };
+      // The client starts in its URL's language, which a stale cookie from
+      // an earlier visit may not match; persist it before any later change.
+      if (instance.language) persist(instance.language);
       instance.on('languageChanged', persist);
       return () => instance.off('languageChanged', persist);
     },

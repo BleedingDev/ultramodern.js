@@ -104,4 +104,23 @@ describe('native router language synchronization', () => {
     stop();
     expect(instance.off).toHaveBeenCalledWith('languageChanged', persist);
   });
+
+  it('persists the language the client started in over a stale cookie', () => {
+    // biome-ignore lint/suspicious/noDocumentCookie: the test seeds the detector cookie.
+    document.cookie = 'lang=en; path=/';
+    document.documentElement.lang = 'en';
+    const instance = { ...fakeInstance(async () => {}), language: 'cs' };
+    createNativeI18n(
+      {
+        languages: ['en', 'cs'],
+        fallbackLanguage: 'en',
+        basePath: '/',
+        detection: { lookupCookie: 'lang' },
+      },
+      {},
+    ).persist!(instance as never);
+    expect(document.documentElement.lang).toBe('cs');
+    expect(document.cookie).toContain('lang=cs');
+    expect(document.cookie).not.toContain('lang=en');
+  });
 });
