@@ -198,6 +198,39 @@ describe('native Octane server application', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  test.each([
+    ['application', renderOctaneApplication],
+    ['CSR document', renderOctaneCSRDocument],
+  ] as const)(
+    'stops waiting for a response-policy resolver when the %s request aborts',
+    async (_name, render) => {
+      const session = createSession();
+      const cleanup = rstest.fn();
+      session.registerCleanup(cleanup);
+      const App = rstest.fn(() => ssrHtml('<main>must not render</main>'));
+      let resolving!: () => void;
+      const started = new Promise<void>(resolve => {
+        resolving = resolve;
+      });
+      const rendering = render({
+        session,
+        App,
+        document,
+        resolveResponse: () => {
+          resolving();
+          return new Promise<ResponsePolicy>(() => {});
+        },
+      });
+      await started;
+      const reason = new DOMException('Client disconnected', 'AbortError');
+      session.abort(reason);
+      await expect(rendering).rejects.toBe(reason);
+      expect(App).not.toHaveBeenCalled();
+      expect((await session.completion).state).not.toBe('completed');
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    },
+  );
+
   test('delivers the early shell while suspense is pending and consumes concurrently with allReady', async () => {
     const session = createSession();
     const cleanup = rstest.fn();

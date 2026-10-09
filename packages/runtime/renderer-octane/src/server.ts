@@ -4,9 +4,10 @@ import {
   prepareDocument,
 } from '@modern-js/renderer-core/document';
 import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
-import type {
-  RequestSession,
-  ResponsePolicy,
+import {
+  type RequestSession,
+  type ResponsePolicy,
+  untilAborted,
 } from '@modern-js/renderer-core/session';
 import {
   createElement,
@@ -97,7 +98,10 @@ async function resolveDocumentResponse<Bindings extends object>(
     throw new Error('Choose one blocking Octane response policy resolver.');
   }
   if (input.resolveResponse) {
-    session.resolveResponse(await input.resolveResponse(session));
+    // A resolver that ignores cancellation must not hold the request.
+    session.resolveResponse(
+      await untilAborted(input.resolveResponse(session), session.signal),
+    );
   } else if (input.responsePolicy) {
     session.resolveResponse(input.responsePolicy);
   } else if (!session.responsePolicy) {
