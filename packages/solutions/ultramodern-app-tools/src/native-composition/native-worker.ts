@@ -55,7 +55,10 @@ export function nativeWorkerEnvironment(
   // only page entries with their native worker modules.
   const entry = {
     ...Object.fromEntries(
-      Object.entries(configured).filter(([name]) => !(name in entries)),
+      // Own keys only: a worker named like an Object.prototype member stays.
+      Object.entries(configured).filter(
+        ([name]) => !Object.hasOwn(entries, name),
+      ),
     ),
     ...entries,
   };
