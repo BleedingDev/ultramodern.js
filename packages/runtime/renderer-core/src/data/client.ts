@@ -367,6 +367,34 @@ async function readStaticPayload(
   });
 }
 
+/**
+ * Buffer a request body through its own reader, so aborting the request
+ * cancels a slow or never-ending source stream instead of waiting on it.
+ */
+async function bufferRequestBody(request: Request): Promise<Blob | null> {
+  if (!request.body) return null;
+  const { signal } = request;
+  const reader = request.body.getReader();
+  const cancel = () => {
+    void reader.cancel(signal.reason).catch(() => {});
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    const chunks: Uint8Array[] = [];
+    for (;;) {
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      chunks.push(part.value);
+    }
+    return new Blob(chunks as BlobPart[], {
+      type: request.headers.get('content-type') ?? '',
+    });
+  } finally {
+    signal.removeEventListener('abort', cancel);
+  }
+}
+
 export function createDataClient(
   routeId: string,
   identity: RendererIdentity,
@@ -410,7 +438,7 @@ export function createDataClient(
     const proxyRequest = new Request(url, {
       method: request.method,
       headers: request.headers,
-      body: operation === 'action' ? await request.blob() : null,
+      body: operation === 'action' ? await bufferRequestBody(request) : null,
       signal: request.signal,
     });
     const response = await fetchData(proxyRequest, {

@@ -1433,6 +1433,37 @@ describe('client data proxies', () => {
     }
   });
 
+  it('cancels a pending action body when the request aborts', async () => {
+    const controller = new AbortController();
+    let cancelled: unknown;
+    const request = new Request('https://example.test/products', {
+      method: 'POST',
+      body: new ReadableStream<Uint8Array>({
+        start(source) {
+          source.enqueue(new TextEncoder().encode('partial'));
+        },
+        cancel(reason) {
+          cancelled = reason;
+        },
+      }),
+      duplex: 'half',
+      signal: controller.signal,
+    } as RequestInit);
+    let fetched = false;
+    const proxy = createDataClient('products', identity, {
+      fetch: (async () => {
+        fetched = true;
+        return new Response(null);
+      }) as typeof fetch,
+    });
+    const action = proxy.action({ request });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    controller.abort(new Error('superseded'));
+    await expect(action).rejects.toThrow('superseded');
+    expect(cancelled).toBeInstanceOf(Error);
+    expect(fetched).toBe(false);
+  });
+
   it('does not accept a non-protocol server response or follow a native redirect itself', async () => {
     const proxy = createDataClient('products', identity, {
       fetch: (async () =>
