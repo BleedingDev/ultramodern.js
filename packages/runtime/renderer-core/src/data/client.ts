@@ -402,10 +402,18 @@ async function readStaticPayload(
 /**
  * Buffer a request body through its own reader, so aborting the request
  * cancels a slow or never-ending source stream instead of waiting on it.
+ * A multipart form is the browser's own FormData encoding, which always
+ * ends: blob() lets the engine keep its file parts file-backed (Chromium
+ * drains FormData bodies as blob handles) instead of copying every upload
+ * chunk into memory.
  */
 async function bufferRequestBody(request: Request): Promise<Blob | null> {
   if (!request.body) return null;
   const { signal } = request;
+  if (
+    /^multipart\/form-data\b/iu.test(request.headers.get('content-type') ?? '')
+  )
+    return untilAborted(request.blob(), signal);
   const reader = request.body.getReader();
   const cancel = () => {
     void reader.cancel(signal.reason).catch(() => {});

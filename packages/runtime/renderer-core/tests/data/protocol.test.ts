@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it, rstest } from '@rstest/core';
 import { createDataClient, readDataResponse } from '../../src/data/client';
 import {
   DATA_CODEC,
@@ -1619,6 +1619,60 @@ describe('client data proxies', () => {
     controller.abort(new Error('superseded'));
     await expect(action).rejects.toThrow('superseded');
     expect(cancelled).toBeInstanceOf(Error);
+    expect(fetched).toBe(false);
+  });
+
+  it('sends a multipart action body from its source, not a JavaScript copy', async () => {
+    const form = new FormData();
+    form.set('name', 'tractor');
+    form.set('photo', new File(['x'.repeat(4096)], 'photo.jpg'));
+    const request = new Request('https://example.test/products', {
+      method: 'POST',
+      body: form,
+    });
+    const blob = rstest.spyOn(request, 'blob');
+    let sent: Request | undefined;
+    const proxy = createDataClient('products', identity, {
+      fetch: (async (input: Request) => {
+        sent = input;
+        return createDataResponse(
+          await normalizeDataResult({ saved: true }),
+          identity,
+          { routeId: 'products', operation: 'action' },
+        );
+      }) as typeof fetch,
+    });
+    expect(await proxy.action({ request })).toMatchObject({
+      kind: 'success',
+      value: { saved: true },
+    });
+    expect(blob).toHaveBeenCalledTimes(1);
+    const received = await sent!.formData();
+    expect(received.get('name')).toBe('tractor');
+    expect((received.get('photo') as File).size).toBe(4096);
+  });
+
+  it('stops waiting for a multipart action body when the request aborts', async () => {
+    const controller = new AbortController();
+    const form = new FormData();
+    form.set('photo', new File(['x'], 'photo.jpg'));
+    const request = new Request('https://example.test/products', {
+      method: 'POST',
+      body: form,
+      signal: controller.signal,
+    });
+    rstest.spyOn(request, 'blob').mockReturnValue(new Promise(() => {}));
+    let fetched = false;
+    const proxy = createDataClient('products', identity, {
+      fetch: (async () => {
+        fetched = true;
+        return new Response(null);
+      }) as typeof fetch,
+    });
+    const action = proxy.action({ request });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    controller.abort(new Error('superseded'));
+    await expect(action).rejects.toThrow('superseded');
     expect(fetched).toBe(false);
   });
 
