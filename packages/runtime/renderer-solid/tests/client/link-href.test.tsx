@@ -262,6 +262,38 @@ describe('native Link reactive target', () => {
     }
   });
 
+  test('state props supply role and ARIA state the Link does not own', async () => {
+    const view = await renderLink(() => (
+      <>
+        <Link
+          to="/"
+          activeOptions={{ exact: true }}
+          activeProps={{ role: 'menuitem' } as any}
+        >
+          Home
+        </Link>
+        <Link
+          to="/next"
+          inactiveProps={{ role: 'menuitem', 'aria-current': 'step' } as any}
+        >
+          Next
+        </Link>
+      </>
+    ));
+    try {
+      const [active, inactive] = Array.from(
+        document.querySelectorAll('a'),
+      ) as HTMLAnchorElement[];
+      expect(active.getAttribute('role')).toBe('menuitem');
+      // The Link owns aria-current while active.
+      expect(active.getAttribute('aria-current')).toBe('page');
+      expect(inactive.getAttribute('role')).toBe('menuitem');
+      expect(inactive.getAttribute('aria-current')).toBe('step');
+    } finally {
+      view.cleanup();
+    }
+  });
+
   test('a download link leaves the click to the browser', async () => {
     const view = await renderLink(() => (
       <Link to="/report" download="report.csv">

@@ -435,6 +435,12 @@ export function useLinkProps<
     const target = (resolvedStateProps() as { target?: string }).target;
     return target !== undefined ? target : local.target;
   };
+  const stateOrBase = (key: string): unknown => {
+    const state = (resolvedStateProps() as Record<string, unknown>)[key];
+    return state !== undefined
+      ? state
+      : (propsSafeToSpread as Record<string, unknown>)[key];
+  };
 
   const resolvedClass = Solid.createMemo(
     () => {
@@ -558,10 +564,13 @@ export function useLinkProps<
     href: hrefOption,
     disabled: () => !!local.disabled || linkDisabled(),
     target: resolvedTarget,
-    role: () => (linkDisabled() ? 'link' : propsSafeToSpread.role),
-    'aria-disabled': () => (linkDisabled() ? 'true' : undefined),
-    'data-status': () => (isActive() ? 'active' : undefined),
-    'aria-current': () => (isActive() ? 'page' : undefined),
+    // The Link owns these only while disabled or active, as upstream Links
+    // do; otherwise a value from the state props, then the base props, wins.
+    role: () => (linkDisabled() ? 'link' : stateOrBase('role')),
+    'aria-disabled': () =>
+      linkDisabled() ? 'true' : stateOrBase('aria-disabled'),
+    'data-status': () => (isActive() ? 'active' : stateOrBase('data-status')),
+    'aria-current': () => (isActive() ? 'page' : stateOrBase('aria-current')),
     class: resolvedClass,
     style: resolvedStyle,
   });
