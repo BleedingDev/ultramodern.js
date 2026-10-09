@@ -59,6 +59,17 @@ async function acquirePortAllocatorLock(packageDir) {
         await fs.promises.rm(lockDir, { recursive: true, force: true });
       };
     } catch (error) {
+      // Windows reports EPERM or EACCES while another process is still
+      // removing the same directory: the lock is being released, so wait.
+      const releasing =
+        process.platform === 'win32' &&
+        (error?.code === 'EPERM' || error?.code === 'EACCES');
+      if (releasing) {
+        await new Promise(resolve =>
+          setTimeout(resolve, kPortAllocatorLockPollInterval),
+        );
+        continue;
+      }
       if (error?.code !== 'EEXIST') {
         throw error;
       }
@@ -886,6 +897,7 @@ async function createIsolatedTestApp(sourceAppDir, options = {}) {
 }
 
 module.exports = {
+  acquirePortAllocatorLock,
   runModernCommand,
   runModernCommandDev,
   modernBuild,

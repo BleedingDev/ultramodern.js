@@ -1,9 +1,15 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs, { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { getPort, killApp, launchApp, modernBuild } from './modernTestUtils';
+import {
+  acquirePortAllocatorLock,
+  getPort,
+  killApp,
+  launchApp,
+  modernBuild,
+} from './modernTestUtils';
 
 const fixtures: string[] = [];
 function isProcessAlive(pid: number) {
@@ -237,4 +243,26 @@ test('an empty inherited manifest still invokes genuine cold package preparation
       },
     ),
   ).rejects.toThrow(/pnpm/u);
+});
+
+describe('port allocator lock', () => {
+  it('waits while Windows is still releasing the lock directory', async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const mkdir = rstest
+      .spyOn(fs.promises, 'mkdir')
+      .mockRejectedValueOnce(
+        Object.assign(new Error('operation not permitted'), { code: 'EPERM' }),
+      );
+    const owner = mkdtempSync(path.join(os.tmpdir(), 'port-lock-'));
+    try {
+      const release = await acquirePortAllocatorLock(owner);
+      expect(mkdir.mock.calls.length).toBeGreaterThan(1);
+      await release();
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+      mkdir.mockRestore();
+      rmSync(owner, { recursive: true, force: true });
+    }
+  });
 });
