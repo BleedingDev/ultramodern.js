@@ -861,6 +861,46 @@ describe('production native Node Fetch dispatch', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it('cancels a cached body without waiting on, or failing with, its source cancellation', async () => {
+    for (const cancel of [
+      () => new Promise<void>(() => {}),
+      () => Promise.reject(new Error('cancel failed')),
+    ]) {
+      const cache = store();
+      const cleanup = rstest.fn();
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        options(
+          (_request, context) => {
+            context.session.resolveResponse({
+              kind: 'document',
+              status: 200,
+              headers: [['content-type', 'text/html']],
+              cache: { mode: 'public', maxAgeSeconds: 60 },
+            });
+            context.session.registerCleanup(cleanup);
+            return context.session.respond(
+              new ReadableStream({
+                start(controller) {
+                  controller.enqueue(new TextEncoder().encode('shell'));
+                },
+                cancel,
+              }),
+            );
+          },
+          { cache },
+        ),
+      );
+      const reader = response.body!.getReader();
+      await reader.read();
+      await expect(reader.cancel('client disconnected')).resolves.toBe(
+        undefined,
+      );
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(cache.set).not.toHaveBeenCalled();
+    }
+  });
+
   it('closes the consumer before transport confirmation and checks final wire privacy', async () => {
     const cache = store();
     let confirm!: (headers: Headers | undefined) => void;

@@ -304,9 +304,11 @@ function captureDocument<Bindings extends object>(
       },
       async cancel(reason) {
         chunks.length = 0;
-        const cancellation = reader.cancel(reason);
+        // Like session completion, delivery never waits on the source's
+        // cancel hook: an uncooperative stream must not hold the wire open.
+        void reader.cancel(reason).catch(() => undefined);
         session.abort(reason);
-        await Promise.all([cancellation, session.completion]);
+        await session.completion;
         reader.releaseLock();
       },
     },
