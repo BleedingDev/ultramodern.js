@@ -65,6 +65,7 @@ export function assertPublicData(
     }
     const ownKeys = Reflect.ownKeys(object);
     const descriptors: PropertyDescriptor[] = [];
+    let hidden: string | undefined;
     for (const key of ownKeys) {
       const descriptor = Object.getOwnPropertyDescriptor(object, key)!;
       if (typeof key === 'symbol' || descriptor.get || descriptor.set) {
@@ -72,6 +73,14 @@ export function assertPublicData(
           'Public data must not contain symbols or accessors',
         );
       }
+      // Serialization enumerates a plain object's own keys, so a hidden
+      // property would vanish on the client. Arrays are written by index, and
+      // native containers reject own properties below.
+      if (
+        !descriptor.enumerable &&
+        (prototype === Object.prototype || prototype === null)
+      )
+        hidden ??= key;
       descriptors.push(descriptor);
     }
     if (
@@ -91,6 +100,10 @@ export function assertPublicData(
     // Native serializers may read nonenumerable method overrides too. Validate
     // every own value before using a container, without calling its properties.
     for (const descriptor of descriptors) visit(descriptor.value, depth + 1);
+    if (hidden !== undefined)
+      throw new DataProtocolError(
+        `Public data must not contain non-enumerable properties (${hidden})`,
+      );
     try {
       if (prototype === Array.prototype && !Array.isArray(object)) {
         throw new TypeError('Missing native array slots');

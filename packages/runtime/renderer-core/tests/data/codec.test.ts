@@ -175,6 +175,18 @@ describe('public data codec', () => {
     expect(() => serializePublicData(/a/g)).not.toThrow();
   });
 
+  it('rejects hidden object properties the client would never receive', () => {
+    for (const value of [
+      Object.defineProperty({}, 'hidden', { enumerable: false, value: 1 }),
+      { nested: Object.defineProperty({}, 'hidden', { value: 'x' }) },
+      Object.defineProperty(Object.create(null), 'hidden', { value: 1 }),
+    ])
+      expect(() => serializePublicData(value)).toThrow(
+        /non-enumerable properties \(hidden\)/,
+      );
+    expect(() => serializePublicData({ visible: 1 })).not.toThrow();
+  });
+
   it('rejects private context hidden in nonenumerable properties', () => {
     for (const context of [
       new Headers({ authorization: 'secret' }),
