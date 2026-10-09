@@ -125,13 +125,17 @@ export function nativeCustomServerEntrySource(
   const entry = JSON.stringify(customServerEntry);
   return `import { assertRendererIdentity } from '@modern-js/renderer-core/identity';
 import { rejectNativeRscRequest } from '@modern-js/renderer-core/server';
+import { untilAborted } from '@modern-js/renderer-core/session';
 export const rendererIdentity = ${JSON.stringify(rendererIdentity)};
+// A module load that stalls, as a stuck development compilation can, must
+// not keep a disconnected request, its context and session alive.
+const loadHandler = context => untilAborted(import(${entry}), context.session.signal);
 export async function nativeRequestHandler(request, context) {
   const rejection = rejectNativeRscRequest(request);
   if (rejection) return rejection;
   assertRendererIdentity(context.entry, rendererIdentity);
   assertRendererIdentity(context.session.identity, rendererIdentity);
-  const handler = await import(${entry});
+  const handler = await loadHandler(context);
   const execute = handler.nativeRequestHandler ?? handler.default;
   if (typeof execute !== 'function') throw new Error('The native custom server entry must export a Fetch handler');
   return execute(request, context);
@@ -141,7 +145,7 @@ export async function nativeCSRRequestHandler(request, context) {
   if (rejection) return rejection;
   assertRendererIdentity(context.entry, rendererIdentity);
   assertRendererIdentity(context.session.identity, rendererIdentity);
-  const handler = await import(${entry});
+  const handler = await loadHandler(context);
   // A CSR handler serves routes outside ssrByRouteIds; without one, the
   // authored Fetch handler renders every document itself.
   const execute = handler.nativeCSRRequestHandler ?? handler.nativeRequestHandler ?? handler.default;
@@ -151,7 +155,7 @@ export async function nativeCSRRequestHandler(request, context) {
 export async function nativeMatchRouteIds(request, context) {
   assertRendererIdentity(context.entry, rendererIdentity);
   assertRendererIdentity(context.session.identity, rendererIdentity);
-  const handler = await import(${entry});
+  const handler = await loadHandler(context);
   if (typeof handler.nativeMatchRouteIds !== 'function') throw new Error('unsupported-renderer-capability: ssrByRouteIds requires the native custom server entry to export nativeMatchRouteIds');
   return handler.nativeMatchRouteIds(request, context);
 }

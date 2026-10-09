@@ -1,5 +1,6 @@
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import * as identityModule from '@modern-js/renderer-core/identity';
+import * as sessionModule from '@modern-js/renderer-core/session';
 import { rspack } from '@rsbuild/core';
 import { describe, expect, it } from '@rstest/core';
 import { nativeCustomServerEntrySource } from '../../src/native-composition/native-infrastructure';
@@ -27,6 +28,7 @@ async function wrapper(authored: Record<string, unknown>) {
     '@modern-js/renderer-core/server': {
       rejectNativeRscRequest: () => undefined,
     },
+    '@modern-js/renderer-core/session': sessionModule,
     [AUTHORED]: { __esModule: true, ...authored },
   };
   const exports: Record<string, any> = {};
@@ -40,7 +42,7 @@ async function wrapper(authored: Record<string, unknown>) {
 const request = new Request('https://example.test/items');
 const context = {
   entry: identity,
-  session: { identity },
+  session: { identity, signal: new AbortController().signal },
 } as never;
 
 describe('native custom server entry', () => {
@@ -81,5 +83,24 @@ describe('native custom server entry', () => {
     await expect(entry.nativeMatchRouteIds(request, context)).rejects.toThrow(
       'ssrByRouteIds requires the native custom server entry to export nativeMatchRouteIds',
     );
+  });
+
+  it('stops waiting for an authored module that never loads once the request aborts', async () => {
+    // The generated import adopts this thenable module and never settles.
+    const entry = await wrapper({ then() {} });
+    for (const handler of [
+      'nativeRequestHandler',
+      'nativeCSRRequestHandler',
+      'nativeMatchRouteIds',
+    ]) {
+      const controller = new AbortController();
+      const pending = entry[handler](request, {
+        entry: identity,
+        session: { identity, signal: controller.signal },
+      });
+      const reason = new Error(`${handler} request disconnected`);
+      controller.abort(reason);
+      await expect(pending).rejects.toBe(reason);
+    }
   });
 });
