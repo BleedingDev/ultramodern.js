@@ -161,7 +161,11 @@ async function chooseCSR<Bindings extends object>(
       'unsupported-renderer-capability: ssrByRouteIds requires native route matching.',
     );
   }
-  const matchedIds = await manifest.nativeMatchRouteIds(request, context);
+  // An authored matcher that ignores cancellation must not hold the request.
+  const matchedIds = await untilAborted(
+    manifest.nativeMatchRouteIds(request, context),
+    context.session.signal,
+  );
   const leafId = matchedIds.at(-1);
   return !leafId || !selectedIds.includes(leafId);
 }

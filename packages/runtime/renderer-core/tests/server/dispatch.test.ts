@@ -224,6 +224,34 @@ describe('production native Node Fetch dispatch', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it('stops waiting for a selective-SSR matcher after request cancellation', async () => {
+    const controller = new AbortController();
+    let matched!: () => void;
+    const matchStarted = new Promise<void>(resolve => {
+      matched = resolve;
+    });
+    const handler = rstest.fn();
+    const dispatched = dispatchNativeNodeRequest(
+      new Request('https://example.test/', { signal: controller.signal }),
+      options(handler, {
+        context: { bindings: {}, serverConfig: { ssrByRouteIds: ['main'] } },
+        loadManifest: () => ({
+          rendererIdentity: identity,
+          nativeRequestHandler: handler,
+          nativeCSRRequestHandler: handler,
+          nativeMatchRouteIds: () => {
+            matched();
+            return new Promise(() => {});
+          },
+        }),
+      }),
+    );
+    await matchStarted;
+    controller.abort(new Error('client disconnected'));
+    await expect(dispatched).rejects.toThrow('client disconnected');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('stops waiting for a cache lookup after request cancellation', async () => {
     const controller = new AbortController();
     let looked!: () => void;
