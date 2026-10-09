@@ -173,6 +173,32 @@ describe('native Octane public router snapshots', () => {
     expect(decoded.map.get(decoded.shared)).toBe(decoded.date);
   });
 
+  it('stops waiting for a custom dehydrate hook after the request aborts', async () => {
+    const owner = session();
+    const late = deferred<unknown>();
+    let started!: () => void;
+    const begun = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    const fixture = await nativeFixture({
+      owner,
+      dehydrate: () => {
+        started();
+        return late.promise;
+      },
+    });
+    const pending = (
+      fixture.router.options.dehydrate as () => Promise<unknown>
+    )();
+    await begun;
+    const reason = new Error('request cancelled while dehydrating');
+    owner.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    // A late failure of the abandoned hook is observed, not unhandled.
+    late.reject(new Error('late dehydrate failure'));
+    await flush();
+  });
+
   it.each(['critical', 'promise'] as const)(
     'never reads a %s constructor installed during the native asynchronous dehydrate hook',
     async kind => {

@@ -2,7 +2,10 @@ import {
   createRequestDataPolicy,
   publicDataError,
 } from '@modern-js/renderer-core/data';
-import type { RequestSession } from '@modern-js/renderer-core/session';
+import {
+  type RequestSession,
+  untilAborted,
+} from '@modern-js/renderer-core/session';
 import {
   type AnyRouter,
   createSerializationAdapter,
@@ -425,9 +428,14 @@ export function prepareOctaneRouterSerialization(
   const wrappedDehydrate = async () => {
     try {
       assertMatches();
+      // An authored hook that ignores cancellation must not hold the router,
+      // session and data policy this continuation captures.
       const result =
         typeof consumerDehydrate === 'function'
-          ? await Reflect.apply(consumerDehydrate, router.options, [])
+          ? await untilAborted(
+              Reflect.apply(consumerDehydrate, router.options, []),
+              session.signal,
+            )
           : undefined;
       assertMatches();
       return result;
