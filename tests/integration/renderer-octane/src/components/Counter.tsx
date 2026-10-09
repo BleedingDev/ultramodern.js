@@ -3,7 +3,7 @@ import { useSignal$ } from 'octane/signals/client';
 
 export default function Counter() {
   const count$ = useSignal$(0);
-  const button = useRef<HTMLButtonElement>(null);
+  const button = useRef<HTMLButtonElement | null>(null);
   // Effects run only once the browser has hydrated the counter.
   useEffect(() => {
     button.current?.setAttribute('data-hydrated', '');
