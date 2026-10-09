@@ -205,7 +205,9 @@ async function readDeferredResponse(
       ) {
         throw new DataProtocolError('Initial stream frame needs deferred keys');
       }
-      const value = { ...(envelope.outcome.value as Record<string, unknown>) };
+      // The decoded critical record itself receives the promises, keeping
+      // its identity, self-references and prototype.
+      const value = envelope.outcome.value as Record<string, unknown>;
       for (const key of envelope.deferredKeys) {
         const promise = new Promise<unknown>((resolve, rejectPromise) => {
           pending.set(key, { resolve, reject: rejectPromise });

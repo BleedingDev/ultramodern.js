@@ -1317,6 +1317,25 @@ describe('deferred data stream', () => {
     expect(await value.late).toBe('<script>');
   });
 
+  it('keeps a cyclic, null-prototype critical record when installing deferred values', async () => {
+    const critical = Object.create(null) as Record<string, unknown>;
+    critical.name = 'tractor';
+    critical.self = critical;
+    const outcome = await normalizeDataResult(
+      deferData(critical, { late: Promise.resolve('later') }),
+    );
+    const value = success(
+      await readDataResponse(
+        createDataResponse(outcome, identity, expected),
+        expected,
+      ),
+    ) as { self: unknown; name: string; late: Promise<string> };
+    expect(value.self).toBe(value);
+    expect(Object.getPrototypeOf(value)).toBeNull();
+    expect(value.name).toBe('tractor');
+    expect(await value.late).toBe('later');
+  });
+
   it('rejects truncated and unexpected deferred frames deterministically', async () => {
     const outcome = await normalizeDataResult(
       deferData({}, { late: Promise.resolve(1) }),
