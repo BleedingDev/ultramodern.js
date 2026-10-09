@@ -79,21 +79,21 @@ export function useI18n(): UseI18nReturn {
     };
     if (!current()) return converge();
     if (!router) return;
-    // A failed or blocked navigation leaves the page on its URL, so the
-    // language returns to the one that URL renders, unless a later switch
-    // has taken over.
+    const localizeHref = (href: string, language: string) =>
+      localizePath(href, language, {
+        languages: [...languages],
+        localisedUrls,
+      });
+    // A failed, blocked or redirected navigation leaves the page on another
+    // URL, so the language follows that URL, unless a later switch has taken
+    // over.
     // The language the current URL renders, read after earlier switches'
     // navigations settled; the call's own snapshot only backs it up.
     const urlLanguage = () => {
       const href = router.state.location.href;
       return (
-        languages.find(
-          language =>
-            localizePath(href, language, {
-              languages: [...languages],
-              localisedUrls,
-            }) === href,
-        ) ?? previous
+        languages.find(language => localizeHref(href, language) === href) ??
+        previous
       );
     };
     const restore = async () => {
@@ -118,17 +118,16 @@ export function useI18n(): UseI18nReturn {
       if (!current()) return converge();
       // The full href keeps the query and fragment across the language switch.
       const from = router.state.location.href;
-      const href = localizePath(from, nextLanguage, {
-        languages: [...languages],
-        localisedUrls,
-      });
+      const href = localizeHref(from, nextLanguage);
       try {
         await router.navigate({ to: '.', href, replace: true });
       } catch (error) {
         await restore();
         throw error;
       }
-      if (href !== from && router.state.location.href === from) await restore();
+      // A blocked or redirected navigation settles on another URL; the
+      // language follows the URL it settled on.
+      if (router.state.location.href !== href) await restore();
       if (!current()) await converge();
     } finally {
       settle();

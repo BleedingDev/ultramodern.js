@@ -315,6 +315,57 @@ describe('Octane i18n binding', () => {
       );
       expect(instance.language).toBe('cs');
       router.navigate = realNavigate as never;
+      // A navigation redirected to another locale's URL leaves the language
+      // on the locale that URL represents.
+      router.navigate = ((options: never) =>
+        realNavigate({
+          ...(options as object),
+          href: '/en/login',
+        } as never)) as never;
+      await binding!.changeLanguage('cs');
+      expect(router.state.location.pathname).toBe('/en/login');
+      expect(instance.language).toBe('en');
+      router.navigate = realNavigate as never;
+    } finally {
+      octaneRoot.unmount();
+      root.remove();
+    }
+  });
+
+  test('changeLanguage keeps the router basepath', async () => {
+    const instance = createFakeI18nInstance('en');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    const Capture = () => {
+      binding = useI18n();
+      return null;
+    };
+    const router = createRouter({
+      routeTree: createRootRoute({
+        component: () =>
+          createElement(I18nProvider, {
+            instance,
+            languages: ['en', 'cs'],
+            children: createElement(Capture),
+          }),
+      }),
+      history: createMemoryHistory({
+        initialEntries: ['/store/en/products?sort=price'],
+      }),
+      basepath: '/store',
+      isServer: false,
+    });
+    await router.load();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const octaneRoot = createRoot(root);
+    flushSync(() =>
+      octaneRoot.render(createElement(ApplicationRouter as any, { router })),
+    );
+    try {
+      await binding!.changeLanguage('cs');
+      expect(router.history.location.pathname).toBe('/store/cs/products');
+      expect(router.history.location.search).toBe('?sort=price');
+      expect(instance.language).toBe('cs');
     } finally {
       octaneRoot.unmount();
       root.remove();

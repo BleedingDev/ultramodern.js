@@ -280,6 +280,58 @@ describe('Solid i18n binding', () => {
       );
       expect(instance.language).toBe('cs');
       router.navigate = realNavigate as never;
+      // A navigation redirected to another locale's URL leaves the language
+      // on the locale that URL represents.
+      router.navigate = ((options: never) =>
+        realNavigate({
+          ...(options as object),
+          href: '/en/login',
+        } as never)) as never;
+      await binding!.changeLanguage('cs');
+      expect(router.state.location.pathname).toBe('/en/login');
+      expect(instance.language).toBe('en');
+      router.navigate = realNavigate as never;
+    } finally {
+      dispose();
+      flush();
+    }
+  });
+
+  test('changeLanguage keeps the router basepath', async () => {
+    const instance = createFakeI18nInstance('en');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    function Capture() {
+      binding = useI18n();
+      return null;
+    }
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({
+        initialEntries: ['/store/en/products?sort=price'],
+      }),
+      basepath: '/store',
+      isServer: false,
+    });
+    await router.load();
+    const root = document.createElement('div');
+    const dispose = mountApplication(
+      () => (
+        <RouterContextProvider router={router}>
+          {() => (
+            <I18nProvider instance={instance} languages={['en', 'cs']}>
+              <Capture />
+            </I18nProvider>
+          )}
+        </RouterContextProvider>
+      ),
+      root,
+    );
+    try {
+      flush();
+      await binding!.changeLanguage('cs');
+      expect(router.history.location.pathname).toBe('/store/cs/products');
+      expect(router.history.location.search).toBe('?sort=price');
+      expect(instance.language).toBe('cs');
     } finally {
       dispose();
       flush();
