@@ -1,6 +1,6 @@
 import { createNativeI18n } from '@modern-js/i18n-runtime-extensions/native';
 import { createI18nUrlRewrite } from '@modern-js/i18n-runtime-extensions/urlRewrite';
-import { createSignal, flush } from 'solid-js';
+import { createSignal, Errored, flush } from 'solid-js';
 import { mountApplication } from '../../src/client';
 import { I18nProvider } from '../../src/i18n/I18nProvider';
 import { LocalizedLink } from '../../src/i18n/LocalizedLink';
@@ -252,6 +252,54 @@ describe('Solid i18n binding', () => {
       expect(router.state.location.pathname).toBe('/CS/login');
       expect(instance.language).toBe('cs');
       router.navigate = realNavigate as never;
+    } finally {
+      dispose();
+      flush();
+    }
+  });
+
+  test('an explicit link language resolves to a configured language or throws', async () => {
+    const instance = createFakeI18nInstance('en');
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({ initialEntries: ['/en/dashboard'] }),
+      isServer: false,
+    });
+    await router.load();
+    const root = document.createElement('div');
+    const dispose = mountApplication(
+      () => (
+        <RouterContextProvider router={router}>
+          {() => (
+            <I18nProvider instance={instance} languages={['en', 'cs']}>
+              <LocalizedLink to="/products" language="CS">
+                Česky
+              </LocalizedLink>
+              <Errored
+                fallback={(error: () => unknown) => (
+                  <p data-testid="link-error">{String(error())}</p>
+                )}
+              >
+                <LocalizedLink to="/products" language="de">
+                  Deutsch
+                </LocalizedLink>
+              </Errored>
+            </I18nProvider>
+          )}
+        </RouterContextProvider>
+      ),
+      root,
+    );
+    try {
+      flush();
+      const anchors = root.querySelectorAll('a');
+      expect(anchors).toHaveLength(1);
+      expect(anchors[0].getAttribute('href')).toBe('/cs/products');
+      expect(anchors[0].getAttribute('hreflang')).toBe('cs');
+      // An unconfigured language never becomes a locale prefix.
+      expect(
+        root.querySelector('[data-testid="link-error"]')?.textContent,
+      ).toBe('RangeError: Unsupported language "de"; expected one of: en, cs');
     } finally {
       dispose();
       flush();

@@ -1,5 +1,6 @@
 import {
   canonicalPath,
+  configuredLanguage,
   localizePath,
 } from '@modern-js/i18n-runtime-extensions/paths';
 import { createElement, hookSlots, type OctaneNode, useContext } from 'octane';
@@ -58,7 +59,11 @@ export function LocalizedLink(props: LocalizedLinkProps): OctaneNode {
   }
   const router = useRouter();
 
-  const language = props.language ?? context.language;
+  // An explicit language must be configured: it becomes the locale prefix.
+  const language =
+    props.language === undefined
+      ? context.language
+      : configuredLanguage(props.language, context.languages);
   const href = localizePath(props.to, language, {
     languages: [...context.languages],
     localisedUrls: context.localisedUrls,

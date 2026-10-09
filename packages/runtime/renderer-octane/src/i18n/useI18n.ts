@@ -1,4 +1,7 @@
-import { localizePath } from '@modern-js/i18n-runtime-extensions/paths';
+import {
+  configuredLanguage,
+  localizePath,
+} from '@modern-js/i18n-runtime-extensions/paths';
 import { languageFromPathname } from '@modern-js/i18n-runtime-extensions/request-language';
 import { useContext } from 'octane';
 import { useRouter } from '../router';
@@ -49,18 +52,15 @@ export function useI18n(): UseI18nReturn {
   const router = useRouter({ warn: false });
 
   const changeLanguage = (requested: string): Promise<void> => {
-    // Only a configured language has a locale prefix: i18next would fall back
-    // silently and the URL would gain an unknown segment. An unsupported
-    // request is rejected before it supersedes any queued switch.
-    const nextLanguage = languages.find(
-      language => language.toLowerCase() === String(requested).toLowerCase(),
-    );
-    if (nextLanguage === undefined)
-      return Promise.reject(
-        new RangeError(
-          `Unsupported language "${requested}"; expected one of: ${languages.join(', ')}`,
-        ),
-      );
+    // i18next would fall back silently and the URL would gain an unknown
+    // segment. An unsupported request is rejected before it supersedes any
+    // queued switch.
+    let nextLanguage: string;
+    try {
+      nextLanguage = configuredLanguage(requested, languages);
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const state = languageSwitches.get(instance) ?? {
       latest: 0,
       queue: Promise.resolve(),

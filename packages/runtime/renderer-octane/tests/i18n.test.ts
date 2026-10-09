@@ -293,6 +293,32 @@ describe('Octane i18n binding', () => {
     }
   });
 
+  test('an explicit link language resolves to a configured language or throws', async () => {
+    const configured = await mount(createFakeI18nInstance('en'), false, '/', {
+      language: 'CS',
+    });
+    try {
+      const anchor = configured.root.querySelector('a');
+      expect(anchor?.getAttribute('href')).toBe('/cs/products');
+      expect(anchor?.getAttribute('hreflang')).toBe('cs');
+    } finally {
+      configured.dispose();
+    }
+    let rejected: Awaited<ReturnType<typeof mount>> | undefined;
+    try {
+      rejected = await mount(createFakeI18nInstance('en'), false, '/', {
+        language: 'de',
+      });
+      // The route renders its error instead of a link to an unknown locale.
+      expect(rejected.root.querySelector('a')).toBeNull();
+      expect(rejected.root.textContent).toContain(
+        'Unsupported language "de"; expected one of: en, cs',
+      );
+    } finally {
+      rejected?.dispose();
+    }
+  });
+
   test('changeLanguage keeps the router basepath', async () => {
     const instance = createFakeI18nInstance('en');
     let binding: ReturnType<typeof useI18n> | undefined;

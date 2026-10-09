@@ -1,5 +1,6 @@
 import {
   canonicalPath,
+  configuredLanguage,
   localizePath,
 } from '@modern-js/i18n-runtime-extensions/paths';
 import type { JSX } from '@solidjs/web';
@@ -53,7 +54,11 @@ export function LocalizedLink(props: LocalizedLinkProps): JSX.Element {
   const router = useRouter();
   const rewrite = Boolean(router.options.rewrite);
 
-  const targetLanguage = () => props.language ?? context.language();
+  // An explicit language must be configured: it becomes the locale prefix.
+  const targetLanguage = () =>
+    props.language === undefined
+      ? context.language()
+      : configuredLanguage(props.language, context.languages);
   const href = Solid.createMemo(() =>
     localizePath(props.to, targetLanguage(), {
       languages: [...context.languages],

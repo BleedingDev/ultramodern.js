@@ -12,6 +12,25 @@ export interface LocalizedPathsConfig {
   localisedUrls?: LocalisedUrlsOption;
 }
 
+/**
+ * The configured spelling of a requested language, matched case-insensitively.
+ * Only a configured language has a locale prefix, so anything else throws
+ * rather than becoming an unknown path segment.
+ */
+export const configuredLanguage = (
+  requested: string,
+  languages: readonly string[],
+): string => {
+  const language = languages.find(
+    candidate => candidate.toLowerCase() === String(requested).toLowerCase(),
+  );
+  if (language === undefined)
+    throw new RangeError(
+      `Unsupported language "${requested}"; expected one of: ${languages.join(', ')}`,
+    );
+  return language;
+};
+
 /** Synchronous mapped URL construction, independent of React/plugin setup. */
 export const buildLocalizedUrl = (
   target: string,
