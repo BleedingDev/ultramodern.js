@@ -331,6 +331,12 @@ export async function readDataResponse(
 }
 
 /**
+ * A payload wraps one data response as a JSON string, whose escaping can
+ * grow it up to six times.
+ */
+const STATIC_PAYLOAD_MAX_BYTES = MAX_DATA_BYTES * 6 + 1024;
+
+/**
  * A prerendered document can be hosted without a server. Its search-free
  * loader payloads were captured beside it at build time; anything missing
  * falls through to the server data request.
@@ -358,8 +364,16 @@ async function readStaticPayload(
   }
   let payload: unknown;
   try {
-    payload = await response.json();
+    // Read like any data response: bounded, and cancelled with the request.
+    payload = JSON.parse(
+      await readBoundedDataText(
+        response,
+        request.signal,
+        STATIC_PAYLOAD_MAX_BYTES,
+      ),
+    );
   } catch {
+    request.signal.throwIfAborted();
     return undefined;
   }
   if (!isStaticDataPayload(payload)) return undefined;

@@ -82,6 +82,46 @@ describe('static loader payloads', () => {
     ]);
   });
 
+  it('cancels a pending static payload body when the loader aborts', async () => {
+    prerenderedDocument(true);
+    const controller = new AbortController();
+    let cancelled: unknown;
+    let served!: () => void;
+    const fetched = new Promise<void>(resolve => {
+      served = resolve;
+    });
+    const requested: string[] = [];
+    const client = createDataClient('products/(id)/page', identity, {
+      fetch: (async (input: Request | URL) => {
+        requested.push(String(input instanceof Request ? input.url : input));
+        served();
+        // A body that is not coupled to the request signal.
+        return new Response(
+          new ReadableStream({
+            start(source) {
+              source.enqueue(new TextEncoder().encode('{"status":'));
+            },
+            cancel(reason) {
+              cancelled = reason;
+            },
+          }),
+        );
+      }) as typeof fetch,
+    });
+    const loading = client.loader({
+      request: new Request('https://example.test/products/7', {
+        signal: controller.signal,
+      }),
+    });
+    await fetched;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    controller.abort(new Error('superseded'));
+    await expect(loading).rejects.toThrow('superseded');
+    expect(cancelled).toBeInstanceOf(Error);
+    // An aborted read never falls back to a server data request.
+    expect(requested).toHaveLength(1);
+  });
+
   it('falls back to the server request when a payload is missing or the document is live', async () => {
     const payload = await payloadFor({ name: 'live' });
     for (const prerendered of [true, false]) {

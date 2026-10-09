@@ -4,6 +4,7 @@ import { DataProtocolError, MAX_DATA_BYTES } from './codec';
 export async function readBoundedDataText(
   response: Response,
   signal?: AbortSignal,
+  maxBytes = MAX_DATA_BYTES,
 ): Promise<string> {
   signal?.throwIfAborted();
   if (!response.body) return '';
@@ -21,7 +22,7 @@ export async function readBoundedDataText(
       signal?.throwIfAborted();
       if (result.done) break;
       bytes += result.value.byteLength;
-      if (bytes > MAX_DATA_BYTES) {
+      if (bytes > maxBytes) {
         throw new DataProtocolError('Public data exceeds its byte limit');
       }
       text += decoder.decode(result.value, { stream: true });
