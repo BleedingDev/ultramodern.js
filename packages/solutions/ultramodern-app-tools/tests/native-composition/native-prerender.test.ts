@@ -112,6 +112,34 @@ describe('native prerender route selection', () => {
     ).toBeUndefined();
   });
 
+  it('mounts each route under its longest base on a path-segment boundary', () => {
+    const pageRoutes = [
+      pageRoute('index', '/apple'),
+      pageRoute('index', '/app'),
+      pageRoute('index', '/app/shop'),
+      pageRoute('index', '/application'),
+    ];
+    for (const baseUrl of [
+      ['/', '/apple', '/app'],
+      ['/app', '/apple', '/'],
+    ])
+      expect(
+        resolveEntrySsgOptions({
+          ssg: (_entryName, context) => ({
+            headers: { base: String(context.baseUrl) },
+          }),
+          entryNames: ['index'],
+          pageRoutes,
+          baseUrl,
+        }),
+      ).toEqual({
+        '/apple': { headers: { base: '/apple' } },
+        '/app': { headers: { base: '/app' } },
+        '/app/shop': { headers: { base: '/app' } },
+        '/application': { headers: { base: '/' } },
+      });
+  });
+
   it('prerenders static file-system routes into the plugin-ssg output layout', () => {
     const routes = resolvePrerenderRoutes({
       pageRoutes: [pageRoute('index', '/')],

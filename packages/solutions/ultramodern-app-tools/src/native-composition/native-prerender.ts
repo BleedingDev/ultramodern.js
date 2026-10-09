@@ -131,10 +131,22 @@ export function resolveEntrySsgOptions(options: {
       result[entryName] = factory(entryName, { baseUrl });
       return;
     }
-    for (const url of baseUrl)
-      for (const route of pageRoutes)
-        if (route.entryName === entryName && route.urlPath.startsWith(url))
-          result[route.urlPath] = factory(entryName, { baseUrl: url });
+    // A route belongs to the longest base it sits under on a path-segment
+    // boundary, so `/apple` is not under `/app` and array order is irrelevant.
+    for (const route of pageRoutes) {
+      if (route.entryName !== entryName) continue;
+      const mount = baseUrl
+        .filter(url => isUnderBase(route.urlPath, url))
+        .reduce<string | undefined>(
+          (longest, url) =>
+            longest === undefined || url.length > longest.length
+              ? url
+              : longest,
+          undefined,
+        );
+      if (mount !== undefined)
+        result[route.urlPath] = factory(entryName, { baseUrl: mount });
+    }
   };
   if (ssgByEntries && Object.keys(ssgByEntries).length > 0) {
     const result: ResolvedEntryOptions = {};
@@ -280,6 +292,13 @@ export function localizePrerenderRoutes(
 }
 
 /** Mark the document so the data client replays static loader payloads. */
+function isUnderBase(urlPath: string, base: string): boolean {
+  return (
+    urlPath === base ||
+    urlPath.startsWith(base.endsWith('/') ? base : `${base}/`)
+  );
+}
+
 export function markPrerenderedDocument(html: string): string {
   const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
   // A `</head>` is text inside raw-text and RCDATA elements (script, style,
