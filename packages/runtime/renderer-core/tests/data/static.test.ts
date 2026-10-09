@@ -82,6 +82,29 @@ describe('static loader payloads', () => {
     ]);
   });
 
+  it('stops waiting for a static payload fetch that ignores the aborted loader', async () => {
+    prerenderedDocument(true);
+    const controller = new AbortController();
+    let fetching!: () => void;
+    const started = new Promise<void>(resolve => {
+      fetching = resolve;
+    });
+    const client = createDataClient('products/(id)/page', identity, {
+      fetch: (() => {
+        fetching();
+        return new Promise<never>(() => {});
+      }) as typeof fetch,
+    });
+    const loading = client.loader({
+      request: new Request('https://example.test/products/7', {
+        signal: controller.signal,
+      }),
+    });
+    await started;
+    controller.abort(new Error('superseded'));
+    await expect(loading).rejects.toThrow('superseded');
+  });
+
   it('cancels a pending static payload body when the loader aborts', async () => {
     prerenderedDocument(true);
     const controller = new AbortController();

@@ -6,7 +6,11 @@ export async function readBoundedDataText(
   signal?: AbortSignal,
   maxBytes = MAX_DATA_BYTES,
 ): Promise<string> {
-  signal?.throwIfAborted();
+  if (signal?.aborted) {
+    // A response that arrived as its request aborted is released unread.
+    void response.body?.cancel(signal.reason).catch(() => undefined);
+    signal.throwIfAborted();
+  }
   if (!response.body) return '';
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8', { fatal: true });

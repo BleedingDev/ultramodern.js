@@ -1,3 +1,4 @@
+import { untilAborted } from '../abort';
 import { assertRendererIdentity, type RendererIdentity } from '../identity';
 import { readBoundedDataText } from './body';
 import { DataProtocolError, MAX_DATA_BYTES, parsePublicData } from './codec';
@@ -350,9 +351,13 @@ async function readStaticPayload(
   if (url.search || !isPrerenderedDocument()) return undefined;
   let response: Response;
   try {
-    response = await fetchData(
-      new URL(staticDataPayloadPath(url.pathname, routeId), url),
-      { credentials: 'same-origin', signal: request.signal },
+    // An injected fetch that ignores the signal must not hold the loader.
+    response = await untilAborted(
+      fetchData(new URL(staticDataPayloadPath(url.pathname, routeId), url), {
+        credentials: 'same-origin',
+        signal: request.signal,
+      }),
+      request.signal,
     );
   } catch {
     request.signal.throwIfAborted();
@@ -457,11 +462,14 @@ export function createDataClient(
       body: operation === 'action' ? await bufferRequestBody(request) : null,
       signal: request.signal,
     });
-    const response = await fetchData(proxyRequest, {
-      credentials: 'same-origin',
-      redirect: 'manual',
-      signal: request.signal,
-    });
+    const response = await untilAborted(
+      fetchData(proxyRequest, {
+        credentials: 'same-origin',
+        redirect: 'manual',
+        signal: request.signal,
+      }),
+      request.signal,
+    );
     return readDataResponse(
       response,
       { identity, routeId, operation },

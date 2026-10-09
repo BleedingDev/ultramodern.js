@@ -1513,6 +1513,30 @@ describe('client data proxies', () => {
     }
   });
 
+  it('stops waiting for an injected fetch that ignores the aborted request', async () => {
+    for (const operation of ['loader', 'action'] as const) {
+      const controller = new AbortController();
+      let fetching!: () => void;
+      const started = new Promise<void>(resolve => {
+        fetching = resolve;
+      });
+      const client = createDataClient('products', identity, {
+        fetch: (() => {
+          fetching();
+          return new Promise<never>(() => {});
+        }) as typeof fetch,
+      });
+      const request = new Request('https://example.test/products', {
+        method: operation === 'loader' ? 'GET' : 'POST',
+        signal: controller.signal,
+      });
+      const pending = client[operation]({ request });
+      await started;
+      controller.abort(new Error(`${operation} superseded`));
+      await expect(pending).rejects.toThrow(`${operation} superseded`);
+    }
+  });
+
   it('cancels a pending action body when the request aborts', async () => {
     const controller = new AbortController();
     let cancelled: unknown;
