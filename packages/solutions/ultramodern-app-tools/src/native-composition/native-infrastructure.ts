@@ -136,7 +136,18 @@ export async function nativeRequestHandler(request, context) {
   if (typeof execute !== 'function') throw new Error('The native custom server entry must export a Fetch handler');
   return execute(request, context);
 }
-export const nativeCSRRequestHandler = nativeRequestHandler;
+export async function nativeCSRRequestHandler(request, context) {
+  const rejection = rejectNativeRscRequest(request);
+  if (rejection) return rejection;
+  assertRendererIdentity(context.entry, rendererIdentity);
+  assertRendererIdentity(context.session.identity, rendererIdentity);
+  const handler = await import(${entry});
+  // A CSR handler serves routes outside ssrByRouteIds; without one, the
+  // authored Fetch handler renders every document itself.
+  const execute = handler.nativeCSRRequestHandler ?? handler.nativeRequestHandler ?? handler.default;
+  if (typeof execute !== 'function') throw new Error('The native custom server entry must export a Fetch handler');
+  return execute(request, context);
+}
 export async function nativeMatchRouteIds(request, context) {
   assertRendererIdentity(context.entry, rendererIdentity);
   assertRendererIdentity(context.session.identity, rendererIdentity);

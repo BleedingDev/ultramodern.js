@@ -58,6 +58,24 @@ describe('native custom server entry', () => {
     ).toBe('custom');
   });
 
+  it('serves CSR documents through the authored CSR handler when it has one', async () => {
+    const split = await wrapper({
+      nativeRequestHandler: () => new Response('ssr'),
+      nativeCSRRequestHandler: () => new Response('csr'),
+    });
+    expect(
+      await (await split.nativeCSRRequestHandler(request, context)).text(),
+    ).toBe('csr');
+    expect(
+      await (await split.nativeRequestHandler(request, context)).text(),
+    ).toBe('ssr');
+    // Without one, the authored Fetch handler renders every document.
+    const single = await wrapper({ default: () => new Response('custom') });
+    expect(
+      await (await single.nativeCSRRequestHandler(request, context)).text(),
+    ).toBe('custom');
+  });
+
   it('names the missing matcher when selective SSR needs one', async () => {
     const entry = await wrapper({ default: () => new Response('custom') });
     await expect(entry.nativeMatchRouteIds(request, context)).rejects.toThrow(
