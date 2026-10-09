@@ -420,6 +420,40 @@ describe('native prerender output', () => {
     );
   });
 
+  it('stops reading a payload stream as soon as it exceeds the replay limit', async () => {
+    // An endless deferred stream: buffering it whole would never finish.
+    let produced = 0;
+    let cancelled = false;
+    const frame = new TextEncoder().encode(`${'x'.repeat(64 * 1024)}\n`);
+    await expect(
+      prerenderRoute({
+        route,
+        entry: {} as never,
+        loaderRouteIds: ['items/(id)/page'],
+        distDirectory,
+        dispatch: async (_entry, request) =>
+          new URL(request.url).searchParams.has('__loader')
+            ? new Response(
+                new ReadableStream({
+                  pull(controller) {
+                    produced += frame.byteLength;
+                    controller.enqueue(frame);
+                  },
+                  cancel() {
+                    cancelled = true;
+                  },
+                }),
+                { headers: { 'content-type': DATA_STREAM_CONTENT_TYPE } },
+              )
+            : new Response('<html><head></head><body></body></html>', {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              }),
+      }),
+    ).rejects.toThrow(/exceeds the \d+ bytes the data client replays/);
+    expect(cancelled).toBe(true);
+    expect(produced).toBeLessThan(STATIC_DATA_PAYLOAD_MAX_BYTES * 2);
+  });
+
   it('fails the build when a document does not render', async () => {
     await expect(
       prerenderRoute({
