@@ -114,6 +114,40 @@ async function findSource(
   return undefined;
 }
 
+/**
+ * The Node transport around an authored `index.server` Fetch handler: renderer
+ * identity, RSC rejection and, for `ssrByRouteIds`, the authored route matcher.
+ */
+export function nativeCustomServerEntrySource(
+  rendererIdentity: RendererIdentity,
+  customServerEntry: string,
+): string {
+  const entry = JSON.stringify(customServerEntry);
+  return `import { assertRendererIdentity } from '@modern-js/renderer-core/identity';
+import { rejectNativeRscRequest } from '@modern-js/renderer-core/server';
+export const rendererIdentity = ${JSON.stringify(rendererIdentity)};
+export async function nativeRequestHandler(request, context) {
+  const rejection = rejectNativeRscRequest(request);
+  if (rejection) return rejection;
+  assertRendererIdentity(context.entry, rendererIdentity);
+  assertRendererIdentity(context.session.identity, rendererIdentity);
+  const handler = await import(${entry});
+  const execute = handler.nativeRequestHandler ?? handler.default;
+  if (typeof execute !== 'function') throw new Error('The native custom server entry must export a Fetch handler');
+  return execute(request, context);
+}
+export const nativeCSRRequestHandler = nativeRequestHandler;
+export async function nativeMatchRouteIds(request, context) {
+  assertRendererIdentity(context.entry, rendererIdentity);
+  assertRendererIdentity(context.session.identity, rendererIdentity);
+  const handler = await import(${entry});
+  if (typeof handler.nativeMatchRouteIds !== 'function') throw new Error('unsupported-renderer-capability: ssrByRouteIds requires the native custom server entry to export nativeMatchRouteIds');
+  return handler.nativeMatchRouteIds(request, context);
+}
+export default nativeRequestHandler;
+`;
+}
+
 /** Own native entry discovery and generated paths through existing CLI hooks. */
 export function nativeRendererInfrastructurePlugin(
   renderer: Exclude<Renderer, 'react'>,
@@ -401,22 +435,10 @@ export function nativeRendererInfrastructurePlugin(
               : undefined;
           const server = entrypoint.customServerEntry
             ? context.rendererIdentity
-              ? `import { assertRendererIdentity } from '@modern-js/renderer-core/identity';
-import { rejectNativeRscRequest } from '@modern-js/renderer-core/server';
-export const rendererIdentity = ${JSON.stringify(context.rendererIdentity)};
-export async function nativeRequestHandler(request, context) {
-  const rejection = rejectNativeRscRequest(request);
-  if (rejection) return rejection;
-  assertRendererIdentity(context.entry, rendererIdentity);
-  assertRendererIdentity(context.session.identity, rendererIdentity);
-  const handler = await import(${JSON.stringify(entrypoint.customServerEntry)});
-  const execute = handler.nativeRequestHandler ?? handler.default;
-  if (typeof execute !== 'function') throw new Error('The native custom server entry must export a Fetch handler');
-  return execute(request, context);
-}
-export const nativeCSRRequestHandler = nativeRequestHandler;
-export default nativeRequestHandler;
-`
+              ? nativeCustomServerEntrySource(
+                  context.rendererIdentity,
+                  entrypoint.customServerEntry,
+                )
               : `export { default } from ${JSON.stringify(entrypoint.customServerEntry)};\nexport * from ${JSON.stringify(entrypoint.customServerEntry)};\n`
             : generator
               ? await generator.server(context)
