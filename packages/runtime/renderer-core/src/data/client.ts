@@ -312,17 +312,28 @@ export async function readDataResponse(
   },
   signal?: AbortSignal,
 ): Promise<DecodedDataOutcome> {
-  signal?.throwIfAborted();
+  // A response rejected before its body is read is released, never left
+  // downloading.
+  const discard = (reason: unknown) => {
+    void response.body?.cancel(reason).catch(() => undefined);
+  };
+  if (signal?.aborted) {
+    discard(signal.reason);
+    signal.throwIfAborted();
+  }
   const contentType = response.headers
     .get('content-type')
     ?.split(';')[0]
     ?.trim();
   if (contentType === DATA_STREAM_CONTENT_TYPE)
     return readDeferredResponse(response, expected, signal);
-  if (contentType !== DATA_CONTENT_TYPE)
-    throw new DataProtocolError(
+  if (contentType !== DATA_CONTENT_TYPE) {
+    const error = new DataProtocolError(
       `Expected an UltraModern data response, received HTTP ${response.status}`,
     );
+    discard(error);
+    throw error;
+  }
   const value = parsePublicData(await readBoundedDataText(response, signal));
   signal?.throwIfAborted();
   assertEnvelope(value, expected);

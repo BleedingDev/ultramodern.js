@@ -1568,6 +1568,23 @@ describe('client data proxies', () => {
     expect(fetched).toBe(false);
   });
 
+  it('releases the body of a response it rejects by content type', async () => {
+    let cancelled: unknown;
+    const response = new Response(
+      new ReadableStream({
+        cancel(reason) {
+          cancelled = reason;
+        },
+      }),
+      { status: 502, headers: { 'content-type': 'text/html' } },
+    );
+    await expect(readDataResponse(response, expected)).rejects.toThrow(
+      /HTTP 502/,
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(cancelled).toBeInstanceOf(Error);
+  });
+
   it('does not accept a non-protocol server response or follow a native redirect itself', async () => {
     const proxy = createDataClient('products', identity, {
       fetch: (async () =>
