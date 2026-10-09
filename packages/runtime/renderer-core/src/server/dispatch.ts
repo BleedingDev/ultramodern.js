@@ -383,7 +383,11 @@ export async function dispatchNativeRequest<Bindings extends object>(
     const cacheAllowed = !csr && permitsCacheLookup(request);
     if (cacheAllowed && options.cache) {
       try {
-        const cached = await options.cache.get(cacheKey);
+        // A cache outage must not keep a cancelled request alive.
+        const cached = await untilAborted(
+          options.cache.get(cacheKey),
+          session.signal,
+        );
         if (
           cached &&
           isReusableDocument(cached, identityKey, requestMaxAgeSeconds(request))
@@ -413,6 +417,7 @@ export async function dispatchNativeRequest<Bindings extends object>(
           );
         }
       } catch (error) {
+        if (session.signal.aborted) throw error;
         options.onCacheError?.(error);
       }
     }

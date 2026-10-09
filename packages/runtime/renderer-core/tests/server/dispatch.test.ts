@@ -224,6 +224,34 @@ describe('production native Node Fetch dispatch', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it('stops waiting for a cache lookup after request cancellation', async () => {
+    const controller = new AbortController();
+    let looked!: () => void;
+    const lookupStarted = new Promise<void>(resolve => {
+      looked = resolve;
+    });
+    const handler = rstest.fn();
+    const onCacheError = rstest.fn();
+    const dispatched = dispatchNativeNodeRequest(
+      new Request('https://example.test/', { signal: controller.signal }),
+      options(handler, {
+        cache: {
+          get: () => {
+            looked();
+            return new Promise(() => {});
+          },
+          set: rstest.fn(),
+        },
+        onCacheError,
+      }),
+    );
+    await lookupStarted;
+    controller.abort(new Error('client disconnected'));
+    await expect(dispatched).rejects.toThrow('client disconnected');
+    expect(handler).not.toHaveBeenCalled();
+    expect(onCacheError).not.toHaveBeenCalled();
+  });
+
   it('stops waiting for a handler that ignores request cancellation', async () => {
     const controller = new AbortController();
     let finish!: (response: Response) => void;
