@@ -429,6 +429,20 @@ describe('production native Node Fetch dispatch', () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
+  it('ends the response without waiting for a stalled cache write', async () => {
+    const cache = store();
+    cache.set.mockImplementation(() => new Promise<void>(() => {}));
+    const response = await dispatchNativeNodeRequest(
+      new Request('https://example.test/'),
+      options(
+        (_request, context) => publicDocument('<html>native</html>', context),
+        { cache },
+      ),
+    );
+    expect(await response.text()).toBe('<html>native</html>');
+    expect(cache.set).toHaveBeenCalledTimes(1);
+  });
+
   it('replays a cached document with the Age elapsed since it was stored', async () => {
     const cache = store();
     const handler = rstest.fn((_request, context: NativeRequestContext) => {

@@ -287,7 +287,11 @@ function captureDocument<Bindings extends object>(
                 });
               return;
             }
-            await commit(delivered.headers);
+            // The write starts before EOF, but EOF never waits for it: a
+            // stalled cache must not hold a delivered response open.
+            void commit(delivered.headers).catch(error => {
+              options.onCacheError?.(error);
+            });
           }
           chunks.length = 0;
           controller.close();
