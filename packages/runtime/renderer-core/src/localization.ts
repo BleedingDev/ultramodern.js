@@ -48,6 +48,12 @@ export interface NativeEntryI18n<
    * Returns the cleanup that detaches it when the client entry is disposed.
    */
   syncWithRouter(router: object, instance: Instance): () => void;
+  /**
+   * Keep the document language and persisted language in step with the
+   * instance, for routed and component-only entries alike. Returns the
+   * cleanup that detaches it when the client entry is disposed.
+   */
+  persist?(instance: Instance): () => void;
 }
 
 /** What a renderer needs to provide localization to its application view. */

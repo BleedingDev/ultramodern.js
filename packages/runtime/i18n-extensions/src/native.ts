@@ -169,19 +169,22 @@ export function createNativeI18n(
           if (language) sync.request(language);
         },
       );
-      // Switches persist.
+      // A retired entry stops listening and retrying.
+      return () => {
+        unsubscribe();
+        sync.deactivate();
+      };
+    },
+    persist(instance) {
+      // Every language change reaches the document and the server's
+      // language detector, with or without a router.
       const persist = (language: string) => {
         document.documentElement.lang = language;
         // biome-ignore lint/suspicious/noDocumentCookie: the server's language detector reads this cookie; CookieStore is not in every browser.
         document.cookie = `${cookie}=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`;
       };
       instance.on('languageChanged', persist);
-      // A retired entry stops listening, retrying and persisting.
-      return () => {
-        unsubscribe();
-        sync.deactivate();
-        instance.off('languageChanged', persist);
-      };
+      return () => instance.off('languageChanged', persist);
     },
   };
 }

@@ -172,6 +172,11 @@ export function startNativeClientEntry<
         i18n.create(handoff.language, handoff.resources),
         signal,
       );
+      // Component-only and routed views both persist language changes; a
+      // replaced or failed entry stops.
+      const stopPersist = i18n.persist?.(instance);
+      if (stopPersist)
+        signal.addEventListener('abort', stopPersist, { once: true });
     }
     const current = instance;
     const localization =

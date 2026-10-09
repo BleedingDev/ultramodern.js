@@ -313,6 +313,52 @@ describe('generated native client entry', () => {
     expect(outcome).toMatchObject({ name: 'AbortError' });
   });
 
+  it('persists language changes for a component application until the entry is replaced', async () => {
+    installDocument(false);
+    const { adapter } = recordingAdapter(false);
+    const stopPersist = rstest.fn();
+    const persist = rstest.fn(() => stopPersist);
+    let dispose!: () => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    startNativeClientEntry(
+      {
+        identity,
+        load: async () => ({ default: () => null }),
+        hot: { dispose: (callback: () => void) => (dispose = callback) },
+        i18n: {
+          languages: ['en', 'cs'],
+          resolveRequest: () => ({ kind: 'language', language: 'en' }),
+          redirect: () => new Response(null),
+          create: async language => ({ language }),
+          rewrite: () => ({}),
+          handoff: () => ({ id: 'handoff', payload: '{}' }),
+          clientHandoff: () => ({ language: 'en' }),
+          syncWithRouter: () => () => {},
+          persist,
+        },
+      },
+      {
+        ...adapter,
+        readBootstrap: () => {
+          throw new Error('A CSR document has no bootstrap');
+        },
+        async start(input) {
+          expect((await input.load()).kind).toBe('component');
+          started();
+          return () => {};
+        },
+      },
+    );
+    await ready;
+    expect(persist).toHaveBeenCalledWith({ language: 'en' });
+    expect(stopPersist).not.toHaveBeenCalled();
+    dispose();
+    expect(stopPersist).toHaveBeenCalledTimes(1);
+  });
+
   it('stops i18n router sync when the entry is replaced', async () => {
     installDocument(false);
     const { adapter } = recordingAdapter();

@@ -71,7 +71,7 @@ describe('native router language synchronization', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('detaches the router listener, retries and persistence when stopped', async () => {
+  it('detaches the router listener and retries when stopped', async () => {
     const unsubscribe = rstest.fn();
     const router = {
       subscribe: rstest.fn(() => unsubscribe),
@@ -81,9 +81,27 @@ describe('native router language synchronization', () => {
       { languages: ['en', 'cs'], fallbackLanguage: 'en', basePath: '/' },
       {},
     ).syncWithRouter(router, instance as never);
-    const persist = instance.on.mock.calls[0][1];
     stop();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists every language change with or without a router, until stopped', () => {
+    const instance = fakeInstance(async () => {});
+    const stop = createNativeI18n(
+      {
+        languages: ['en', 'cs'],
+        fallbackLanguage: 'en',
+        basePath: '/',
+        detection: { lookupCookie: 'lang' },
+      },
+      {},
+    ).persist!(instance as never);
+    const [event, persist] = instance.on.mock.calls[0];
+    expect(event).toBe('languageChanged');
+    persist('cs');
+    expect(document.documentElement.lang).toBe('cs');
+    expect(document.cookie).toContain('lang=cs');
+    stop();
     expect(instance.off).toHaveBeenCalledWith('languageChanged', persist);
   });
 });
