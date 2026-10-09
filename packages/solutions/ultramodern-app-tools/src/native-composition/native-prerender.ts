@@ -383,7 +383,7 @@ export async function prerenderRoute(options: {
   );
   const contentType = response.headers.get('content-type') ?? '';
   if (response.status !== 200 || !contentType.startsWith('text/html')) {
-    await response.body?.cancel();
+    void response.body?.cancel().catch(() => undefined);
     throw new Error(
       `Prerendering ${route.urlPath} returned HTTP ${response.status} (${contentType || 'no content type'}); static documents require a 200 HTML response`,
     );
@@ -411,13 +411,13 @@ export async function prerenderRoute(options: {
     const type = data.headers.get('content-type')?.split(';')[0]?.trim();
     // The handler answers 403 for loaders that do not match this document.
     if (type !== DATA_CONTENT_TYPE && type !== DATA_STREAM_CONTENT_TYPE) {
-      await data.body?.cancel();
+      void data.body?.cancel().catch(() => undefined);
       continue;
     }
     // Payloads live under the document URL's directory, which a file-style
     // URL such as /guide.html does not have.
     if (path.posix.extname(relativeRoutePath(route))) {
-      await data.body?.cancel();
+      void data.body?.cancel().catch(() => undefined);
       throw new Error(
         `Prerendered route ${route.urlPath} has loader data, so it needs a directory-style URL (for example ${route.urlPath.replace(/\.[^./]+$/u, '')} instead of ${route.urlPath})`,
       );

@@ -28,7 +28,8 @@ export async function readBoundedDataText(
     }
     return text + decoder.decode();
   } catch (error) {
-    await reader.cancel(error).catch(() => undefined);
+    // Release the producer without waiting on its cancel hook.
+    void reader.cancel(error).catch(() => undefined);
     throw error;
   } finally {
     signal?.removeEventListener('abort', abort);

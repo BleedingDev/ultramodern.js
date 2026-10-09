@@ -689,6 +689,21 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(() => deferData({}, { later: pending })).not.toThrow();
   });
 
+  it('returns a redirect without waiting on its body cancellation', async () => {
+    for (const cancel of [
+      () => new Promise<void>(() => {}),
+      () => Promise.reject(new Error('cancel failed')),
+    ]) {
+      const outcome = await normalizeDataResult(
+        new Response(new ReadableStream({ cancel }), {
+          status: 302,
+          headers: { location: '/next' },
+        }),
+      );
+      expect(outcome).toMatchObject({ kind: 'redirect', location: '/next' });
+    }
+  });
+
   it('cancels a discarded redirect body', async () => {
     let cancelled = false;
     const body = new ReadableStream({

@@ -512,8 +512,8 @@ export async function normalizeDataResult(
           'A redirect data Response requires Location',
         );
       // The outcome replaces this body; release a live producer such as an
-      // upstream fetch instead of leaving it open.
-      await value.body?.cancel().catch(() => undefined);
+      // upstream fetch instead of leaving it open, without waiting on it.
+      void value.body?.cancel().catch(() => undefined);
       return { kind: 'redirect', location, response };
     }
     const data = await responseValue(value, options.signal);
@@ -949,7 +949,7 @@ export async function handleDataRequest<Context>(options: {
     onCancel: reason => cancellation.abort(reason),
   });
   if (request.method === 'HEAD') {
-    await response.body?.cancel();
+    void response.body?.cancel().catch(() => undefined);
     return new Response(null, {
       status: response.status,
       headers: response.headers,

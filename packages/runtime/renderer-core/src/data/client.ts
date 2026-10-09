@@ -291,7 +291,7 @@ async function readDeferredResponse(
       completionResolve();
     } catch (error) {
       reject(error);
-      await reader.cancel(error).catch(() => undefined);
+      void reader.cancel(error).catch(() => undefined);
     } finally {
       signal?.removeEventListener('abort', abort);
       reader.releaseLock();
@@ -351,7 +351,7 @@ async function readStaticPayload(
     return undefined;
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    void response.body?.cancel().catch(() => undefined);
     return undefined;
   }
   let payload: unknown;
