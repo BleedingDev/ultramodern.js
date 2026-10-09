@@ -596,13 +596,23 @@ async function invokeOwnedRouteData<Context>(
   let value: unknown;
   let thrown = false;
   try {
-    value = await handler(input);
+    // A handler that ignores its request signal must not keep a superseded
+    // load, and its request-scoped context, alive.
+    value = await untilAborted(handler(input), input.request.signal);
   } catch (error) {
     input.request.signal.throwIfAborted();
     value = error;
     thrown = true;
   }
-  input.request.signal.throwIfAborted();
+  if (input.request.signal.aborted) {
+    // A Response that arrived as the request aborted is discarded with its
+    // body, never left open.
+    if (value instanceof Response)
+      void value.body
+        ?.cancel(input.request.signal.reason)
+        .catch(() => undefined);
+    input.request.signal.throwIfAborted();
+  }
   policy.assertRoot(value);
   let outcome = await normalizeDataResult(value, {
     ...options,

@@ -1053,6 +1053,9 @@ describe('renderer-neutral HTTP data outcomes', () => {
     await Promise.resolve();
     controller.abort(new Error('loader reader closed'));
     await expect(pending).rejects.toThrow('loader reader closed');
+    // The abort may settle the load before or after its Response arrives;
+    // either way the body is cancelled.
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(cancelled).toBe(true);
   });
 
@@ -1118,6 +1121,27 @@ describe('renderer-neutral HTTP data outcomes', () => {
       }, args),
     ).rejects.toThrow('cancelled');
     expect(calls).toBe(0);
+  });
+
+  it('stops awaiting a data handler that ignores its aborted request', async () => {
+    const controller = new AbortController();
+    let entered = false;
+    const promise = invokeRouteData(
+      () => {
+        entered = true;
+        return new Promise<never>(() => {});
+      },
+      {
+        params: {},
+        context: {},
+        request: new Request('https://example.test/products', {
+          signal: controller.signal,
+        }),
+      },
+    );
+    expect(entered).toBe(true);
+    controller.abort(new DOMException('superseded', 'AbortError'));
+    await expect(promise).rejects.toThrow('superseded');
   });
 
   it('rejects data identity and schema mismatches before exposing a value', async () => {
