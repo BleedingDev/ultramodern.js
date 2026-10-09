@@ -315,7 +315,7 @@ describe('native owning entry generation', () => {
         'import { createNativeI18n } from "@modern-js/i18n-runtime-extensions/native";',
       );
       expect(i18n).toContain(
-        `"translation": () => import(${JSON.stringify(translation)}),`,
+        `["translation"]: () => import(${JSON.stringify(translation)}),`,
       );
     },
   );
