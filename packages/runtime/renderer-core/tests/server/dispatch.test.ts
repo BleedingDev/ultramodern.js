@@ -224,6 +224,37 @@ describe('production native Node Fetch dispatch', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it('stops waiting for a handler that ignores request cancellation', async () => {
+    const controller = new AbortController();
+    let finish!: (response: Response) => void;
+    let started!: () => void;
+    const handlerStarted = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    const fallback = rstest.fn();
+    const dispatched = dispatchNativeNodeRequest(
+      new Request('https://example.test/', { signal: controller.signal }),
+      options(
+        () => {
+          started();
+          return new Promise<Response>(resolve => {
+            finish = resolve;
+          });
+        },
+        { onError: fallback },
+      ),
+    );
+    await handlerStarted;
+    controller.abort(new Error('client disconnected'));
+    await expect(dispatched).rejects.toThrow('client disconnected');
+    expect(fallback).not.toHaveBeenCalled();
+    // The late response is discarded, not left with an unread body.
+    const cancelled = rstest.fn();
+    finish(new Response(new ReadableStream({ cancel: cancelled })));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(cancelled).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects conflicting bundle identity before lookup or handler execution', async () => {
     const handler = rstest.fn();
     const cache = store();
