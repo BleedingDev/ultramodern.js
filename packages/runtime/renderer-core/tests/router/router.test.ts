@@ -320,6 +320,22 @@ describe('native router glue', () => {
     expect(nativeRoutePath(route('pathless'))).toEqual({ id: 'pathless' });
   });
 
+  it('stops waiting for a route loader that ignores the aborted match', async () => {
+    const abortController = new AbortController();
+    const pending = loadFileSystemRoute(
+      route('item', { path: 'items/:id' }),
+      () => new Promise<never>(() => {}),
+      { request: new Request('http://localhost/items/42') },
+      {
+        params: { id: '42' },
+        location: { publicHref: '/items/42' },
+        abortController,
+      },
+    );
+    abortController.abort(new Error('superseded'));
+    await expect(pending).rejects.toThrow('superseded');
+  });
+
   it('loads route data under the public URL and both abort owners', async () => {
     const owner = new AbortController();
     const request = new Request('http://localhost/admin/items/42?sort=name', {

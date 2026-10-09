@@ -1,3 +1,4 @@
+import { untilAborted } from './abort';
 import type {
   DataHandler,
   DataHandlerInput,
@@ -197,15 +198,22 @@ export async function loadFileSystemRoute<Context>(
     headers: options.request?.headers,
     signal,
   });
-  const outcome = await loadRoute(route, {
-    request,
-    routeId: route.id,
-    params,
-    context: options.context as Context,
-  });
-  signal.throwIfAborted();
+  // A custom loader that ignores its signal must not hold an aborted
+  // navigation or server request.
+  const outcome = await untilAborted(
+    loadRoute(route, {
+      request,
+      routeId: route.id,
+      params,
+      context: options.context as Context,
+    }),
+    signal,
+  );
   return { outcome, request, signal };
 }
+
+/** Renderer adapters race their authored router hooks with the same rule. */
+export { untilAborted };
 
 /** Location input accepted by a native router's parseLocation. */
 export interface NativeHistoryLocation {
