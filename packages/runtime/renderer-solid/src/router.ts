@@ -11,6 +11,7 @@ import {
   nativeRoutePath,
   resolveRouteData as resolveNativeRouteData,
   splitFileSystemRoutes,
+  untilAborted,
 } from '@modern-js/renderer-core/router';
 import {
   createRouteCompletionScope,
@@ -226,10 +227,18 @@ export function createFileSystemRouteTree<Context = unknown>(
       ...searchOptions,
       ...contextOptions,
       beforeLoad: async (...args: Parameters<typeof beforeLoad>) => {
+        // An authored hook that ignores the match abort must not hold a
+        // superseded navigation or a disconnected server request.
+        const signal = (
+          args[0] as { abortController?: AbortController } | undefined
+        )?.abortController?.signal;
         let value: unknown;
         try {
-          value = await beforeLoad(...args);
+          value = await (signal
+            ? untilAborted(beforeLoad(...args), signal)
+            : beforeLoad(...args));
         } catch (error) {
+          if (signal?.aborted) throw error;
           if (isRedirect(error)) throw error;
           let projected: unknown;
           try {

@@ -80,6 +80,24 @@ describe('native Solid filesystem routing and data', () => {
     },
   );
 
+  test('a beforeLoad hook that ignores the match abort does not hold the match', async () => {
+    const tree = createFileSystemRouteTree(routes, {
+      item: { beforeLoad: () => new Promise<never>(() => {}) },
+    });
+    const router = createApplicationRouter({
+      routeTree: tree,
+      history: createMemoryHistory({ initialEntries: ['/items/42'] }),
+      isServer: true,
+    });
+    const route = Object.values(router.routesById).find(
+      candidate => candidate.options.beforeLoad,
+    )!;
+    const abortController = new AbortController();
+    const pending = route.options.beforeLoad!({ abortController } as never);
+    abortController.abort(new Error('superseded'));
+    await expect(pending).rejects.toThrow('superseded');
+  });
+
   test('managed public router options are cloned and immutable without freezing the author', () => {
     const shared = { value: 'public' };
     const context = { left: shared, right: shared };
