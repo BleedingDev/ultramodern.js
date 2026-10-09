@@ -138,6 +138,24 @@ describe('native prerender route selection', () => {
         '/app/shop': { headers: { base: '/app' } },
         '/application': { headers: { base: '/' } },
       });
+    // Routes are normalized without a trailing slash; the callback still
+    // receives the configured base.
+    expect(
+      resolveEntrySsgOptions({
+        ssg: (_entryName, context) => ({
+          headers: { base: String(context.baseUrl) },
+        }),
+        entryNames: ['index'],
+        pageRoutes: [
+          pageRoute('index', '/shop'),
+          pageRoute('index', '/shop/cart'),
+        ],
+        baseUrl: ['/shop/', '/'],
+      }),
+    ).toEqual({
+      '/shop': { headers: { base: '/shop/' } },
+      '/shop/cart': { headers: { base: '/shop/' } },
+    });
   });
 
   it('prerenders static file-system routes into the plugin-ssg output layout', () => {

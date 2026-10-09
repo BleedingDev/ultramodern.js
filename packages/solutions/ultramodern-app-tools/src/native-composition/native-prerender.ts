@@ -139,7 +139,8 @@ export function resolveEntrySsgOptions(options: {
         .filter(url => isUnderBase(route.urlPath, url))
         .reduce<string | undefined>(
           (longest, url) =>
-            longest === undefined || url.length > longest.length
+            longest === undefined ||
+            baseMount(url).length > baseMount(longest).length
               ? url
               : longest,
           undefined,
@@ -292,11 +293,12 @@ export function localizePrerenderRoutes(
 }
 
 /** Mark the document so the data client replays static loader payloads. */
+/** A base's mount path; routes are normalized without a trailing slash. */
+const baseMount = (base: string) => base.replace(/\/+$/u, '');
+
 function isUnderBase(urlPath: string, base: string): boolean {
-  return (
-    urlPath === base ||
-    urlPath.startsWith(base.endsWith('/') ? base : `${base}/`)
-  );
+  const mount = baseMount(base);
+  return mount === '' || urlPath === mount || urlPath.startsWith(`${mount}/`);
 }
 
 export function markPrerenderedDocument(html: string): string {
