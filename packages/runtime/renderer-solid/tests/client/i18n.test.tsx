@@ -153,9 +153,11 @@ describe('Solid i18n binding', () => {
       // The newer switch starts while the older one is navigating.
       for (let tick = 0; calls === 0 && tick < 100; tick += 1)
         await Promise.resolve();
-      await binding!.changeLanguage('en');
+      // It waits for that navigation, which then fails.
+      const newer = binding!.changeLanguage('en');
       failFirst(new Error('stale navigation'));
       await expect(first).rejects.toThrow('stale navigation');
+      await newer;
       expect(router.state.location.href).toBe(
         '/en/products?sort=price#reviews',
       );
@@ -212,6 +214,27 @@ describe('Solid i18n binding', () => {
       );
       expect(instance.language).toBe('cs');
       instance.changeLanguage = fastChange;
+      // An older navigation that commits late cannot leave its URL behind:
+      // the newer switch navigates after it.
+      let releaseOlder!: () => void;
+      let navigations = 0;
+      router.navigate = ((options: never) =>
+        ++navigations === 1
+          ? new Promise(resolve => {
+              releaseOlder = () => resolve(realNavigate(options));
+            })
+          : realNavigate(options)) as never;
+      const older = binding!.changeLanguage('en');
+      for (let tick = 0; navigations === 0 && tick < 100; tick += 1)
+        await Promise.resolve();
+      const latest = binding!.changeLanguage('cs');
+      await ticks();
+      releaseOlder();
+      await Promise.all([older, latest]);
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('cs');
     } finally {
       dispose();
       flush();

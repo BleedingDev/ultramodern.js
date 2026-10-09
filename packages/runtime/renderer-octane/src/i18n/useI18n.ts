@@ -28,6 +28,12 @@ const languageSwitches = new WeakMap<
 >();
 
 /**
+ * The settlement of each instance's latest navigation. Switches navigate in
+ * call order, so the newest switch's URL is always committed last.
+ */
+const languageNavigations = new WeakMap<object, Promise<void>>();
+
+/**
  * Must render under `I18nProvider`; throws rather than silently reading a
  * fallback instance when no provider is mounted (Octane's `createContext`
  * requires a default value, so `I18nContext`'s default is `null` and this
@@ -71,12 +77,6 @@ export function useI18n(): UseI18nReturn {
     };
     if (!current()) return converge();
     if (!router) return;
-    // The full href keeps the query and fragment across the language switch.
-    const from = router.state.location.href;
-    const href = localizePath(from, nextLanguage, {
-      languages: [...languages],
-      localisedUrls,
-    });
     // A failed or blocked navigation leaves the page on its URL, so the
     // language returns to the one that URL renders, unless a later switch
     // has taken over.
@@ -85,13 +85,34 @@ export function useI18n(): UseI18nReturn {
       await instance.changeLanguage?.(previous);
       if (!current()) await converge();
     };
+    const prior = languageNavigations.get(instance);
+    let settle!: () => void;
+    languageNavigations.set(
+      instance,
+      new Promise<void>(resolve => {
+        settle = resolve;
+      }),
+    );
     try {
-      await router.navigate({ to: '.', href, replace: true });
-    } catch (error) {
-      await restore();
-      throw error;
+      await prior;
+      if (!current()) return converge();
+      // The full href keeps the query and fragment across the language switch.
+      const from = router.state.location.href;
+      const href = localizePath(from, nextLanguage, {
+        languages: [...languages],
+        localisedUrls,
+      });
+      try {
+        await router.navigate({ to: '.', href, replace: true });
+      } catch (error) {
+        await restore();
+        throw error;
+      }
+      if (href !== from && router.state.location.href === from) await restore();
+      if (!current()) await converge();
+    } finally {
+      settle();
     }
-    if (href !== from && router.state.location.href === from) await restore();
   };
 
   return { t, language, languages, instance, changeLanguage };
