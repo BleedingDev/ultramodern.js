@@ -245,6 +245,23 @@ describe('native Link reactive target', () => {
     }
   });
 
+  test('a target from state props reaches the anchor and its click', async () => {
+    const view = await renderLink(() => (
+      <Link to="/next" inactiveProps={{ target: '_blank' } as any}>
+        Next
+      </Link>
+    ));
+    try {
+      const anchor = view.anchor();
+      expect(anchor.getAttribute('target')).toBe('_blank');
+      const event = click(anchor);
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.navigate).not.toHaveBeenCalled();
+    } finally {
+      view.cleanup();
+    }
+  });
+
   test('a download link leaves the click to the browser', async () => {
     const view = await renderLink(() => (
       <Link to="/report" download="report.csv">

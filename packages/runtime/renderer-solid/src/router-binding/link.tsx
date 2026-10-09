@@ -336,8 +336,7 @@ export function useLinkProps<
     if (element.hasAttribute('download')) return;
     // Check actual element's target attribute as fallback
     const elementTarget = element.getAttribute('target');
-    const effectiveTarget =
-      local.target !== undefined ? local.target : elementTarget;
+    const effectiveTarget = resolvedTarget() ?? elementTarget;
 
     if (
       !isCtrlEvent(e) &&
@@ -429,6 +428,13 @@ export function useLinkProps<
     },
     { lazy: true },
   );
+
+  // State props override the base props, target included: a `_blank` from
+  // activeProps opens a new browsing context instead of navigating in place.
+  const resolvedTarget = () => {
+    const target = (resolvedStateProps() as { target?: string }).target;
+    return target !== undefined ? target : local.target;
+  };
 
   const resolvedClass = Solid.createMemo(
     () => {
@@ -551,7 +557,7 @@ export function useLinkProps<
   defineGetters({
     href: hrefOption,
     disabled: () => !!local.disabled || linkDisabled(),
-    target: () => local.target,
+    target: resolvedTarget,
     role: () => (linkDisabled() ? 'link' : propsSafeToSpread.role),
     'aria-disabled': () => (linkDisabled() ? 'true' : undefined),
     'data-status': () => (isActive() ? 'active' : undefined),
