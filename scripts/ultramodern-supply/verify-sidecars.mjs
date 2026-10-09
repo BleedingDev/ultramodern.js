@@ -421,6 +421,14 @@ async function fetchLatestTarball(recipe) {
 }
 
 /**
+ * Extract `name` inside `directory`. tar runs there with a relative archive
+ * name: Git Bash's GNU tar on Windows reads `C:\...` as a remote `host:path`.
+ */
+function extractTarball(directory, name) {
+  execFileSync('tar', ['-xzf', name], { cwd: directory, stdio: 'pipe' });
+}
+
+/**
  * Map each patched recipe whose patch reverse-applies with zero fuzz to the
  * newest upstream release of its major.minor, i.e. upstream already ships it.
  */
@@ -436,11 +444,8 @@ export async function findUpstreamedPatches(
       if (!latest) continue;
       const directory = path.join(temp, recipe.id);
       fs.mkdirSync(directory);
-      const tarball = path.join(directory, 'upstream.tgz');
-      fs.writeFileSync(tarball, latest.bytes);
-      execFileSync('tar', ['-xzf', tarball, '-C', directory], {
-        stdio: 'pipe',
-      });
+      fs.writeFileSync(path.join(directory, 'upstream.tgz'), latest.bytes);
+      extractTarball(directory, 'upstream.tgz');
       try {
         execFileSync('patch', ['-p1', '-R', '-f', '--dry-run', '--fuzz=0'], {
           cwd: path.join(directory, 'package'),
@@ -502,9 +507,8 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
       recipe.upstream.integrity,
       `${id}: upstream tarball integrity`,
     );
-    const tarball = path.join(temp, 'upstream.tgz');
-    fs.writeFileSync(tarball, bytes);
-    execFileSync('tar', ['-xzf', tarball, '-C', temp], { stdio: 'pipe' });
+    fs.writeFileSync(path.join(temp, 'upstream.tgz'), bytes);
+    extractTarball(temp, 'upstream.tgz');
     const upstreamDir = path.join(temp, 'package');
     // pnpm never installs node_modules directories shipped inside a package
     // tarball, so they are not part of the installable artifact. Republishing
