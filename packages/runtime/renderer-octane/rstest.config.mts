@@ -37,6 +37,7 @@ export default withTestPreset({
       globals: true,
       include: [
         'tests/native-router-lifecycle.test.ts',
+        'tests/entry-client.test.ts',
         'tests/i18n.test.ts',
         'tests/component-i18n-client.test.ts',
       ],

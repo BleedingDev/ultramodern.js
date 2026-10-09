@@ -190,6 +190,9 @@ export function startNativeClientEntry<
     const router = adapter.createRouter(application, {
       identity,
       loadRoute: clientRouteLoader(application, identity),
+      // Disposal retires the router's route loads, including the initial
+      // load the adapter is about to start.
+      signal,
       ...(i18n && current
         ? { rewrite: i18n.rewrite(() => current.language) }
         : {}),

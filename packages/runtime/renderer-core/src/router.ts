@@ -32,6 +32,8 @@ export type RouteOutcome = DataOutcome | DecodedDataOutcome;
 export interface FileSystemRouteOptions<Context = unknown, Router = unknown> {
   /** The request owned by this router; carries RequestSession.signal. */
   request?: Request;
+  /** Retires every route load, as a disposed browser entry does. */
+  signal?: AbortSignal;
   /** The exact request owner validates native public snapshots (Solid). */
   session?: RequestSession;
   /** Private data-handler input; never part of native route context. */
@@ -190,9 +192,12 @@ export async function loadFileSystemRoute<Context>(
     options.request?.url ??
     (typeof window === 'undefined' ? undefined : window.location.href);
   if (!base) throw new Error('A server route loader requires its request');
-  const signal = options.request
-    ? AbortSignal.any([options.request.signal, abortController.signal])
-    : abortController.signal;
+  const owners = [
+    abortController.signal,
+    ...(options.request ? [options.request.signal] : []),
+    ...(options.signal ? [options.signal] : []),
+  ];
+  const signal = owners.length > 1 ? AbortSignal.any(owners) : owners[0]!;
   signal.throwIfAborted();
   const request = new Request(new URL(location.publicHref, base), {
     headers: options.request?.headers,
@@ -351,6 +356,8 @@ export interface NativeRouterOptions {
   readonly loadRoute: NonNullable<FileSystemRouteOptions['loadRoute']>;
   /** The server request this router renders; a browser router omits it. */
   readonly request?: Request;
+  /** Retires every route load of this router, e.g. on entry disposal. */
+  readonly signal?: AbortSignal;
   /** Private data-handler input; never part of native route context. */
   readonly context?: object;
   readonly onOutcome?: (routeId: string, outcome: RouteOutcome) => void;
@@ -432,6 +439,7 @@ export function createNativeRouter<Route, Router>(
   let router: Router | undefined;
   const routeTree = factory.routeTree(application.routeIR, modules, {
     ...(options.request ? { request: options.request } : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
     context,
     ...(options.onOutcome ? { onOutcome: options.onOutcome } : {}),
     ...(options.session ? { session: options.session } : {}),
