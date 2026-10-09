@@ -14,6 +14,7 @@ import {
   encodeStaticDataPayload,
   LOADER_ID_PARAM,
   PRERENDERED_DOCUMENT_META,
+  readStaticDataPayloadBody,
   type StaticDataPayload,
   staticDataPayloadPath,
 } from '@modern-js/renderer-core/data';
@@ -423,13 +424,13 @@ export async function prerenderRoute(options: {
         `Prerendered route ${route.urlPath} has loader data, so it needs a directory-style URL (for example ${route.urlPath.replace(/\.[^./]+$/u, '')} instead of ${route.urlPath})`,
       );
     }
-    const payload: StaticDataPayload = {
-      status: data.status,
-      contentType: type,
-      body: await data.text(),
-    };
     let encoded: string;
     try {
+      const payload: StaticDataPayload = {
+        status: data.status,
+        contentType: type,
+        body: await readStaticDataPayloadBody(data),
+      };
       encoded = encodeStaticDataPayload(payload);
     } catch (error) {
       throw new Error(

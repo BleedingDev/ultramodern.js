@@ -41,14 +41,42 @@ export function staticDataPayloadPath(
  */
 export const STATIC_DATA_PAYLOAD_MAX_BYTES = MAX_DATA_BYTES * 6 + 1024;
 
+const payloadTooLarge = (bytes: number | string) =>
+  new RangeError(
+    `A static loader payload of ${bytes} bytes exceeds the ${STATIC_DATA_PAYLOAD_MAX_BYTES} bytes the data client replays; reduce its (deferred) data or serve the route dynamically.`,
+  );
+
+/**
+ * Read a captured loader response with a running byte bound. Encoding only
+ * grows the body, so a body over the limit fails as soon as it crosses it,
+ * before an unbounded deferred stream is buffered.
+ */
+export async function readStaticDataPayloadBody(
+  response: Response,
+): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) return text + decoder.decode();
+    bytes += part.value.byteLength;
+    if (bytes > STATIC_DATA_PAYLOAD_MAX_BYTES) {
+      const error = payloadTooLarge(`more than ${bytes}`);
+      void reader.cancel(error).catch(() => {});
+      throw error;
+    }
+    text += decoder.decode(part.value, { stream: true });
+  }
+}
+
 /** The payload file's text, or an error when the client could not read it. */
 export function encodeStaticDataPayload(payload: StaticDataPayload): string {
   const text = JSON.stringify(payload);
   const bytes = new TextEncoder().encode(text).byteLength;
-  if (bytes > STATIC_DATA_PAYLOAD_MAX_BYTES)
-    throw new RangeError(
-      `A static loader payload of ${bytes} bytes exceeds the ${STATIC_DATA_PAYLOAD_MAX_BYTES} bytes the data client replays; reduce its (deferred) data or serve the route dynamically.`,
-    );
+  if (bytes > STATIC_DATA_PAYLOAD_MAX_BYTES) throw payloadTooLarge(bytes);
   return text;
 }
 
