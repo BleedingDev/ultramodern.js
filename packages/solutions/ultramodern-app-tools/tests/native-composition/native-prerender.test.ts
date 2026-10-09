@@ -216,6 +216,8 @@ describe('native prerender route selection', () => {
       '<title>literal </head> text</title>',
       '<TITLE>literal </HEAD> text</Title>',
       '<noscript><p></head></p></noscript>',
+      '<template><meta></head><p>inert</p></template>',
+      '<template><template></template></head></template>',
       '<meta name="note" content="</head>">',
       "<meta name='note' content='</head>'>",
       '<script type="text/plain" data-x="</script>">a</script>',

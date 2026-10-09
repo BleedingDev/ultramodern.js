@@ -283,17 +283,24 @@ export function localizePrerenderRoutes(
 export function markPrerenderedDocument(html: string): string {
   const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
   // A `</head>` is text inside raw-text and RCDATA elements (script, style,
-  // title, textarea and the like), comments and quoted attribute values, so
-  // those are skipped whole; any other start tag is consumed with its
+  // title, textarea and the like), is ignored inside (possibly nested)
+  // template contents, and means nothing in comments and quoted attribute
+  // values, so those are skipped; any other start tag is consumed with its
   // attributes.
   let close = -1;
+  let templates = 0;
   for (const match of html.matchAll(
-    /<(script|style|title|textarea|noscript|xmp|iframe|noembed|noframes)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->|<\/head\s*>|<[a-z][^\s/>]*(?:"[^"]*"|'[^']*'|[^>"'])*>/giu,
-  ))
-    if (/^<\/head/iu.test(match[0])) {
+    /<(script|style|title|textarea|noscript|xmp|iframe|noembed|noframes)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->|<\/(head|template)\s*>|<[a-z][^\s/>]*(?:"[^"]*"|'[^']*'|[^>"'])*>/giu,
+  )) {
+    const token = match[0];
+    if (/^<template\b/iu.test(token)) templates += 1;
+    else if (match[2]?.toLowerCase() === 'template')
+      templates = Math.max(0, templates - 1);
+    else if (match[2] && templates === 0) {
       close = match.index;
       break;
     }
+  }
   if (close < 0)
     throw new Error('A prerendered native document requires a <head> element');
   return `${html.slice(0, close)}${marker}${html.slice(close)}`;
