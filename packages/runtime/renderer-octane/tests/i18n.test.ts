@@ -138,7 +138,7 @@ describe('Octane i18n binding', () => {
         component: () =>
           createElement(I18nProvider, {
             instance,
-            languages: ['en', 'cs'],
+            languages: ['en', 'cs', 'fr'],
             children: createElement(Capture),
           }),
       }),
@@ -292,6 +292,28 @@ describe('Octane i18n binding', () => {
         '/cs/products?sort=price#reviews',
       );
       instance.changeLanguage = fastChange;
+      router.navigate = realNavigate as never;
+      // Overlapping switches whose navigations are both blocked restore the
+      // language the URL renders, not one captured mid-navigation.
+      let releaseFirstNavigation!: () => void;
+      let blocked = 0;
+      router.navigate = (() =>
+        ++blocked === 1
+          ? new Promise<void>(resolve => {
+              releaseFirstNavigation = resolve;
+            })
+          : Promise.resolve()) as never;
+      const firstBlocked = binding!.changeLanguage('en');
+      for (let tick = 0; blocked === 0 && tick < 100; tick += 1)
+        await Promise.resolve();
+      const secondBlocked = binding!.changeLanguage('fr');
+      await ticks();
+      releaseFirstNavigation();
+      await Promise.all([firstBlocked, secondBlocked]);
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('cs');
       router.navigate = realNavigate as never;
     } finally {
       octaneRoot.unmount();

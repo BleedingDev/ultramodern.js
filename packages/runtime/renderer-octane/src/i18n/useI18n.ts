@@ -80,12 +80,27 @@ export function useI18n(): UseI18nReturn {
     // A failed or blocked navigation leaves the page on its URL, so the
     // language returns to the one that URL renders, unless a later switch
     // has taken over.
+    // The language the current URL renders, read after earlier switches'
+    // navigations settled; the call's own snapshot only backs it up.
+    const urlLanguage = () => {
+      const href = router.state.location.href;
+      return (
+        languages.find(
+          language =>
+            localizePath(href, language, {
+              languages: [...languages],
+              localisedUrls,
+            }) === href,
+        ) ?? previous
+      );
+    };
     const restore = async () => {
       if (!current()) return;
       // Retire the blocked target, so an older call that settles later
       // converges on the restored language instead.
-      languageSwitches.set(instance, { generation, language: previous });
-      await instance.changeLanguage?.(previous);
+      const restored = urlLanguage();
+      languageSwitches.set(instance, { generation, language: restored });
+      await instance.changeLanguage?.(restored);
       if (!current()) await converge();
     };
     const prior = languageNavigations.get(instance);
