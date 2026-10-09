@@ -241,6 +241,43 @@ describe('generated native client entry', () => {
     expect(disposed).toHaveBeenCalledTimes(1);
   });
 
+  it('releases a replaced entry whose initial router load ignores the signal', async () => {
+    installDocument(false);
+    const { adapter, disposed } = recordingAdapter();
+    let dispose!: () => void;
+    let loading!: () => void;
+    const loadStarted = new Promise<void>(resolve => {
+      loading = resolve;
+    });
+    let outcome: unknown;
+    startNativeClientEntry(
+      {
+        identity,
+        load: async () => routed,
+        hot: { dispose: (callback: () => void) => (dispose = callback) },
+      },
+      {
+        ...adapter,
+        readBootstrap: () => {
+          throw new Error('A CSR document has no bootstrap');
+        },
+        prepareRouter: () => {
+          loading();
+          // A route loader that never settles and never observes the signal.
+          return new Promise<void>(() => {});
+        },
+        async start(input) {
+          outcome = await input.load().catch(error => error);
+          return disposed;
+        },
+      },
+    );
+    await loadStarted;
+    dispose();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(outcome).toMatchObject({ name: 'AbortError' });
+  });
+
   it('stops i18n router sync when the entry is replaced', async () => {
     installDocument(false);
     const { adapter } = recordingAdapter();

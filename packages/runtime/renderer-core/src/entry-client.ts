@@ -22,6 +22,8 @@ export type {
   NativeRouterOptions,
 } from './router';
 
+import { untilAborted } from './abort';
+
 /** What a generated client entry passes to its renderer. */
 export interface NativeClientEntryOptions<
   Instance extends NativeI18nInstance = NativeI18nInstance,
@@ -189,8 +191,12 @@ export function startNativeClientEntry<
       i18n && current ? i18n.syncWithRouter(router, current) : undefined;
     if (stopSync) signal.addEventListener('abort', stopSync, { once: true });
     try {
-      await adapter.prepareRouter(router, hydrating, signal);
-      signal.throwIfAborted();
+      // An initial load whose loaders ignore the signal must not keep a
+      // replaced entry and its router alive.
+      await untilAborted(
+        adapter.prepareRouter(router, hydrating, signal),
+        signal,
+      );
     } catch (error) {
       stopSync?.();
       throw error;

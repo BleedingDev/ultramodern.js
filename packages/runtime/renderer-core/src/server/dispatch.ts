@@ -1,3 +1,4 @@
+import { untilAborted } from '../abort';
 import { assertRendererIdentity, identityCacheKey } from '../identity';
 import {
   createRequestSession,
@@ -27,47 +28,6 @@ export function rejectNativeRscRequest(request: Request): Response | undefined {
     );
   }
   return undefined;
-}
-
-/**
- * Settle with the handler, or reject once the request session aborts: a
- * handler that ignores cancellation must not keep the dispatch alive. Its late
- * response body is cancelled and a late failure observed.
- */
-function untilAborted<T>(
-  handled: T | Promise<T>,
-  signal: AbortSignal,
-): Promise<T> {
-  const settled = Promise.resolve(handled);
-  const discard = () =>
-    void settled.then(
-      value => {
-        if (value instanceof Response)
-          void value.body?.cancel().catch(() => {});
-      },
-      () => {},
-    );
-  if (signal.aborted) {
-    discard();
-    return Promise.reject(signal.reason);
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => {
-      discard();
-      reject(signal.reason);
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-    settled.then(
-      value => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      error => {
-        signal.removeEventListener('abort', onAbort);
-        reject(error);
-      },
-    );
-  });
 }
 
 function permitsCacheLookup(request: Request): boolean {
