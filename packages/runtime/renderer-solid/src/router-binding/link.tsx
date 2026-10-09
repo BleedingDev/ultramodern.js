@@ -417,12 +417,16 @@ export function useLinkProps<
 
   // External links keep the caller's props as given, without state props.
   const resolvedStateProps = Solid.createMemo(
-    (): ResolvedLinkStateProps =>
-      externalLink()
+    (): ResolvedLinkStateProps => {
+      const stateProps: ResolvedLinkStateProps = externalLink()
         ? EMPTY_OBJECT
         : ((isActive()
             ? functionalUpdate(activeProps() as any, {})
-            : functionalUpdate(inactiveProps(), {})) ?? EMPTY_OBJECT),
+            : functionalUpdate(inactiveProps(), {})) ?? EMPTY_OBJECT);
+      if (process.env.NODE_ENV !== 'production')
+        warnUnknownStateKeys(stateProps, extraStateKeys);
+      return stateProps;
+    },
     { lazy: true },
   );
 
@@ -450,7 +454,9 @@ export function useLinkProps<
   // consuming spread() never enumerates through proxy traps. Reactivity lives
   // in the property getters; values that no longer apply resolve to undefined,
   // which spread()/assign() treats as attribute removal. Keys returned by
-  // activeProps/inactiveProps are discovered once at setup.
+  // activeProps/inactiveProps are discovered once at setup: their values stay
+  // reactive, but a key first returned later is not applied, and development
+  // builds warn about it.
   const extraStateKeys = new Set<string>();
   Solid.untrack(() => {
     for (const stateProps of [
@@ -752,6 +758,27 @@ export const Link: LinkComponent<'a'> = props => {
 
 function isCtrlEvent(e: MouseEvent) {
   return !!(e.metaKey || e.altKey || e.ctrlKey || e.shiftKey);
+}
+
+const warnedStateKeys = new Set<string>();
+
+function warnUnknownStateKeys(
+  stateProps: object,
+  knownKeys: ReadonlySet<string>,
+) {
+  for (const key of Object.keys(stateProps)) {
+    if (
+      key === 'class' ||
+      key === 'style' ||
+      knownKeys.has(key) ||
+      warnedStateKeys.has(key)
+    )
+      continue;
+    warnedStateKeys.add(key);
+    console.warn(
+      `Link activeProps/inactiveProps returned "${key}" after the Link was created; return every key from the start (use undefined for "unset") so it can be applied.`,
+    );
+  }
 }
 
 function warnBlockedLink(href: string) {

@@ -211,6 +211,40 @@ describe('native Link reactive target', () => {
     }
   });
 
+  test('state props keep reactive values for keys returned from the start', async () => {
+    const warn = rstest.spyOn(console, 'warn').mockImplementation(() => {});
+    const [ready, setReady] = createSignal<string | undefined>(undefined);
+    const [extra, setExtra] = createSignal(false);
+    const view = await renderLink(() => (
+      <Link
+        to="/next"
+        inactiveProps={
+          (() => ({
+            'data-ready': ready(),
+            ...(extra() ? { 'data-late': 'yes' } : {}),
+          })) as any
+        }
+      >
+        Next
+      </Link>
+    ));
+    try {
+      expect(view.anchor().hasAttribute('data-ready')).toBe(false);
+      setReady('yes');
+      flush();
+      expect(view.anchor().getAttribute('data-ready')).toBe('yes');
+      expect(warn).not.toHaveBeenCalled();
+      // A key first returned later cannot be applied, and is reported.
+      setExtra(true);
+      flush();
+      expect(view.anchor().hasAttribute('data-late')).toBe(false);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"data-late"'));
+    } finally {
+      view.cleanup();
+      warn.mockRestore();
+    }
+  });
+
   test('a download link leaves the click to the browser', async () => {
     const view = await renderLink(() => (
       <Link to="/report" download="report.csv">
