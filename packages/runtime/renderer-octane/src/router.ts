@@ -9,6 +9,7 @@ import {
   useMatch,
   useRouter,
 } from '@octanejs/tanstack-router';
+import { createSubSlot, useCallback, useEffect, useRef } from 'octane';
 import { assertOctaneIdentity } from './bootstrap';
 import { resolveRouteData } from './routes';
 
@@ -131,4 +132,61 @@ export function createOctaneRouteAction(input: OctaneRouteActionOptions) {
     }
     return outcome;
   };
+}
+
+export type OctaneRouteActionBinding = Pick<
+  OctaneRouteActionOptions,
+  'url' | 'method' | 'fetch'
+>;
+
+// Plain TypeScript is not rewritten by the Octane compiler: derive each
+// composed hook's slot from the caller's, with a stable slotless fallback.
+const actionSlot = createSubSlot({ slotlessPrefix: 'ultramodern-action:' });
+
+/**
+ * Bind an action to the nearest native route and to this component's
+ * lifetime: unmounting aborts a submission still in flight, so its late
+ * result cannot redirect or invalidate the route the user moved on to.
+ */
+export function useOctaneRouteAction(
+  binding?: OctaneRouteActionBinding,
+): ReturnType<typeof createOctaneRouteAction>;
+export function useOctaneRouteAction(...args: unknown[]) {
+  const tail = args.at(-1);
+  const slot = typeof tail === 'symbol' ? tail : undefined;
+  const binding = (
+    typeof args[0] === 'object' && args[0] !== null ? args[0] : {}
+  ) as OctaneRouteActionBinding;
+  const router = useRouter();
+  const identity = useApplicationIdentity();
+  const routeId = useApplicationRouteId();
+  const owner = useRef<AbortController | null>(null, actionSlot(slot, 'owner'));
+  useEffect(
+    () => {
+      const controller = new AbortController();
+      owner.current = controller;
+      return () =>
+        controller.abort(
+          new DOMException('The route action owner unmounted', 'AbortError'),
+        );
+    },
+    [],
+    actionSlot(slot, 'lifetime'),
+  );
+  const { url, method, fetch } = binding;
+  return useCallback(
+    (previous: PublicDataOutcome | undefined, formData: FormData) =>
+      createOctaneRouteAction({
+        router,
+        routeId,
+        identity,
+        url,
+        method,
+        fetch,
+        signal: owner.current?.signal,
+      })(previous, formData),
+    // The identity is read from the router, so the router stands for it.
+    [router, routeId, url, method, fetch],
+    actionSlot(slot, 'action'),
+  );
 }

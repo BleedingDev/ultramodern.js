@@ -116,23 +116,15 @@ build profile's `sourceExtensions`:
 ```tsx
 // src/routes/page.tsx
 import {
-  createOctaneRouteAction,
-  useApplicationIdentity,
-  useApplicationRouteId,
   useLoaderData,
-  useRouter,
+  useOctaneRouteAction,
 } from '@bleedingdev/modern-js-renderer-octane/router';
-import { useActionState, useMemo } from 'octane';
+import { useActionState } from 'octane';
 
 export default function HomePage() {
-  const router = useRouter();
-  const identity = useApplicationIdentity();
-  const routeId = useApplicationRouteId();
   const data = useLoaderData({ strict: false });
-  const submit = useMemo(
-    () => createOctaneRouteAction({ router, routeId, identity }),
-    [router, routeId, identity],
-  );
+  // Bound to the nearest route; unmounting aborts a submission in flight.
+  const submit = useOctaneRouteAction();
   const [result, action, pending] = useActionState(submit, undefined);
   return <pre>{JSON.stringify(data)}</pre>;
 }

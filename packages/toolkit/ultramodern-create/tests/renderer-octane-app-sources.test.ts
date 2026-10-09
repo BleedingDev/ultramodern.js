@@ -73,14 +73,7 @@ test('the emitted routes use native Octane hook state and router bindings', () =
   const homeImport = routes[1].program.body[0];
   assert.deepEqual(
     homeImport.specifiers.map(specifier => specifier.imported.name),
-    [
-      'createOctaneRouteAction',
-      'Link',
-      'useApplicationIdentity',
-      'useApplicationRouteId',
-      'useLoaderData',
-      'useRouter',
-    ],
+    ['Link', 'useLoaderData', 'useOctaneRouteAction'],
   );
   for (const name of ['Counter', 'Stable']) {
     const component = routes.find(
@@ -129,13 +122,9 @@ test('the home route submits through native useActionState and framework action 
     .filter(node => node.type === 'VariableDeclaration')
     .flatMap(node => node.declarations)
     .find(node => node.id.name === 'submit');
-  assert.equal(submit.init.callee.name, 'useMemo');
-  const factory = submit.init.arguments[0].body;
-  assert.equal(factory.callee.name, 'createOctaneRouteAction');
-  assert.deepEqual(
-    factory.arguments[0].properties.map(property => property.key.name),
-    ['router', 'routeId', 'identity'],
-  );
+  // The framework hook owns route identity and aborts on unmount.
+  assert.equal(submit.init.callee.name, 'useOctaneRouteAction');
+  assert.deepEqual(submit.init.arguments, []);
 });
 
 test('the emitted server module preserves loader/action HTTP outcomes and request-local values', async () => {

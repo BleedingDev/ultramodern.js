@@ -1,11 +1,8 @@
 import {
-  createOctaneRouteAction,
-  useApplicationIdentity,
-  useApplicationRouteId,
   useLoaderData,
-  useRouter,
+  useOctaneRouteAction,
 } from '@modern-js/renderer-octane/router';
-import { lazy, Suspense, useActionState, useMemo } from 'octane';
+import { lazy, Suspense, useActionState } from 'octane';
 import Counter from '../components/Counter';
 import Deferred from '../components/Deferred';
 import Message from '../components/Message';
@@ -13,14 +10,8 @@ import Message from '../components/Message';
 const Lazy = lazy(() => import('../components/Lazy'));
 
 export default function Home() {
-  const router = useRouter();
-  const identity = useApplicationIdentity();
-  const routeId = useApplicationRouteId();
   const data = useLoaderData({ strict: false });
-  const submit = useMemo(
-    () => createOctaneRouteAction({ router, routeId, identity }),
-    [router, routeId, identity],
-  );
+  const submit = useOctaneRouteAction();
   const [result, action, pending] = useActionState(submit, undefined);
   return (
     <section data-testid="native-route" data-renderer="octane">

@@ -86,28 +86,19 @@ ${options.capabilities.federation ? '          <Link to="/remotes">Federated app
       {
         path: 'src/routes/page.tsx',
         content: `import {
-  createOctaneRouteAction,
   Link,
-  useApplicationIdentity,
-  useApplicationRouteId,
   useLoaderData,
-  useRouter,
+  useOctaneRouteAction,
 } from '@modern-js/renderer-octane/router';
-import { useActionState, useMemo } from 'octane';
+import { useActionState } from 'octane';
 import Counter from '../components/Counter';
 
 const appId = ${appId};
 const appTitle = ${title};
 
 export default function HomePage() {
-  const router = useRouter();
-  const identity = useApplicationIdentity();
-  const routeId = useApplicationRouteId();
   const data = useLoaderData({ strict: false });
-  const submit = useMemo(
-    () => createOctaneRouteAction({ router, routeId, identity }),
-    [router, routeId, identity],
-  );
+  const submit = useOctaneRouteAction();
   const [result, action, pending] = useActionState(submit, undefined);
   return (
     <section data-app-id={appId} data-testid="native-route" data-renderer="octane">

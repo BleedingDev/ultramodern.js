@@ -1,4 +1,5 @@
 import {
+  nativeRouterActionOwnerDisposal,
   nativeRouterActionRedirect,
   nativeRouterPreloadAndInvalidationCounts,
   nativeRouterReversedPendingNavigation,
@@ -78,6 +79,11 @@ test.each([
     '/account/actions/save',
     true,
   ),
+);
+
+test(
+  'a route action is aborted with its unmounted owner and its late result is ignored',
+  nativeRouterActionOwnerDisposal,
 );
 
 test(

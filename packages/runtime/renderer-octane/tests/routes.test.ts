@@ -9,6 +9,7 @@ describe('native Octane filesystem routes and serialization', () => {
     if (
       [
         'nativeDataCompletionCommitFailure',
+        'nativeRouterActionOwnerDisposal',
         'nativeRouterActionRedirect',
         'nativeRouterPreloadAndInvalidationCounts',
         'nativeRouterReversedPendingNavigation',

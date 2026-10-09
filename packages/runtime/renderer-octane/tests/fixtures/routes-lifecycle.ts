@@ -36,6 +36,7 @@ import {
   selectApplicationDataRoute,
 } from '../../src/routes';
 import { renderOctaneApplication } from '../../src/server';
+import { RouteActionOwner, routeActionOwner } from './route-action-owner';
 
 const identity = {
   renderer: 'octane',
@@ -299,6 +300,68 @@ export async function nativeRouterActionRedirect(
     }
   } finally {
     documentLocation.mockRestore();
+    handle.dispose();
+    container.remove();
+    router.history.destroy();
+  }
+}
+
+export async function nativeRouterActionOwnerDisposal() {
+  const response = deferred<Response>();
+  let fetchSignal: AbortSignal | null | undefined;
+  routeActionOwner.fetch = async (_input, init) => {
+    fetchSignal = init?.signal;
+    return response.promise;
+  };
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('home', { index: true }),
+      descriptor('other', { path: 'other' }),
+      descriptor('complete', { path: 'complete' }),
+    ],
+    { home: { component: RouteActionOwner } },
+  );
+  const router = createRouter({
+    routeTree: tree,
+    isServer: false,
+    origin: 'https://native.test',
+    context: { ultramodern: { rendererIdentity: identity } },
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  });
+  const { container, handle } = await mountNativeRouter(router);
+  try {
+    await waitForNativeRouter(() => {
+      assert.ok(container.querySelector('[data-fixture="route-action-owner"]'));
+    });
+    const submitting = routeActionOwner.submit!(undefined, new FormData());
+    const settled = submitting.then(
+      () => assert.fail('A disposed owner must not apply its action outcome'),
+      error => error,
+    );
+    await waitForNativeRouter(() => assert.ok(fetchSignal));
+    await router.navigate({ to: '/other' });
+    await waitForNativeRouter(() => {
+      assert.equal(router.stores.location.get().pathname, '/other');
+      assert.equal(
+        container.querySelector('[data-fixture="route-action-owner"]'),
+        null,
+      );
+    });
+    assert.equal(fetchSignal!.aborted, true);
+    assert.equal((await settled).name, 'AbortError');
+    // The late result would have redirected; the user stays where they went.
+    response.resolve(
+      createDataResponse(
+        { kind: 'redirect', location: '/complete', response: metadata(303) },
+        identity,
+        { routeId: 'home', operation: 'action' },
+      ),
+    );
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(router.stores.location.get().pathname, '/other');
+  } finally {
+    routeActionOwner.fetch = undefined;
+    routeActionOwner.submit = undefined;
     handle.dispose();
     container.remove();
     router.history.destroy();
