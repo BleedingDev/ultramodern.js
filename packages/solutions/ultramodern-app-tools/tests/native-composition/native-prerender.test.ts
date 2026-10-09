@@ -210,6 +210,23 @@ describe('native prerender route selection', () => {
     );
   });
 
+  it('ignores a closing head tag inside RCDATA elements and attribute values', () => {
+    const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
+    for (const head of [
+      '<title>literal </head> text</title>',
+      '<TITLE>literal </HEAD> text</Title>',
+      '<noscript><p></head></p></noscript>',
+      '<meta name="note" content="</head>">',
+      "<meta name='note' content='</head>'>",
+      '<script type="text/plain" data-x="</script>">a</script>',
+    ]) {
+      const html = `<html><head>${head}</head><body></body></html>`;
+      expect(markPrerenderedDocument(html)).toBe(
+        `<html><head>${head}${marker}</head><body></body></html>`,
+      );
+    }
+  });
+
   it('marks the document head for static payload replay', () => {
     expect(
       markPrerenderedDocument(

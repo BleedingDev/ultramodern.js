@@ -282,11 +282,13 @@ export function localizePrerenderRoutes(
 /** Mark the document so the data client replays static loader payloads. */
 export function markPrerenderedDocument(html: string): string {
   const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
-  // Skip raw-text elements and comments: a `</head>` inside an inline
-  // script, style or comment is text, not the closing tag.
+  // A `</head>` is text inside raw-text and RCDATA elements (script, style,
+  // title, textarea and the like), comments and quoted attribute values, so
+  // those are skipped whole; any other start tag is consumed with its
+  // attributes.
   let close = -1;
   for (const match of html.matchAll(
-    /<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<!--[\s\S]*?-->|<\/head\s*>/giu,
+    /<(script|style|title|textarea|noscript|xmp|iframe|noembed|noframes)\b(?:"[^"]*"|'[^']*'|[^>"'])*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->|<\/head\s*>|<[a-z][^\s/>]*(?:"[^"]*"|'[^']*'|[^>"'])*>/giu,
   ))
     if (/^<\/head/iu.test(match[0])) {
       close = match.index;
