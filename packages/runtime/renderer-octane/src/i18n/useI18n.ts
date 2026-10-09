@@ -20,19 +20,14 @@ export interface UseI18nReturn {
 }
 
 /**
- * The latest `changeLanguage` call per instance. Only it may navigate or
- * restore; an older call that settles later leaves the language to it.
+ * Language switches per instance run one at a time: a switch that a newer
+ * one has superseded before it starts is skipped, so no two switches ever
+ * interleave their language loads and navigations.
  */
 const languageSwitches = new WeakMap<
   object,
-  { readonly generation: number; readonly language: string }
+  { latest: number; queue: Promise<void> }
 >();
-
-/**
- * The settlement of each instance's latest navigation. Switches navigate in
- * call order, so the newest switch's URL is always committed last.
- */
-const languageNavigations = new WeakMap<object, Promise<void>>();
 
 /**
  * Must render under `I18nProvider`; throws rather than silently reading a
@@ -53,78 +48,51 @@ export function useI18n(): UseI18nReturn {
 
   const router = useRouter({ warn: false });
 
-  const changeLanguage = async (nextLanguage: string): Promise<void> => {
-    const generation = (languageSwitches.get(instance)?.generation ?? 0) + 1;
-    languageSwitches.set(instance, { generation, language: nextLanguage });
-    const current = () =>
-      languageSwitches.get(instance)?.generation === generation;
-    const previous = instance.language;
-    await instance.changeLanguage?.(nextLanguage);
-    // A slower load, or a restore, that settles after a newer switch must
-    // not leave the instance behind it: converge on the newest target,
-    // rechecking after each correction, and apply each switch at most once.
-    const converge = async () => {
-      let applied: number | undefined;
-      for (
-        let latest = languageSwitches.get(instance);
-        latest &&
-        latest.generation !== applied &&
-        instance.language !== latest.language;
-        latest = languageSwitches.get(instance)
-      ) {
-        applied = latest.generation;
-        await instance.changeLanguage?.(latest.language);
+  const changeLanguage = (nextLanguage: string): Promise<void> => {
+    const state = languageSwitches.get(instance) ?? {
+      latest: 0,
+      queue: Promise.resolve(),
+    };
+    languageSwitches.set(instance, state);
+    const generation = ++state.latest;
+    const run = state.queue.then(async () => {
+      if (state.latest !== generation) return;
+      // Earlier switches have settled, so this is the language the current
+      // URL was committed with.
+      const committed = instance.language;
+      // A failed, blocked or redirected switch leaves the page on some URL;
+      // the language follows that URL's locale, or the committed language on
+      // a URL without one.
+      const reconcile = async () => {
+        const language =
+          (router &&
+            languageFromPathname(router.state.location.pathname, languages)) ??
+          committed;
+        if (instance.language !== language)
+          await instance.changeLanguage?.(language);
+      };
+      try {
+        await instance.changeLanguage?.(nextLanguage);
+      } catch (error) {
+        await reconcile();
+        throw error;
       }
-    };
-    if (!current()) return converge();
-    if (!router) return;
-    // A failed, blocked or redirected navigation leaves the page on another
-    // URL, so the language follows that URL, unless a later switch has taken
-    // over.
-    // The language the current URL renders, read after earlier switches'
-    // navigations settled; the call's own snapshot only backs it up.
-    const urlLanguage = () =>
-      languageFromPathname(router.state.location.pathname, languages) ??
-      previous;
-    const restore = async () => {
-      if (!current()) return;
-      // Retire the blocked target, so an older call that settles later
-      // converges on the restored language instead.
-      const restored = urlLanguage();
-      languageSwitches.set(instance, { generation, language: restored });
-      await instance.changeLanguage?.(restored);
-      if (!current()) await converge();
-    };
-    const prior = languageNavigations.get(instance);
-    let settle!: () => void;
-    languageNavigations.set(
-      instance,
-      new Promise<void>(resolve => {
-        settle = resolve;
-      }),
-    );
-    try {
-      await prior;
-      if (!current()) return converge();
+      if (!router) return;
       // The full href keeps the query and fragment across the language switch.
-      const from = router.state.location.href;
-      const href = localizePath(from, nextLanguage, {
+      const href = localizePath(router.state.location.href, nextLanguage, {
         languages: [...languages],
         localisedUrls,
       });
       try {
         await router.navigate({ to: '.', href, replace: true });
       } catch (error) {
-        await restore();
+        await reconcile();
         throw error;
       }
-      // A blocked or redirected navigation settles on another URL; the
-      // language follows the URL it settled on.
-      if (router.state.location.href !== href) await restore();
-      if (!current()) await converge();
-    } finally {
-      settle();
-    }
+      if (router.state.location.href !== href) await reconcile();
+    });
+    state.queue = run.catch(() => {});
+    return run;
   };
 
   return { t, language, languages, instance, changeLanguage };

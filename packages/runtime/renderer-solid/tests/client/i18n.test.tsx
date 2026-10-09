@@ -126,6 +126,10 @@ describe('Solid i18n binding', () => {
       );
       // A blocked or failed navigation keeps the page's URL and language.
       const realNavigate = router.navigate.bind(router);
+      const fastChange = instance.changeLanguage!;
+      const ticks = async () => {
+        for (let tick = 0; tick < 50; tick += 1) await Promise.resolve();
+      };
       router.navigate = (async () => undefined) as never;
       await binding!.changeLanguage('en');
       expect(instance.language).toBe('cs');
@@ -139,149 +143,83 @@ describe('Solid i18n binding', () => {
       expect(router.state.location.href).toBe(
         '/cs/products?sort=price#reviews',
       );
-      // A switch that fails after a later one succeeded leaves the later
-      // language in place.
-      let failFirst!: (error: Error) => void;
-      let calls = 0;
-      router.navigate = ((options: never) =>
-        ++calls === 1
-          ? new Promise((_resolve, reject) => {
-              failFirst = reject;
-            })
-          : realNavigate(options)) as never;
-      const first = binding!.changeLanguage('en');
-      // The newer switch starts while the older one is navigating.
-      for (let tick = 0; calls === 0 && tick < 100; tick += 1)
-        await Promise.resolve();
-      // It waits for that navigation, which then fails.
-      const newer = binding!.changeLanguage('en');
-      failFirst(new Error('stale navigation'));
-      await expect(first).rejects.toThrow('stale navigation');
-      await newer;
-      expect(router.state.location.href).toBe(
-        '/en/products?sort=price#reviews',
-      );
-      expect(instance.language).toBe('en');
-      // A slow language load that settles after a newer switch neither
-      // navigates nor keeps its language.
       router.navigate = realNavigate as never;
-      const fastChange = instance.changeLanguage!;
+      // A failed language load keeps the committed language.
+      instance.changeLanguage = async (lng?: string) => {
+        if (lng === 'en') throw new Error('load failed');
+        return fastChange(lng);
+      };
+      await expect(binding!.changeLanguage('en')).rejects.toThrow(
+        'load failed',
+      );
+      expect(instance.language).toBe('cs');
+      // Switches run one at a time; one that a newer switch supersedes
+      // before it starts is skipped.
+      const loaded: (string | undefined)[] = [];
       let finishSlow!: () => void;
       instance.changeLanguage = async (lng?: string) => {
-        if (lng === 'cs')
+        loaded.push(lng);
+        if (lng === 'en')
           await new Promise<void>(resolve => {
             finishSlow = resolve;
           });
         return fastChange(lng);
       };
-      const slow = binding!.changeLanguage('cs');
-      await binding!.changeLanguage('en');
+      const slow = binding!.changeLanguage('en');
+      await ticks();
+      const superseded = binding!.changeLanguage('fr');
+      const newest = binding!.changeLanguage('cs');
       finishSlow();
-      await slow;
+      await Promise.all([slow, superseded, newest]);
+      expect(loaded).toEqual(['en', 'cs']);
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('cs');
+      // A newer switch whose load rejects leaves the language the older
+      // switch committed with its URL.
+      let finishOlder!: () => void;
+      instance.changeLanguage = async (lng?: string) => {
+        if (lng === 'en')
+          await new Promise<void>(resolve => {
+            finishOlder = resolve;
+          });
+        if (lng === 'fr') throw new Error('fr unavailable');
+        return fastChange(lng);
+      };
+      const older = binding!.changeLanguage('en');
+      await ticks();
+      const rejected = binding!.changeLanguage('fr');
+      finishOlder();
+      await older;
+      await expect(rejected).rejects.toThrow('fr unavailable');
       expect(router.state.location.href).toBe(
         '/en/products?sort=price#reviews',
       );
       expect(instance.language).toBe('en');
-      // Three switches settle out of order, including a stale call's own
-      // correction; the language still ends on the newest switch and URL.
-      const pending: (() => void)[] = [];
-      instance.changeLanguage = async (lng?: string) => {
-        await new Promise<void>(resolve => {
-          pending.push(resolve);
-        });
-        return fastChange(lng);
-      };
-      const ticks = async () => {
-        for (let tick = 0; tick < 50; tick += 1) await Promise.resolve();
-      };
-      const oldest = binding!.changeLanguage('cs');
-      const middle = binding!.changeLanguage('en');
-      pending[1]();
-      await middle;
-      // The oldest load settles and starts correcting toward the middle one.
-      pending[0]();
-      await ticks();
-      const newest = binding!.changeLanguage('cs');
-      pending[3]();
-      await newest;
-      // That correction settles last.
-      pending[2]();
-      await ticks();
-      pending[4]?.();
-      await oldest;
-      expect(router.state.location.href).toBe(
-        '/cs/products?sort=price#reviews',
-      );
-      expect(instance.language).toBe('cs');
       instance.changeLanguage = fastChange;
-      // An older navigation that commits late cannot leave its URL behind:
-      // the newer switch navigates after it.
-      let releaseOlder!: () => void;
+      // On a route without a locale prefix, overlapping blocked switches
+      // keep the language that route was committed with.
+      await realNavigate({ to: '.', href: '/login', replace: true } as never);
+      await fastChange('cs');
+      let releaseFirst!: () => void;
       let navigations = 0;
-      router.navigate = ((options: never) =>
-        ++navigations === 1
-          ? new Promise(resolve => {
-              releaseOlder = () => resolve(realNavigate(options));
-            })
-          : realNavigate(options)) as never;
-      const older = binding!.changeLanguage('en');
-      for (let tick = 0; navigations === 0 && tick < 100; tick += 1)
-        await Promise.resolve();
-      const latest = binding!.changeLanguage('cs');
-      await ticks();
-      releaseOlder();
-      await Promise.all([older, latest]);
-      expect(router.state.location.href).toBe(
-        '/cs/products?sort=price#reviews',
-      );
-      expect(instance.language).toBe('cs');
-      // A newer switch whose navigation is blocked restores the language;
-      // an older load settling afterwards converges on that restored one.
-      router.navigate = (async () => undefined) as never;
-      let releaseOlderLoad!: () => void;
-      let loads = 0;
-      instance.changeLanguage = async (lng?: string) => {
-        if (++loads === 1)
-          await new Promise<void>(resolve => {
-            releaseOlderLoad = resolve;
-          });
-        return fastChange(lng);
-      };
-      const olderLoad = binding!.changeLanguage('en');
-      await binding!.changeLanguage('en');
-      expect(instance.language).toBe('cs');
-      releaseOlderLoad();
-      await olderLoad;
-      expect(instance.language).toBe('cs');
-      expect(router.state.location.href).toBe(
-        '/cs/products?sort=price#reviews',
-      );
-      instance.changeLanguage = fastChange;
-      router.navigate = realNavigate as never;
-      // Overlapping switches whose navigations are both blocked restore the
-      // language the URL renders, not one captured mid-navigation.
-      let releaseFirstNavigation!: () => void;
-      let blocked = 0;
       router.navigate = (() =>
-        ++blocked === 1
+        ++navigations === 1
           ? new Promise<void>(resolve => {
-              releaseFirstNavigation = resolve;
+              releaseFirst = resolve;
             })
           : Promise.resolve()) as never;
-      const firstBlocked = binding!.changeLanguage('en');
-      for (let tick = 0; blocked === 0 && tick < 100; tick += 1)
+      const first = binding!.changeLanguage('en');
+      for (let tick = 0; navigations === 0 && tick < 100; tick += 1)
         await Promise.resolve();
-      const secondBlocked = binding!.changeLanguage('fr');
-      await ticks();
-      releaseFirstNavigation();
-      await Promise.all([firstBlocked, secondBlocked]);
-      expect(router.state.location.href).toBe(
-        '/cs/products?sort=price#reviews',
-      );
+      const second = binding!.changeLanguage('fr');
+      releaseFirst();
+      await Promise.all([first, second]);
+      expect(router.state.location.pathname).toBe('/login');
       expect(instance.language).toBe('cs');
-      router.navigate = realNavigate as never;
       // A navigation redirected to another locale's URL leaves the language
-      // on the locale that URL represents.
+      // on the locale that URL represents, matched case-insensitively.
       router.navigate = ((options: never) =>
         realNavigate({
           ...(options as object),
@@ -290,7 +228,6 @@ describe('Solid i18n binding', () => {
       await binding!.changeLanguage('cs');
       expect(router.state.location.pathname).toBe('/en/login');
       expect(instance.language).toBe('en');
-      // A differently cased locale prefix still names its language.
       router.navigate = ((options: never) =>
         realNavigate({
           ...(options as object),
