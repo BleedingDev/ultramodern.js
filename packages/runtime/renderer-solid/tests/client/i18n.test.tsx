@@ -124,6 +124,21 @@ describe('Solid i18n binding', () => {
       expect(router.state.location.href).toBe(
         '/cs/products?sort=price#reviews',
       );
+      // An unconfigured language changes neither the instance nor the URL;
+      // a configured one is matched case-insensitively.
+      await expect(binding!.changeLanguage('de')).rejects.toThrow(
+        'Unsupported language "de"; expected one of: en, cs, fr',
+      );
+      expect(instance.language).toBe('cs');
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      await binding!.changeLanguage('FR');
+      expect(instance.language).toBe('fr');
+      expect(router.state.location.href).toBe(
+        '/fr/products?sort=price#reviews',
+      );
+      await binding!.changeLanguage('cs');
       // A blocked or failed navigation keeps the page's URL and language.
       const realNavigate = router.navigate.bind(router);
       const fastChange = instance.changeLanguage!;

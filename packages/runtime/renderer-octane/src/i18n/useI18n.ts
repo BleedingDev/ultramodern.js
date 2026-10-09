@@ -48,7 +48,19 @@ export function useI18n(): UseI18nReturn {
 
   const router = useRouter({ warn: false });
 
-  const changeLanguage = (nextLanguage: string): Promise<void> => {
+  const changeLanguage = (requested: string): Promise<void> => {
+    // Only a configured language has a locale prefix: i18next would fall back
+    // silently and the URL would gain an unknown segment. An unsupported
+    // request is rejected before it supersedes any queued switch.
+    const nextLanguage = languages.find(
+      language => language.toLowerCase() === String(requested).toLowerCase(),
+    );
+    if (nextLanguage === undefined)
+      return Promise.reject(
+        new RangeError(
+          `Unsupported language "${requested}"; expected one of: ${languages.join(', ')}`,
+        ),
+      );
     const state = languageSwitches.get(instance) ?? {
       latest: 0,
       queue: Promise.resolve(),
