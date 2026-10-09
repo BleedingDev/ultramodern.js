@@ -185,6 +185,9 @@ describe('Octane i18n binding', () => {
             })
           : realNavigate(options)) as never;
       const first = binding!.changeLanguage('en');
+      // The newer switch starts while the older one is navigating.
+      for (let tick = 0; calls === 0 && tick < 100; tick += 1)
+        await Promise.resolve();
       await binding!.changeLanguage('en');
       failFirst(new Error('stale navigation'));
       await expect(first).rejects.toThrow('stale navigation');
@@ -192,6 +195,27 @@ describe('Octane i18n binding', () => {
         '/en/products?sort=price#reviews',
       );
       expect(instance.language).toBe('en');
+      // A slow language load that settles after a newer switch neither
+      // navigates nor keeps its language.
+      router.navigate = realNavigate as never;
+      const fastChange = instance.changeLanguage!;
+      let finishSlow!: () => void;
+      instance.changeLanguage = async (lng?: string) => {
+        if (lng === 'cs')
+          await new Promise<void>(resolve => {
+            finishSlow = resolve;
+          });
+        return fastChange(lng);
+      };
+      const slow = binding!.changeLanguage('cs');
+      await binding!.changeLanguage('en');
+      finishSlow();
+      await slow;
+      expect(router.state.location.href).toBe(
+        '/en/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('en');
+      instance.changeLanguage = fastChange;
     } finally {
       octaneRoot.unmount();
       root.remove();

@@ -19,8 +19,14 @@ export interface UseI18nReturn {
   changeLanguage: (language: string) => Promise<void>;
 }
 
-/** The latest `changeLanguage` call per instance; only it may restore. */
-const languageSwitches = new WeakMap<object, number>();
+/**
+ * The latest `changeLanguage` call per instance. Only it may navigate or
+ * restore; an older call that settles later leaves the language to it.
+ */
+const languageSwitches = new WeakMap<
+  object,
+  { readonly generation: number; readonly language: string }
+>();
 
 /**
  * Must render under `I18nProvider`; `useContext` on the default-less
@@ -43,10 +49,19 @@ export function useI18n(): UseI18nReturn {
   const router = useRouter({ warn: false });
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
-    const generation = (languageSwitches.get(instance) ?? 0) + 1;
-    languageSwitches.set(instance, generation);
+    const generation = (languageSwitches.get(instance)?.generation ?? 0) + 1;
+    languageSwitches.set(instance, { generation, language: nextLanguage });
+    const current = () =>
+      languageSwitches.get(instance)?.generation === generation;
     const previous = instance.language;
     await instance.changeLanguage?.(nextLanguage);
+    if (!current()) {
+      // A slower load that finished last must not overwrite the newer target.
+      const latest = languageSwitches.get(instance)?.language;
+      if (latest !== undefined && instance.language !== latest)
+        await instance.changeLanguage?.(latest);
+      return;
+    }
     if (!router) return;
     // The full href keeps the query and fragment across the language switch.
     const from = router.state.location.href;
@@ -58,9 +73,7 @@ export function useI18n(): UseI18nReturn {
     // language returns to the one that URL renders, unless a later switch
     // has taken over.
     const restore = () =>
-      languageSwitches.get(instance) === generation
-        ? instance.changeLanguage?.(previous)
-        : undefined;
+      current() ? instance.changeLanguage?.(previous) : undefined;
     try {
       await router.navigate({ to: '.', href, replace: true });
     } catch (error) {
