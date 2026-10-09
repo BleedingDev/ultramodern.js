@@ -246,6 +246,29 @@ describe('request response and body ownership', () => {
     expect(session.committedPolicy?.status).toBe(200);
   });
 
+  test('completes without waiting on a response stream that never finishes cancelling', async () => {
+    const session = createSession();
+    session.resolveResponse(policy());
+    let cancelled = false;
+    const response = session.respond(
+      new ReadableStream<Uint8Array>(
+        {
+          cancel() {
+            cancelled = true;
+            return new Promise<void>(() => {});
+          },
+        },
+        { highWaterMark: 0 },
+      ),
+    );
+    const reading = response.text();
+    session.abort(new Error('client went away'));
+    const completion = await session.completion;
+    expect(completion.state).toBe('aborted');
+    expect(cancelled).toBe(true);
+    await expect(reading).rejects.toThrow('client went away');
+  });
+
   test('attempts every disposer in reverse order after a pre-shell failure', async () => {
     const session = createSession();
     const calls: string[] = [];

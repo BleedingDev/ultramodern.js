@@ -111,14 +111,14 @@ export function createRequestSession<Bindings extends object>(input: {
     disposers.clear();
     finishPromise = Promise.resolve().then(async () => {
       const cleanupErrors: unknown[] = [];
-      // A native cancel operation can wait for its renderer owner to dispose.
-      // Start both paths before waiting for cancellation to finish.
-      const cancellation =
-        terminalState === 'completed'
-          ? Promise.resolve()
-          : cancelSource(error).catch(cancelError => {
-              cleanupErrors.push(cancelError);
-            });
+      let recorded = false;
+      // A native cancel operation can wait for its renderer owner to dispose,
+      // so both start together. Completion never waits on the source's cancel
+      // hook, which may not settle; an error it reports by then is recorded.
+      if (terminalState !== 'completed')
+        void cancelSource(error).catch(cancelError => {
+          if (!recorded) cleanupErrors.push(cancelError);
+        });
       for (const dispose of ownedDisposers) {
         try {
           await dispose();
@@ -126,7 +126,9 @@ export function createRequestSession<Bindings extends object>(input: {
           cleanupErrors.push(cleanupError);
         }
       }
-      await cancellation;
+      // One turn lets an immediately rejected cancellation be recorded.
+      await Promise.resolve();
+      recorded = true;
       if (terminalState === 'completed' && cleanupErrors.length > 0)
         state = 'failed';
       const result: RequestCompletion = Object.freeze({
