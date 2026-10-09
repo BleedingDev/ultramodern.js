@@ -391,6 +391,24 @@ describe('generated native server entry', () => {
     ]);
   });
 
+  it('releases aborted requests whose application load never settles', async () => {
+    const { adapter: recording } = adapter();
+    const entry = createNativeServerEntry(
+      { identity, app: () => new Promise(() => {}) },
+      recording,
+    );
+    for (const handle of [
+      entry.nativeRequestHandler,
+      entry.nativeMatchRouteIds,
+    ] as const) {
+      const request = new Request('https://example.test/items');
+      const requestContext = context(request);
+      const pending = handle(request, requestContext);
+      requestContext.session.abort(new Error('client went away'));
+      await expect(pending).rejects.toThrow('client went away');
+    }
+  });
+
   it('keeps loader error details only in development', async () => {
     const failing: NativeApplicationModule = {
       ...routed,

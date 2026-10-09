@@ -1,3 +1,4 @@
+import { untilAborted } from './abort';
 import {
   type DataOutcome,
   handleDataRequest,
@@ -189,8 +190,13 @@ export function createNativeServerEntry<
     );
   };
 
-  const routedApplication = async (): Promise<NativeRoutedApplication> => {
-    const application = await options.app();
+  // Application and translation loads race the session signal: a stalled
+  // load, such as a development compilation, must not hold an aborted
+  // request, its context and its session.
+  const routedApplication = async (
+    signal: AbortSignal,
+  ): Promise<NativeRoutedApplication> => {
+    const application = await untilAborted(options.app(), signal);
     if (!isRoutedApplication(application))
       throw new Error(
         'unsupported-renderer-capability: ssrByRouteIds requires native route matching.',
@@ -228,7 +234,7 @@ export function createNativeServerEntry<
   ) =>
     adapter.run(context.session, async () => {
       own(request, context);
-      const application = await routedApplication();
+      const application = await routedApplication(context.session.signal);
       const router = adapter.createRouter(application, {
         identity: rendererIdentity,
         loadRoute: serverRouteLoader(application),
@@ -253,7 +259,7 @@ export function createNativeServerEntry<
     adapter.run(context.session, async () => {
       const document = prepare(request, context);
       const { session } = context;
-      const application = await options.app();
+      const application = await untilAborted(options.app(), session.signal);
       const routed = isRoutedApplication(application);
       const nativeRequest = routed
         ? new Request(request, { signal: session.signal })
@@ -268,7 +274,10 @@ export function createNativeServerEntry<
         inlineData: readonly DocumentInlineData[] = [],
       ) => {
         if (!i18n || !language) return { document, localization: undefined };
-        const instance = await i18n.create(language.language);
+        const instance = await untilAborted(
+          i18n.create(language.language),
+          session.signal,
+        );
         return {
           document: {
             ...document,
