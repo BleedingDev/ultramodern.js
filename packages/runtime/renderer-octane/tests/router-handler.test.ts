@@ -219,6 +219,36 @@ test('aborted native loading cancels native matches and releases the handler', a
   expect((await owner.session.completion).state).toBe('aborted');
 });
 
+test('a render callback that ignores cancellation releases the handler and its late body', async () => {
+  const owner = createOwner();
+  const root = createRootRoute({ loader: () => ({ value: 'safe' }) });
+  const router = createRouter({ routeTree: root, isServer: true });
+  const cleaned = rs.fn();
+  const late = Promise.withResolvers<Response>();
+  let rendering!: () => void;
+  const started = new Promise<void>(resolve => {
+    rendering = resolve;
+  });
+  const pending = createOctaneRequestHandler({
+    ...owner,
+    createRouter: () => router,
+  })(({ router }) => {
+    router.serverSsr!.onCleanup(cleaned);
+    rendering();
+    return late.promise;
+  });
+  await started;
+  const reason = new Error('request cancelled while rendering');
+  owner.session.abort(reason);
+  await expect(pending).rejects.toBe(reason);
+  expect(cleaned).toHaveBeenCalledTimes(1);
+  expect((await owner.session.completion).state).toBe('aborted');
+  const cancelled = rs.fn();
+  late.resolve(new Response(new ReadableStream({ cancel: cancelled })));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(cancelled).toHaveBeenCalledTimes(1);
+});
+
 test('stream response ownership defers native cleanup to the owning session', async () => {
   const owner = createOwner();
   const root = createRootRoute({ loader: () => ({ value: 'safe' }) });

@@ -149,8 +149,26 @@ export function createOctaneRequestHandler<TRouter extends AnyRouter>({
       await withAbort(serverSsr.dehydrate(), session.signal);
       guard.assertActive();
       const responseHeaders = requestHeaders(router);
+      // A callback that ignores cancellation must not hold the router SSR
+      // state; a result arriving after abort only has its body released.
+      const rendered = Promise.resolve(
+        callback({ request, router, responseHeaders }),
+      );
       const result = normalizeSsrResponse(
-        await callback({ request, router, responseHeaders }),
+        await withAbort(rendered, session.signal).catch(error => {
+          if (session.signal.aborted)
+            void rendered.then(
+              late => {
+                try {
+                  void normalizeSsrResponse(late)
+                    .response.body?.cancel()
+                    .catch(() => {});
+                } catch {}
+              },
+              () => {},
+            );
+          throw error;
+        }),
       );
       responseOwnsCleanup = result.serverSsrCleanup === 'stream';
       return result.response;

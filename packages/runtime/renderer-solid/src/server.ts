@@ -9,6 +9,7 @@ import {
   type RequestSession,
   responseHeaders,
   restrictDocumentCache,
+  untilAborted,
 } from '@modern-js/renderer-core/session';
 import {
   commitEventResponse,
@@ -104,7 +105,11 @@ export async function runApplicationRequest<Bindings extends object, Result>(
   // Fail inside the request scope so session cleanup observes its event.
   return await provideRequestEvent(event, async () => {
     try {
-      return await callback();
+      // Request work that ignores cancellation must not hold its event.
+      return await untilAborted(
+        callback() as Awaited<Result> | Promise<Awaited<Result>>,
+        session.signal,
+      );
     } catch (error) {
       void session.fail(error);
       throw error;

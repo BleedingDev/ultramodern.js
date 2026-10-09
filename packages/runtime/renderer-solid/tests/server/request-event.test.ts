@@ -144,6 +144,31 @@ describe('native Solid application request event', () => {
     expect((await session.completion).state).toBe('completed');
   });
 
+  test('request work that ignores cancellation releases the request and its late body', async () => {
+    const session = createSession('ignores-abort');
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const late = Promise.withResolvers<Response>();
+    let working!: () => void;
+    const started = new Promise<void>(resolve => {
+      working = resolve;
+    });
+    const pending = runApplicationRequest(session, () => {
+      working();
+      return late.promise;
+    });
+    await started;
+    const reason = new DOMException('Client disconnected', 'AbortError');
+    session.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    expect((await session.completion).state).toBe('aborted');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    const cancelled = rstest.fn();
+    late.resolve(new Response(new ReadableStream({ cancel: cancelled })));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(cancelled).toHaveBeenCalledTimes(1);
+  });
+
   test('nested wrappers and document rendering reuse one native event and locals bag', async () => {
     const session = createSession('nested');
     const middleware = { token: privateMarker };
