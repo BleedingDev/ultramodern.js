@@ -180,6 +180,37 @@ describe('Solid i18n binding', () => {
         '/en/products?sort=price#reviews',
       );
       expect(instance.language).toBe('en');
+      // Three switches settle out of order, including a stale call's own
+      // correction; the language still ends on the newest switch and URL.
+      const pending: (() => void)[] = [];
+      instance.changeLanguage = async (lng?: string) => {
+        await new Promise<void>(resolve => {
+          pending.push(resolve);
+        });
+        return fastChange(lng);
+      };
+      const ticks = async () => {
+        for (let tick = 0; tick < 50; tick += 1) await Promise.resolve();
+      };
+      const oldest = binding!.changeLanguage('cs');
+      const middle = binding!.changeLanguage('en');
+      pending[1]();
+      await middle;
+      // The oldest load settles and starts correcting toward the middle one.
+      pending[0]();
+      await ticks();
+      const newest = binding!.changeLanguage('cs');
+      pending[3]();
+      await newest;
+      // That correction settles last.
+      pending[2]();
+      await ticks();
+      pending[4]?.();
+      await oldest;
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      expect(instance.language).toBe('cs');
       instance.changeLanguage = fastChange;
     } finally {
       dispose();

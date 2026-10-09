@@ -53,13 +53,23 @@ export function useI18n(): UseI18nReturn {
       languageSwitches.get(instance)?.generation === generation;
     const previous = instance.language;
     await instance.changeLanguage?.(nextLanguage);
-    if (!current()) {
-      // A slower load that finished last must not overwrite the newer target.
-      const latest = languageSwitches.get(instance)?.language;
-      if (latest !== undefined && instance.language !== latest)
-        await instance.changeLanguage?.(latest);
-      return;
-    }
+    // A slower load, or a restore, that settles after a newer switch must
+    // not leave the instance behind it: converge on the newest target,
+    // rechecking after each correction, and apply each switch at most once.
+    const converge = async () => {
+      let applied: number | undefined;
+      for (
+        let latest = languageSwitches.get(instance);
+        latest &&
+        latest.generation !== applied &&
+        instance.language !== latest.language;
+        latest = languageSwitches.get(instance)
+      ) {
+        applied = latest.generation;
+        await instance.changeLanguage?.(latest.language);
+      }
+    };
+    if (!current()) return converge();
     if (!router) return;
     // The full href keeps the query and fragment across the language switch.
     const from = router.state.location.href;
@@ -70,8 +80,11 @@ export function useI18n(): UseI18nReturn {
     // A failed or blocked navigation leaves the page on its URL, so the
     // language returns to the one that URL renders, unless a later switch
     // has taken over.
-    const restore = () =>
-      current() ? instance.changeLanguage?.(previous) : undefined;
+    const restore = async () => {
+      if (!current()) return;
+      await instance.changeLanguage?.(previous);
+      if (!current()) await converge();
+    };
     try {
       await router.navigate({ to: '.', href, replace: true });
     } catch (error) {
