@@ -1,3 +1,4 @@
+import { MAX_DATA_BYTES } from './codec';
 import { DATA_CONTENT_TYPE, DATA_STREAM_CONTENT_TYPE } from './types';
 
 /** Head marker written into documents produced by static prerendering. */
@@ -30,6 +31,25 @@ export function staticDataPayloadPath(
   if (!routeId) throw new TypeError('A static data payload needs a route ID');
   const directory = pathname.endsWith('/') ? pathname : `${pathname}/`;
   return `${directory}${STATIC_DATA_DIRECTORY}/${encodeRouteId(routeId)}.json`;
+}
+
+/**
+ * The client reads a payload file whole before replaying it. One response
+ * wrapped as a JSON string can grow up to six times through escaping; a
+ * deferred stream's frames are bounded only one by one, so prerendering
+ * checks the whole file against the same limit.
+ */
+export const STATIC_DATA_PAYLOAD_MAX_BYTES = MAX_DATA_BYTES * 6 + 1024;
+
+/** The payload file's text, or an error when the client could not read it. */
+export function encodeStaticDataPayload(payload: StaticDataPayload): string {
+  const text = JSON.stringify(payload);
+  const bytes = new TextEncoder().encode(text).byteLength;
+  if (bytes > STATIC_DATA_PAYLOAD_MAX_BYTES)
+    throw new RangeError(
+      `A static loader payload of ${bytes} bytes exceeds the ${STATIC_DATA_PAYLOAD_MAX_BYTES} bytes the data client replays; reduce its (deferred) data or serve the route dynamically.`,
+    );
+  return text;
 }
 
 export function isStaticDataPayload(

@@ -11,6 +11,7 @@ import {
   DATA_CONTENT_TYPE,
   DATA_STREAM_CONTENT_TYPE,
   DIRECT_PARAM,
+  encodeStaticDataPayload,
   LOADER_ID_PARAM,
   PRERENDERED_DOCUMENT_META,
   type StaticDataPayload,
@@ -427,12 +428,21 @@ export async function prerenderRoute(options: {
       contentType: type,
       body: await data.text(),
     };
+    let encoded: string;
+    try {
+      encoded = encodeStaticDataPayload(payload);
+    } catch (error) {
+      throw new Error(
+        `Prerendered route ${route.urlPath} cannot store loader ${routeId}: ${(error as Error).message}`,
+        { cause: error },
+      );
+    }
     await writeOutput(
       path.join(
         documentDirectory,
         ...staticDataPayloadPath(relativeRoutePath(route), routeId).split('/'),
       ),
-      JSON.stringify(payload),
+      encoded,
     );
   }
 }

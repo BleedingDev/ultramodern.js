@@ -1,12 +1,21 @@
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { createDataClient } from '../../src/data/client';
-import { createDataResponse, normalizeDataResult } from '../../src/data/server';
 import {
+  createDataResponse,
+  deferData,
+  normalizeDataResult,
+} from '../../src/data/server';
+import {
+  encodeStaticDataPayload,
   PRERENDERED_DOCUMENT_META,
+  STATIC_DATA_PAYLOAD_MAX_BYTES,
   type StaticDataPayload,
   staticDataPayloadPath,
 } from '../../src/data/static';
-import { DATA_CONTENT_TYPE } from '../../src/data/types';
+import {
+  DATA_CONTENT_TYPE,
+  DATA_STREAM_CONTENT_TYPE,
+} from '../../src/data/types';
 import type { RendererIdentity } from '../../src/identity';
 
 const identity: RendererIdentity = {
@@ -80,6 +89,54 @@ describe('static loader payloads', () => {
     expect(requested).toEqual([
       `https://example.test${staticDataPayloadPath('/products/7', 'products/(id)/page')}`,
     ]);
+  });
+
+  it('stores only deferred payloads the client can replay, however many frames they have', async () => {
+    prerenderedDocument(true);
+    const deferredPayload = async (frames: number) => {
+      const chunk = 'x'.repeat(700 * 1024);
+      const response = createDataResponse(
+        await normalizeDataResult(
+          deferData(
+            { critical: true },
+            Object.fromEntries(
+              Array.from({ length: frames }, (_, index) => [
+                `part${index}`,
+                Promise.resolve(chunk),
+              ]),
+            ),
+          ),
+        ),
+        identity,
+        { routeId: 'products/(id)/page', operation: 'loader' },
+      );
+      return {
+        status: response.status,
+        contentType: DATA_STREAM_CONTENT_TYPE,
+        body: await response.text(),
+      } satisfies StaticDataPayload;
+    };
+    // Each frame is within the per-frame limit; together they are not.
+    const oversized = await deferredPayload(10);
+    expect(oversized.body.length).toBeGreaterThan(
+      STATIC_DATA_PAYLOAD_MAX_BYTES,
+    );
+    expect(() => encodeStaticDataPayload(oversized)).toThrow(
+      /exceeds the \d+ bytes the data client replays/,
+    );
+    const fitting = encodeStaticDataPayload(await deferredPayload(3));
+    const client = createDataClient('products/(id)/page', identity, {
+      fetch: (async () =>
+        new Response(fitting, {
+          headers: { 'content-type': 'application/json' },
+        })) as typeof fetch,
+    });
+    const outcome = await client.loader({
+      request: new Request('https://example.test/products/7'),
+    });
+    const value = (outcome as { value: Record<string, unknown> }).value;
+    expect(value.critical).toBe(true);
+    expect(await value.part2).toHaveLength(700 * 1024);
   });
 
   it('stops waiting for a static payload fetch that ignores the aborted loader', async () => {

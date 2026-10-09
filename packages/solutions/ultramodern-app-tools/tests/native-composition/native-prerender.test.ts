@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   DATA_CONTENT_TYPE,
+  DATA_STREAM_CONTENT_TYPE,
   PRERENDERED_DOCUMENT_META,
+  STATIC_DATA_PAYLOAD_MAX_BYTES,
   staticDataPayloadPath,
 } from '@modern-js/renderer-core/data';
 import type { ServerRoute } from '@modern-js/types';
@@ -392,6 +394,30 @@ describe('native prerender output', () => {
               }),
       }),
     ).rejects.toThrow('needs a directory-style URL (for example /guide');
+  });
+
+  it('fails the build for a deferred payload the client could not replay', async () => {
+    // Every frame is small; only the whole stream exceeds the replay limit.
+    const frame = `${'x'.repeat(512 * 1024)}\n`;
+    const frames = Math.ceil(STATIC_DATA_PAYLOAD_MAX_BYTES / frame.length) + 1;
+    await expect(
+      prerenderRoute({
+        route,
+        entry: {} as never,
+        loaderRouteIds: ['items/(id)/page'],
+        distDirectory,
+        dispatch: async (_entry, request) =>
+          new URL(request.url).searchParams.has('__loader')
+            ? new Response(frame.repeat(frames), {
+                headers: { 'content-type': DATA_STREAM_CONTENT_TYPE },
+              })
+            : new Response('<html><head></head><body></body></html>', {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              }),
+      }),
+    ).rejects.toThrow(
+      /Prerendered route \/items\/42 cannot store loader items\/\(id\)\/page: .* exceeds the \d+ bytes the data client replays/,
+    );
   });
 
   it('fails the build when a document does not render', async () => {
