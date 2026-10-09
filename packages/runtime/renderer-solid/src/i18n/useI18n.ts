@@ -84,6 +84,9 @@ export function useI18n(): UseI18nReturn {
     // has taken over.
     const restore = async () => {
       if (!current()) return;
+      // Retire the blocked target, so an older call that settles later
+      // converges on the restored language instead.
+      languageSwitches.set(instance, { generation, language: previous });
       await instance.changeLanguage?.(previous);
       if (!current()) await converge();
     };

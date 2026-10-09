@@ -235,6 +235,29 @@ describe('Solid i18n binding', () => {
         '/cs/products?sort=price#reviews',
       );
       expect(instance.language).toBe('cs');
+      // A newer switch whose navigation is blocked restores the language;
+      // an older load settling afterwards converges on that restored one.
+      router.navigate = (async () => undefined) as never;
+      let releaseOlderLoad!: () => void;
+      let loads = 0;
+      instance.changeLanguage = async (lng?: string) => {
+        if (++loads === 1)
+          await new Promise<void>(resolve => {
+            releaseOlderLoad = resolve;
+          });
+        return fastChange(lng);
+      };
+      const olderLoad = binding!.changeLanguage('en');
+      await binding!.changeLanguage('en');
+      expect(instance.language).toBe('cs');
+      releaseOlderLoad();
+      await olderLoad;
+      expect(instance.language).toBe('cs');
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+      instance.changeLanguage = fastChange;
+      router.navigate = realNavigate as never;
     } finally {
       dispose();
       flush();
