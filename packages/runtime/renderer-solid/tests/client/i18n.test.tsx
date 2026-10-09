@@ -299,6 +299,67 @@ describe('Solid i18n binding', () => {
     }
   });
 
+  test('changeLanguage under the i18n URL rewrite follows the public locale URL', async () => {
+    const instance = createFakeI18nInstance('cs');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    function Capture() {
+      binding = useI18n();
+      return null;
+    }
+    const languages = ['en', 'cs', 'fr'];
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({
+        initialEntries: ['/store/cs/products?sort=price'],
+      }),
+      basepath: '/store',
+      rewrite: createI18nUrlRewrite({
+        languages,
+        getLanguage: () => instance.language,
+      }),
+      isServer: false,
+    });
+    await router.load();
+    // The router matches the canonical path; only the public URL is localized.
+    expect(router.state.location.pathname).toBe('/products');
+    const root = document.createElement('div');
+    const dispose = mountApplication(
+      () => (
+        <RouterContextProvider router={router}>
+          {() => (
+            <I18nProvider instance={instance} languages={languages}>
+              <Capture />
+            </I18nProvider>
+          )}
+        </RouterContextProvider>
+      ),
+      root,
+    );
+    const publicLanguage = () => router.history.location.pathname.split('/')[2];
+    try {
+      flush();
+      await binding!.changeLanguage('fr');
+      expect(router.history.location.pathname).toBe('/store/fr/products');
+      expect(router.history.location.search).toBe('?sort=price');
+      expect(instance.language).toBe('fr');
+      // A switch redirected to another page keeps the language of the URL
+      // the user lands on.
+      const realNavigate = router.navigate.bind(router);
+      router.navigate = ((options: never) =>
+        realNavigate({
+          ...(options as object),
+          href: '/en/login',
+        } as never)) as never;
+      await binding!.changeLanguage('cs');
+      router.navigate = realNavigate as never;
+      expect(router.state.location.pathname).toBe('/login');
+      expect(instance.language).toBe(publicLanguage());
+    } finally {
+      dispose();
+      flush();
+    }
+  });
+
   test('provider replacement releases the old language subscription and disposal releases the current one', () => {
     const first = createFakeI18nInstance('en');
     const second = createFakeI18nInstance('cs');

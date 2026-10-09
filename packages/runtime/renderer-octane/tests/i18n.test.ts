@@ -333,6 +333,66 @@ describe('Octane i18n binding', () => {
     }
   });
 
+  test('changeLanguage under the i18n URL rewrite follows the public locale URL', async () => {
+    const instance = createFakeI18nInstance('cs');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    const Capture = () => {
+      binding = useI18n();
+      return null;
+    };
+    const languages = ['en', 'cs', 'fr'];
+    const router = createRouter({
+      routeTree: createRootRoute({
+        component: () =>
+          createElement(I18nProvider, {
+            instance,
+            languages,
+            children: createElement(Capture),
+          }),
+      }),
+      history: createMemoryHistory({
+        initialEntries: ['/store/cs/products?sort=price'],
+      }),
+      basepath: '/store',
+      rewrite: createI18nUrlRewrite({
+        languages,
+        getLanguage: () => instance.language,
+      }),
+      isServer: false,
+    });
+    await router.load();
+    // The router matches the canonical path; only the public URL is localized.
+    expect(router.state.location.pathname).toBe('/products');
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const octaneRoot = createRoot(root);
+    flushSync(() =>
+      octaneRoot.render(createElement(ApplicationRouter as any, { router })),
+    );
+    const publicLanguage = () => router.history.location.pathname.split('/')[2];
+    try {
+      await binding!.changeLanguage('fr');
+      expect(router.history.location.pathname).toBe('/store/fr/products');
+      expect(router.history.location.search).toBe('?sort=price');
+      expect(instance.language).toBe('fr');
+      // A switch redirected to another page keeps the language of the URL
+      // the user lands on.
+      const realNavigate = router.navigate.bind(router);
+      router.navigate = ((options: never) =>
+        realNavigate({
+          ...(options as object),
+          href: '/en/login',
+        } as never)) as never;
+      await binding!.changeLanguage('cs');
+      router.navigate = realNavigate as never;
+      expect(router.state.location.pathname).toBe('/login');
+      expect(instance.language).toBe(publicLanguage());
+    } finally {
+      octaneRoot.unmount();
+      root.remove();
+    }
+  });
+
   test('a link to another language is the native Link with its router props', async () => {
     const instance = createFakeI18nInstance('en');
     const { router, root, dispose } = await mount(instance, true, '/store', {

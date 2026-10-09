@@ -72,14 +72,22 @@ export function useI18n(): UseI18nReturn {
       // Earlier switches have settled, so this is the language the current
       // URL was committed with.
       const committed = instance.language;
+      // The public URL carries the locale. Under the i18n URL rewrite the
+      // router's own location is canonical and has none.
+      const publicLanguage = () =>
+        router
+          ? languageFromPathname(
+              new URL(router.state.location.publicHref, 'http://localhost')
+                .pathname,
+              languages,
+              router.options.basepath,
+            )
+          : undefined;
       // A failed, blocked or redirected switch leaves the page on some URL;
       // the language follows that URL's locale, or the committed language on
       // a URL without one.
       const reconcile = async () => {
-        const language =
-          (router &&
-            languageFromPathname(router.state.location.pathname, languages)) ??
-          committed;
+        const language = publicLanguage() ?? committed;
         if (instance.language !== language)
           await instance.changeLanguage?.(language);
       };
@@ -101,7 +109,7 @@ export function useI18n(): UseI18nReturn {
         await reconcile();
         throw error;
       }
-      if (router.state.location.href !== href) await reconcile();
+      if (publicLanguage() !== nextLanguage) await reconcile();
     });
     state.queue = run.catch(() => {});
     return run;
