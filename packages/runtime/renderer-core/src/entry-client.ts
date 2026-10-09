@@ -160,15 +160,18 @@ export function startNativeClientEntry<
   const load = async (): Promise<
     NativeClientView<Router, Instance, LocalisedUrls>
   > => {
-    const application = await options.load();
-    signal.throwIfAborted();
+    // Each startup stage races the signal, so a replaced entry is released
+    // even while its application import or translations never settle.
+    const application = await untilAborted(options.load(), signal);
     const { i18n } = options;
     let instance: Instance | undefined;
     if (i18n) {
       // The server's language and bundles arrive in the document: no flash, no refetch.
       const handoff = i18n.clientHandoff();
-      instance = await i18n.create(handoff.language, handoff.resources);
-      signal.throwIfAborted();
+      instance = await untilAborted(
+        i18n.create(handoff.language, handoff.resources),
+        signal,
+      );
     }
     const current = instance;
     const localization =

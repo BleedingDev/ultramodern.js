@@ -241,6 +241,41 @@ describe('generated native client entry', () => {
     expect(disposed).toHaveBeenCalledTimes(1);
   });
 
+  it('releases a replaced entry whose application import never settles', async () => {
+    installDocument(false);
+    const { adapter, disposed } = recordingAdapter();
+    let dispose!: () => void;
+    let importing!: () => void;
+    const importStarted = new Promise<void>(resolve => {
+      importing = resolve;
+    });
+    let outcome: unknown;
+    startNativeClientEntry(
+      {
+        identity,
+        load: () => {
+          importing();
+          return new Promise(() => {});
+        },
+        hot: { dispose: (callback: () => void) => (dispose = callback) },
+      },
+      {
+        ...adapter,
+        readBootstrap: () => {
+          throw new Error('A CSR document has no bootstrap');
+        },
+        async start(input) {
+          outcome = await input.load().catch(error => error);
+          return disposed;
+        },
+      },
+    );
+    await importStarted;
+    dispose();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(outcome).toMatchObject({ name: 'AbortError' });
+  });
+
   it('releases a replaced entry whose initial router load ignores the signal', async () => {
     installDocument(false);
     const { adapter, disposed } = recordingAdapter();
