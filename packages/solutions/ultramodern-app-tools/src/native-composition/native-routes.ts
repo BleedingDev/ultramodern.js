@@ -179,8 +179,9 @@ export function emitNativeApplicationModule(
         reference === 'file' ? route.file : route.modules?.[reference];
       return file ? [`${field}: ${moduleImport(file)}`] : [];
     });
+    // Computed keys: a literal "__proto__" key would set the prototype.
     routeModules.push(
-      `  ${JSON.stringify(route.id)}: { ${fields.join(', ')} },`,
+      `  [${JSON.stringify(route.id)}]: { ${fields.join(', ')} },`,
     );
     const dataFile =
       options.mode === 'server'
@@ -188,7 +189,7 @@ export function emitNativeApplicationModule(
         : route.modules?.clientData;
     if (dataFile)
       dataModules.push(
-        `  ${JSON.stringify(route.id)}: ${moduleImport(dataFile)},`,
+        `  [${JSON.stringify(route.id)}]: ${moduleImport(dataFile)},`,
       );
     if (route.modules?.data) serverDataRoutes.push(route.id);
     for (const child of route.children) visit(child);
@@ -214,9 +215,11 @@ export function emitNativeApplicationModule(
 export const basePath = ${JSON.stringify(options.basePath)};
 export const routeIR = ${JSON.stringify(routeIR, null, 2)};
 export const routeModules = {
+  __proto__: null,
 ${routeModules.join('\n')}
 };
 export const dataModules = {
+  __proto__: null,
 ${dataModules.join('\n')}
 };
 ${options.mode === 'client' ? `export const serverDataRoutes = ${JSON.stringify(serverDataRoutes)};\n` : ''}`;

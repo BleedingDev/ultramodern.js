@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
+import { rspack } from '@rsbuild/core';
 import {
   discoverNativeFileSystemRoutes,
   emitNativeApplicationModule,
@@ -181,6 +183,49 @@ describe('native filesystem route source emission', () => {
       // The application module carries data and imports, never runtime code.
       expect(source).not.toMatch(/@modern-js|function |=>/u);
     }
+  });
+
+  it('keeps prototype-named route ids as own route map entries', async () => {
+    const routes: FileSystemRouteIR[] = [
+      {
+        id: '__proto__',
+        file: '/app/proto.tsx',
+        modules: { data: '/app/proto.data.ts' },
+        children: [],
+      },
+      { id: 'constructor', file: '/app/constructor.tsx', children: [] },
+    ];
+    const { code } = await rspack.experiments.swc.transform(
+      emitNativeApplicationModule({ routes, mode: 'server', basePath: '/' }),
+      {
+        jsc: { parser: { syntax: 'ecmascript' }, target: 'es2022' },
+        module: { type: 'commonjs' },
+      },
+    );
+    const sources: Record<string, unknown> = {
+      '/app/proto.tsx': { __esModule: true, default: 'ProtoView' },
+      '/app/proto.data.ts': { __esModule: true, loader: 'protoLoader' },
+      '/app/constructor.tsx': { __esModule: true, default: 'ConstructorView' },
+    };
+    const application: Record<string, any> = {};
+    new Function('require', 'exports', code)((name: string) => {
+      if (name in sources) return sources[name];
+      throw new Error(`Unexpected generated import: ${name}`);
+    }, application);
+    expect(Object.keys(application.routeModules)).toEqual([
+      '__proto__',
+      'constructor',
+    ]);
+    expect(Object.getPrototypeOf(application.routeModules)).toBeNull();
+    const own = (map: object) =>
+      Object.getOwnPropertyDescriptor(map, '__proto__')?.value;
+    expect(own(application.routeModules).component).toBe(
+      sources['/app/proto.tsx'],
+    );
+    expect(Object.keys(application.dataModules)).toEqual(['__proto__']);
+    expect(own(application.dataModules)).toBe(sources['/app/proto.data.ts']);
+    // A route without data finds nothing, not an Object.prototype member.
+    expect(application.dataModules.constructor).toBeUndefined();
   });
 
   it('rejects an application module without its analyzed base path', () => {
