@@ -8,7 +8,12 @@ import type {
   PublicDataOutcome,
   SelectedDataRoute,
 } from './data';
-import { DataProtocolError, toTanstackPath } from './data';
+import {
+  DataProtocolError,
+  parsePublicData,
+  serializePublicData,
+  toTanstackPath,
+} from './data';
 import type { RendererIdentity } from './identity';
 import type { RequestSession } from './session';
 
@@ -82,8 +87,22 @@ export function resolveRouteData(
   switch (outcome.kind) {
     case 'success':
       return project(outcome.value);
-    case 'deferred':
-      return project({ ...outcome.critical, ...outcome.deferred });
+    case 'deferred': {
+      // The critical record makes the same codec round trip as on the wire:
+      // a copy that keeps its cycles and prototype, never the loader's own
+      // (possibly shared) object, then receives the deferred promises.
+      const value = parsePublicData(
+        serializePublicData(outcome.critical),
+      ) as Record<string, unknown>;
+      for (const [key, promise] of Object.entries(outcome.deferred))
+        Object.defineProperty(value, key, {
+          value: promise,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
+      return project(value);
+    }
     case 'redirect':
       throw native.redirect({
         href: outcome.location,

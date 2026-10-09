@@ -151,6 +151,24 @@ describe('native router glue', () => {
     ).toBeUndefined();
   });
 
+  it('delivers deferred data on a copy that keeps critical-record identity', () => {
+    const critical = Object.create(null) as Record<string, unknown>;
+    critical.name = 'tractor';
+    critical.self = critical;
+    const late = Promise.resolve('later');
+    const value = resolveRouteData(signals, 'item', {
+      kind: 'deferred',
+      critical,
+      deferred: { late },
+    } as never) as Record<string, unknown>;
+    expect(value.self).toBe(value);
+    expect(Object.getPrototypeOf(value)).toBeNull();
+    expect(value.late).toBe(late);
+    // The loader's own record is never mutated or handed out.
+    expect(value).not.toBe(critical);
+    expect(Object.hasOwn(critical, 'late')).toBe(false);
+  });
+
   it('redirects keep their status, location and repeated cookies', () => {
     expect(
       thrown(() =>
