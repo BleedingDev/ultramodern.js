@@ -695,6 +695,8 @@ describe('native development', () => {
     const app = await replacementApp(false, true);
     await until(app, 'first:replacement-compiler');
     const compilation = app.serverCompilation();
+    // Read the compilation before any request: a later rebuild replaces it.
+    const emitted = compilation.getAssets().map(asset => asset.name);
     const chunks = compilation.entrypoints
       .get('test_remote')!
       .getEntrypointChunk()
@@ -762,10 +764,7 @@ describe('native development', () => {
       );
       expect(crossOrigin.headers.get('vary')).toMatch(/origin/iu);
     }
-    const privateNames = compilation
-      .getAssets()
-      .map(asset => asset.name)
-      .filter(name => !names.has(name));
+    const privateNames = emitted.filter(name => !names.has(name));
     expect(privateNames.some(name => name === 'main.js')).toBe(true);
     expect(privateNames).toContain('resources/config.png');
     expect(privateNames).toContain('resources/source.png');
