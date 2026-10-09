@@ -325,6 +325,15 @@ describe('Octane i18n binding', () => {
       await binding!.changeLanguage('cs');
       expect(router.state.location.pathname).toBe('/en/login');
       expect(instance.language).toBe('en');
+      // A differently cased locale prefix still names its language.
+      router.navigate = ((options: never) =>
+        realNavigate({
+          ...(options as object),
+          href: '/CS/login',
+        } as never)) as never;
+      await binding!.changeLanguage('fr');
+      expect(router.state.location.pathname).toBe('/CS/login');
+      expect(instance.language).toBe('cs');
       router.navigate = realNavigate as never;
     } finally {
       octaneRoot.unmount();

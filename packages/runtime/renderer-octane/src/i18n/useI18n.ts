@@ -1,4 +1,5 @@
 import { localizePath } from '@modern-js/i18n-runtime-extensions/paths';
+import { languageFromPathname } from '@modern-js/i18n-runtime-extensions/request-language';
 import { useContext } from 'octane';
 import { useRouter } from '../router';
 import { I18nContext } from './context';
@@ -77,23 +78,14 @@ export function useI18n(): UseI18nReturn {
     };
     if (!current()) return converge();
     if (!router) return;
-    const localizeHref = (href: string, language: string) =>
-      localizePath(href, language, {
-        languages: [...languages],
-        localisedUrls,
-      });
     // A failed, blocked or redirected navigation leaves the page on another
     // URL, so the language follows that URL, unless a later switch has taken
     // over.
     // The language the current URL renders, read after earlier switches'
     // navigations settled; the call's own snapshot only backs it up.
-    const urlLanguage = () => {
-      const href = router.state.location.href;
-      return (
-        languages.find(language => localizeHref(href, language) === href) ??
-        previous
-      );
-    };
+    const urlLanguage = () =>
+      languageFromPathname(router.state.location.pathname, languages) ??
+      previous;
     const restore = async () => {
       if (!current()) return;
       // Retire the blocked target, so an older call that settles later
@@ -116,7 +108,10 @@ export function useI18n(): UseI18nReturn {
       if (!current()) return converge();
       // The full href keeps the query and fragment across the language switch.
       const from = router.state.location.href;
-      const href = localizeHref(from, nextLanguage);
+      const href = localizePath(from, nextLanguage, {
+        languages: [...languages],
+        localisedUrls,
+      });
       try {
         await router.navigate({ to: '.', href, replace: true });
       } catch (error) {
