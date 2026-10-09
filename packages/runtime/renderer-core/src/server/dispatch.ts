@@ -354,7 +354,9 @@ export async function dispatchNativeRequest<Bindings extends object>(
   let handlerStarted = false;
   try {
     session.signal.throwIfAborted();
-    const manifest = await options.loadManifest();
+    // Every stage before the response races the session signal: work that
+    // ignores cancellation must not hold a disconnected request.
+    const manifest = await untilAborted(options.loadManifest(), session.signal);
     assertRendererIdentity(manifest.rendererIdentity, options.identity);
     if (typeof manifest.nativeRequestHandler !== 'function') {
       throw new Error('Native renderer manifest has no request handler.');
@@ -467,7 +469,10 @@ export async function dispatchNativeRequest<Bindings extends object>(
     session.markFallback();
     context = { ...context, session };
     try {
-      const response = await options.onError(error, request, context);
+      const response = await untilAborted(
+        options.onError(error, request, context),
+        session.signal,
+      );
       if (!(response instanceof Response))
         throw new TypeError('Native fallback must return a Fetch Response.');
       const owned = normalizeTerminalResponse(response, session);

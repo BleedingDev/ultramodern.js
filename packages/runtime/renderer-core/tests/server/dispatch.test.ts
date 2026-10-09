@@ -224,6 +224,34 @@ describe('production native Node Fetch dispatch', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it('stops waiting for a manifest load or error fallback after request cancellation', async () => {
+    for (const stage of ['manifest', 'fallback'] as const) {
+      const controller = new AbortController();
+      let reached!: () => void;
+      const stageStarted = new Promise<void>(resolve => {
+        reached = resolve;
+      });
+      const pending = () => {
+        reached();
+        return new Promise<never>(() => {});
+      };
+      const handler = rstest.fn(() => {
+        throw new Error('handler failure');
+      });
+      const dispatched = dispatchNativeNodeRequest(
+        new Request('https://example.test/', { signal: controller.signal }),
+        options(handler, {
+          ...(stage === 'manifest'
+            ? { loadManifest: pending as never }
+            : { onError: pending as never }),
+        }),
+      );
+      await stageStarted;
+      controller.abort(new Error(`${stage} disconnected`));
+      await expect(dispatched).rejects.toThrow(`${stage} disconnected`);
+    }
+  });
+
   it('stops waiting for a selective-SSR matcher after request cancellation', async () => {
     const controller = new AbortController();
     let matched!: () => void;
