@@ -93,6 +93,26 @@ export { dispatchNativeWorkerRequest } from '@modern-js/renderer-core/server';
     );
   });
 
+  it('keeps framework worker entries named like Object.prototype members', () => {
+    const environment = nativeWorkerEnvironment(
+      {
+        source: {
+          entry: {
+            index: '/app/index.server.jsx',
+            constructor: '/app/workers/constructor.ts',
+            toString: '/app/workers/to-string.ts',
+          },
+        },
+      },
+      { index: '/generated/solid/index/index.worker.ts' },
+    );
+    expect(environment.source?.entry).toEqual({
+      index: '/generated/solid/index/index.worker.ts',
+      constructor: '/app/workers/constructor.ts',
+      toString: '/app/workers/to-string.ts',
+    });
+  });
+
   it('replaces page entries, keeps framework worker entries and emits a web module', () => {
     const authored = () => undefined;
     const environment = nativeWorkerEnvironment(
