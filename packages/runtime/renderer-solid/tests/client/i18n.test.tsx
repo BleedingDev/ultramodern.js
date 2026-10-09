@@ -124,6 +124,20 @@ describe('Solid i18n binding', () => {
       expect(router.state.location.href).toBe(
         '/cs/products?sort=price#reviews',
       );
+      // A blocked or failed navigation keeps the page's URL and language.
+      router.navigate = (async () => undefined) as never;
+      await binding!.changeLanguage('en');
+      expect(instance.language).toBe('cs');
+      router.navigate = (async () => {
+        throw new Error('navigation failed');
+      }) as never;
+      await expect(binding!.changeLanguage('en')).rejects.toThrow(
+        'navigation failed',
+      );
+      expect(instance.language).toBe('cs');
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
     } finally {
       dispose();
       flush();

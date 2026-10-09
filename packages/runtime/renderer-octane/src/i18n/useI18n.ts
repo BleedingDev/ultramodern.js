@@ -38,14 +38,25 @@ export function useI18n(): UseI18nReturn {
   const router = useRouter({ warn: false });
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
+    const previous = instance.language;
     await instance.changeLanguage?.(nextLanguage);
     if (!router) return;
     // The full href keeps the query and fragment across the language switch.
-    const href = localizePath(router.state.location.href, nextLanguage, {
+    const from = router.state.location.href;
+    const href = localizePath(from, nextLanguage, {
       languages: [...languages],
       localisedUrls,
     });
-    await router.navigate({ to: '.', href, replace: true });
+    // A failed or blocked navigation leaves the page on its URL, so the
+    // language returns to the one that URL renders.
+    const restore = () => instance.changeLanguage?.(previous);
+    try {
+      await router.navigate({ to: '.', href, replace: true });
+    } catch (error) {
+      await restore();
+      throw error;
+    }
+    if (href !== from && router.state.location.href === from) await restore();
   };
 
   return { t, language, languages, instance, changeLanguage };
