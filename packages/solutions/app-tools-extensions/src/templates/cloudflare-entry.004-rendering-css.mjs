@@ -423,24 +423,20 @@ function createStylesheetLinkStream(
         } catch (error) {
           if (cancelled) return;
           cancelled = true;
-          try {
-            await reader?.cancel(error);
-          } finally {
-            reader?.releaseLock();
-            controller.error(error);
-          }
+          // The error reaches the client without waiting on the source's
+          // cancel hook, which may never settle.
+          reader?.cancel(error).catch(() => {});
+          reader?.releaseLock();
+          controller.error(error);
         }
       },
-      async cancel(reason) {
+      cancel(reason) {
         cancelled = true;
         if (reader) {
-          try {
-            await reader.cancel(reason);
-          } finally {
-            reader.releaseLock();
-          }
+          reader.cancel(reason).catch(() => {});
+          reader.releaseLock();
         } else {
-          await body.cancel(reason);
+          body.cancel(reason).catch(() => {});
         }
       },
     },
