@@ -72,13 +72,16 @@ describe('MissingCopyContextPlugin', () => {
       expect(run.builds.length).toBe(1);
 
       // Neither config/ nor config/upload existed when watching started.
+      // Creating both and the file are separate watcher events, which a
+      // busy runner may build one by one; the copy has to follow them.
       fs.mkdirSync(run.upload, { recursive: true });
       fs.writeFileSync(path.join(run.upload, 'a.txt'), 'a');
-      for (let i = 0; i < 50 && run.builds.length < 2; i++) await sleep(100);
-      await sleep(300);
+      const copied = () =>
+        run.builds.at(-1)?.assets.includes('upload/a.txt') ?? false;
+      for (let i = 0; i < 100 && !copied(); i++) await sleep(100);
 
-      expect(run.builds.length).toBe(2);
-      expect(run.builds[1].assets).toContain('upload/a.txt');
+      expect(run.builds.length).toBeGreaterThan(1);
+      expect(copied()).toBe(true);
     } finally {
       await run.close();
     }
