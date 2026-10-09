@@ -1,8 +1,4 @@
-import {
-  type FederationInstance,
-  loadFederatedModule,
-  remoteBrowserAssets,
-} from '@modern-js/renderer-core/federation';
+import { loadFederatedModule } from '@modern-js/renderer-core/federation';
 import { isServer, type JSX } from '@solidjs/web';
 import * as solid from 'solid-js';
 import {
@@ -14,12 +10,13 @@ import {
   Loading,
   lazy,
   onCleanup,
+  useContext,
 } from 'solid-js';
 import {
-  type FederatedAssets,
-  federatedAssetKey,
-  federationSSRState,
-} from './federation-ssr';
+  FederationContext,
+  type SolidFederationScope,
+} from './federation-context';
+import { federatedAssetKey, federatedServerAssets } from './federation-ssr';
 
 /** The module shape a same-renderer Module Federation remote exposes. */
 export interface FederatedModule<P extends object> {
@@ -38,15 +35,6 @@ export interface FederatedComponentOptions {
 }
 
 const DEFAULT_SERVER_TIMEOUT = 3000;
-
-/** Published by the host build's native federation runtime plugin. */
-const HOST_INSTANCE = Symbol.for('ultramodern.federation.host-instance');
-
-function hostInstance(): FederationInstance | undefined {
-  return (globalThis as Record<symbol, unknown>)[HOST_INSTANCE] as
-    | FederationInstance
-    | undefined;
-}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -77,20 +65,6 @@ function withTimeout<T>(
   });
 }
 
-/** Record a server-rendered remote's browser assets under its asset key. */
-function registerServerAssets(id: string): string {
-  const state = federationSSRState();
-  const instance = hostInstance();
-  const assets = instance && remoteBrowserAssets(instance, id);
-  if (!state || !assets)
-    throw new Error(
-      `Cannot server-render ${id}: the host has no server federation state for its browser assets`,
-    );
-  const key = federatedAssetKey(id);
-  state.assets.set(key, assets);
-  return key;
-}
-
 /**
  * Run once the document has hydrated. A retry inside a hydration pass would
  * look for server data the failed render never produced.
@@ -109,9 +83,10 @@ function afterHydration(callback: () => void): void {
  * Render a Solid component exposed by a Module Federation remote, by its
  * `remote/Expose` id or a custom loader.
  *
- * On the server, a remote id loads through the host's server federation
- * instance and renders into the document with the remote's stylesheets and
- * module preloads; the browser loads the same remote before hydrating it.
+ * A remote id loads through the federation instance of the application that
+ * renders it, so co-located hosts keep their own remotes. On the server it
+ * renders into the document with the remote's stylesheets and module
+ * preloads; the browser loads the same remote before hydrating it.
  * A remote that fails or exceeds its timeout on the server renders the
  * fallback, and the browser retries it after hydration. Custom loaders render
  * in the browser only. Browser load and renderer-admission failures throw to
@@ -139,37 +114,45 @@ export function federatedComponent<P extends object = Record<string, never>>(
   const id = typeof remote === 'string' ? remote : undefined;
   const timeout =
     options.timeout ?? (isServer ? DEFAULT_SERVER_TIMEOUT : undefined);
-  const Remote = lazy(async () => {
-    if (isServer && !id)
-      throw new Error(
-        'A federatedComponent loader renders in the browser only; use a remote id to server-render it',
+  const load = (scope: SolidFederationScope): Component<P> =>
+    lazy(async () => {
+      if (isServer && !id)
+        throw new Error(
+          'A federatedComponent loader renders in the browser only; use a remote id to server-render it',
+        );
+      const module = await withTimeout(
+        Promise.resolve().then(() =>
+          id
+            ? loadFederatedModule<FederatedModule<P>>(scope.instance, id)
+            : (remote as () => Promise<never>)(),
+        ),
+        timeout,
+        id ?? 'loader',
       );
-    const module = await withTimeout(
-      Promise.resolve().then(() =>
-        id
-          ? loadFederatedModule<FederatedModule<P>>(hostInstance(), id)
-          : (remote as () => Promise<never>)(),
-      ),
-      timeout,
-      id ?? 'loader',
-    );
-    const component = module?.default;
-    if (typeof component !== 'function')
-      throw new TypeError(
-        'A federated Solid module must default-export a component',
-      );
-    // Solid resolves a loaded module's $$moduleUrl through the document's
-    // asset resolver: stylesheets, preloads and the hydration module.
-    return isServer && id
-      ? { default: component, $$moduleUrl: registerServerAssets(id) }
-      : { default: component };
-  });
+      const component = module?.default;
+      if (typeof component !== 'function')
+        throw new TypeError(
+          'A federated Solid module must default-export a component',
+        );
+      if (!isServer || !id) return { default: component };
+      if (!federatedServerAssets(scope, id))
+        throw new Error(
+          `Cannot server-render ${id}: the host has no server federation state for its browser assets`,
+        );
+      // Solid resolves a loaded module's $$moduleUrl through the response's
+      // asset resolver: stylesheets, preloads and the hydration module.
+      return { default: component, $$moduleUrl: federatedAssetKey(id) };
+    }) as Component<P>;
+  // Solid's lazy caches its module. Scope the cache to one application or
+  // response, so two hosts rendering this component never share a remote.
+  const remotes = new WeakMap<SolidFederationScope, Component<P>>();
   const fallback = (): JSX.Element => options.fallback?.();
 
-  const remoteView = (props: P) =>
-    createComponent(Remote as Component<P>, props);
-
   return (props: P): JSX.Element => {
+    const scope = useContext(FederationContext);
+    const Remote = remotes.get(scope) ?? load(scope);
+    remotes.set(scope, Remote);
+    const remoteView = () => createComponent(Remote, props);
     // After a server failure, the browser renders the remote afresh: like a
     // client-only mount, its failures reach the application's boundaries.
     const [retried, retry] = createSignal(false);
@@ -197,11 +180,11 @@ export function federatedComponent<P extends object = Record<string, never>>(
       },
       get children() {
         return retried()
-          ? remoteView(props)
+          ? remoteView()
           : createComponent(Errored, {
               fallback: recover,
               get children() {
-                return remoteView(props);
+                return remoteView();
               },
             });
       },

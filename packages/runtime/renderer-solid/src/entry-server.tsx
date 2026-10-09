@@ -52,6 +52,7 @@ export function createNativeServerEntry(
         session,
         view: componentView(component, i18n),
         document,
+        federation: options.federation,
       }),
     async renderRoutes({
       context: { session },
@@ -77,6 +78,7 @@ export function createNativeServerEntry(
         session,
         view: routerView(router, i18n),
         document,
+        federation: options.federation,
       });
     },
   });

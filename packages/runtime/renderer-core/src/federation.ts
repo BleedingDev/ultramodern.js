@@ -1,5 +1,7 @@
 /** The application compiler's native Module Federation runtime. */
 export interface FederationInstance {
+  /** The application's federation name, unique among this realm's instances. */
+  readonly name?: string;
   loadRemote<T>(id: string): Promise<T | null>;
   readonly remoteHandler?: {
     readonly idToRemoteMap?: Record<string, { name: string; expose: string }>;
@@ -28,6 +30,11 @@ interface RemoteSnapshot {
 /** Generated entries retain their own compiler's host, including on the server. */
 export interface NativeFederationBinding {
   readonly instance: () => FederationInstance;
+  /**
+   * Server bindings: the client module, relative to the client asset base,
+   * that loads a server-rendered remote through this host before hydration.
+   */
+  readonly hydrationModule?: string;
 }
 
 export interface FederatedAssets {

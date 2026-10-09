@@ -665,11 +665,15 @@ export function createNativeServerFederationOptions(
 /**
  * The host client module that loads a remote through the host's federation
  * instance. Solid imports it, by the asset key the server rendered, before it
- * hydrates the boundary holding that remote.
+ * hydrates the boundary holding that remote. The server names the host, so
+ * co-located hosts in one browser realm hydrate through their own instances.
  */
-export const nativeFederationHydrationSource = `const id = new URL(import.meta.url).searchParams.get('id');
-const host = globalThis[Symbol.for('ultramodern.federation.host-instance')];
-if (!id || !host) throw new Error('Cannot hydrate the federated component ' + id + ': the host federation runtime has not started');
+export const nativeFederationHydrationSource = `const query = new URL(import.meta.url).searchParams;
+const id = query.get('id');
+const name = query.get('host');
+// Module Federation keeps one instance per name in a realm.
+const host = globalThis.__FEDERATION__?.__INSTANCES__?.find(instance => instance.name === name);
+if (!id || !host) throw new Error('Cannot hydrate the federated component ' + id + ': the ' + name + ' federation runtime has not started');
 const module = await host.loadRemote(id);
 if (!module || typeof module.default !== 'function') throw new TypeError('Remote module ' + id + ' has no default component to hydrate');
 export default module.default;
@@ -743,15 +747,15 @@ export function createNativeRuntimeRemotes(
 
 /**
  * The application's runtime plugin. It registers the configured remotes when
- * its federation instance initializes, and publishes the first (page-owning)
- * instance for federatedComponent(). Build-time remotes would compile remote
- * externals into the ESM runtime chunk, which rspack 2.2.7 renders without its
- * chunk loading runtime; federated components load by id instead.
+ * its federation instance initializes. Generated entries pass that instance to
+ * the renderer, so federatedComponent() loads through its own application's
+ * host. Build-time remotes would compile remote externals into the ESM runtime
+ * chunk, which rspack 2.2.7 renders without its chunk loading runtime;
+ * federated components load by id instead.
  */
 export function nativeFederationRuntimePluginSource(
   remotes: ReturnType<typeof createNativeRuntimeRemotes>,
   server?: {
-    readonly hydrationModule: string;
     readonly requestTimeout?: number;
   },
 ): string {
@@ -759,12 +763,9 @@ export function nativeFederationRuntimePluginSource(
   if (server && (!Number.isSafeInteger(requestTimeout) || requestTimeout <= 0))
     throw federationError('server requestTimeout must be a positive integer.');
   return `const remotes = ${JSON.stringify(remotes)};
-const hostInstance = Symbol.for('ultramodern.federation.host-instance');
 ${
   server
-    ? `const ssr = Symbol.for('ultramodern.federation.ssr');
-const hydrationModule = ${JSON.stringify(server.hydrationModule)};
-const requestTimeout = ${requestTimeout};
+    ? `const requestTimeout = ${requestTimeout};
 `
     : ''
 }export default function ultramodernNativeFederation() {
@@ -792,16 +793,6 @@ const requestTimeout = ${requestTimeout};
         : ''
     }
     beforeInit(args) {
-      if (!globalThis[hostInstance]) {
-        globalThis[hostInstance] = args.origin;${
-          server
-            ? `
-        // federatedComponent() records the browser assets of the remotes it
-        // server-renders here; the document resolves them by asset key.
-        globalThis[ssr] = { hydrationModule, assets: new Map() };`
-            : ''
-        }
-      }
       const registered = args.userOptions.remotes ?? [];
       const known = new Set(registered.map(remote => remote.alias ?? remote.name));
       args.userOptions.remotes = [
@@ -1000,9 +991,7 @@ export function nativeModuleFederationPlugin(
               .use(NativeFederationDevAssetsPlugin, [String(authored.name)]);
           const runtimePlugin = await writeRuntimePlugin(
             'native-runtime.server.mjs',
-            nativeFederationRuntimePluginSource(remotes, {
-              hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
-            }),
+            nativeFederationRuntimePluginSource(remotes, {}),
           );
           chain
             .plugin(NATIVE_FEDERATION_CHAIN_KEY)

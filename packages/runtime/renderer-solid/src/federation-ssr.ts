@@ -1,39 +1,26 @@
+import { remoteBrowserAssets } from '@modern-js/renderer-core/federation';
+import type { SolidFederationScope } from './federation-context';
+
 /**
- * The server half of same-renderer Module Federation. The host's generated
- * federation runtime plugin publishes this state when its server compilation
- * consumes remotes; federatedComponent() records the browser assets of every
- * remote it rendered, and the document resolves them by asset key.
+ * The server half of same-renderer Module Federation. federatedComponent()
+ * names each remote it server-rendered by an asset key, and the response's
+ * document resolves that key through the same host's federation scope.
  */
-export const FEDERATION_SSR = Symbol.for('ultramodern.federation.ssr');
 
 /** Asset keys for server-rendered remotes, e.g. `ultramodern-federation:remote/Widget`. */
 export const FEDERATED_ASSET_PREFIX = 'ultramodern-federation:';
 
-export interface FederatedAssets {
-  /** The remote entry and the exposed module's synchronous chunks. */
-  readonly js: readonly string[];
-  readonly css: readonly string[];
-}
-
-export interface FederationSSRState {
-  /**
-   * The host client module, relative to the client asset base, that loads a
-   * remote through the host's federation instance before hydration.
-   */
-  readonly hydrationModule: string;
-  readonly assets: Map<string, FederatedAssets>;
-}
-
-export function federationSSRState(): FederationSSRState | undefined {
-  const state = (globalThis as Record<symbol, unknown>)[FEDERATION_SSR];
-  if (
-    state === null ||
-    typeof state !== 'object' ||
-    typeof (state as FederationSSRState).hydrationModule !== 'string' ||
-    !((state as FederationSSRState).assets instanceof Map)
-  )
-    return undefined;
-  return state as FederationSSRState;
+/** The host's server state for a remote: its browser assets and hydration module. */
+export function federatedServerAssets(
+  scope: SolidFederationScope | undefined,
+  id: string,
+) {
+  const instance = scope?.instance;
+  const assets = instance && remoteBrowserAssets(instance, id);
+  if (!assets || !scope?.hydrationModule || !instance.name) return undefined;
+  // The browser module finds this host by name among the realm's instances.
+  const hydration = `${scope.hydrationModule}?id=${encodeURIComponent(id)}&host=${encodeURIComponent(instance.name)}`;
+  return { hydration, assets };
 }
 
 export function federatedAssetKey(id: string): string {
@@ -96,14 +83,17 @@ function resolveStaticAssets(
 }
 
 /**
- * Extend a static Solid asset manifest with the remotes this server rendered.
- * The first module is the host's hydration module for that remote, which
- * Solid imports before hydrating the boundary that rendered it.
+ * Extend a static Solid asset manifest with the remotes this response
+ * server-rendered through its host. The first module is the host's hydration
+ * module for that remote, which Solid imports before hydrating the boundary
+ * that rendered it.
  */
-export function withFederatedAssets<Manifest>(manifest: Manifest): Manifest {
-  const state = federationSSRState();
+export function withFederatedAssets<Manifest>(
+  manifest: Manifest,
+  scope: SolidFederationScope | undefined,
+): Manifest {
   if (
-    !state ||
+    !scope?.hydrationModule ||
     manifest === null ||
     typeof manifest !== 'object' ||
     typeof (manifest as { resolve?: unknown }).resolve === 'function'
@@ -113,18 +103,14 @@ export function withFederatedAssets<Manifest>(manifest: Manifest): Manifest {
   const resolve = (key: string): ResolvedDocumentAssets | null => {
     if (!key.startsWith(FEDERATED_ASSET_PREFIX))
       return resolveStaticAssets(modules, key);
-    const assets = state.assets.get(key);
-    if (!assets) return null;
-    const id = key.slice(FEDERATED_ASSET_PREFIX.length);
+    const remote = federatedServerAssets(
+      scope,
+      key.slice(FEDERATED_ASSET_PREFIX.length),
+    );
+    if (!remote) return null;
     return {
-      js: [
-        joinAssetPath(
-          modules._base,
-          `${state.hydrationModule}?id=${encodeURIComponent(id)}`,
-        ),
-        ...assets.js,
-      ],
-      css: [...assets.css],
+      js: [joinAssetPath(modules._base, remote.hydration), ...remote.assets.js],
+      css: [...remote.assets.css],
     };
   };
   return { resolve, resolveSync: resolve } as Manifest;

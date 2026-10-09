@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { rspack } from '@rsbuild/core';
-import { afterEach, describe, expect, it } from '@rstest/core';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
 import {
   createNativeClientFederationOptions,
@@ -15,6 +15,7 @@ import {
   NATIVE_FEDERATION_HYDRATION_MODULE,
   NativeFederationDevOriginPlugin,
   NativeFederationSharedOwnersPlugin,
+  nativeFederationHydrationSource,
   nativeFederationRuntimePluginSource,
   nativeModuleFederationPlugin,
   readNativeFederationRemotes,
@@ -647,7 +648,6 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     fs.writeFileSync(
       file,
       nativeFederationRuntimePluginSource([], {
-        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
         // Long enough for a cold runner's first connection to answer /ok;
         // /hang and /body still exceed it.
         requestTimeout: 1_000,
@@ -705,39 +705,36 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     const { default: createPlugin } = await import(pathToFileURL(file).href);
     expect(createPlugin().fetch).toBeUndefined();
     expect(() =>
-      nativeFederationRuntimePluginSource([], {
-        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
-        requestTimeout: 0,
-      }),
+      nativeFederationRuntimePluginSource([], { requestTimeout: 0 }),
     ).toThrow('server requestTimeout must be a positive integer');
   });
 
-  it('publishes the server federation state from the host instance only', async () => {
-    const root = app({});
-    const file = path.join(root, 'runtime.mjs');
-    fs.writeFileSync(
-      file,
-      nativeFederationRuntimePluginSource([], {
-        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
-      }),
-    );
-    const { default: plugin } = await import(pathToFileURL(file).href);
-    const host = {};
-    const globals = globalThis as Record<symbol, any>;
+  it('hydrates a remote through the host the server document names', async () => {
+    const file = path.join(app({}), NATIVE_FEDERATION_HYDRATION_MODULE);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, nativeFederationHydrationSource);
+    const host = (name: string) => ({
+      name,
+      loadRemote: rstest.fn(async () => ({ default: () => name })),
+    });
+    const first = host('first');
+    const second = host('second');
+    const globals = globalThis as { __FEDERATION__?: unknown };
+    const previous = globals.__FEDERATION__;
+    // Two co-located hosts in one realm, as Module Federation registers them.
+    globals.__FEDERATION__ = { __INSTANCES__: [first, second] };
     try {
-      plugin().beforeInit({ origin: host, userOptions: {} });
-      plugin().beforeInit({ origin: {}, userOptions: {} });
-      expect(globals[Symbol.for('ultramodern.federation.host-instance')]).toBe(
-        host,
+      const module = await import(
+        `${pathToFileURL(file).href}?id=remote%2FWidget&host=second`
       );
-      const state = globals[Symbol.for('ultramodern.federation.ssr')];
-      expect(state.hydrationModule).toMatch(
-        /^static\/js\/ultramodern-federation-hydration\.[0-9a-f]{8}\.js$/u,
-      );
-      expect(state.assets).toBeInstanceOf(Map);
+      expect(module.default()).toBe('second');
+      expect(second.loadRemote).toHaveBeenCalledWith('remote/Widget');
+      expect(first.loadRemote).not.toHaveBeenCalled();
+      await expect(
+        import(`${pathToFileURL(file).href}?id=remote%2FWidget&host=missing`),
+      ).rejects.toThrow('the missing federation runtime has not started');
     } finally {
-      delete globals[Symbol.for('ultramodern.federation.host-instance')];
-      delete globals[Symbol.for('ultramodern.federation.ssr')];
+      globals.__FEDERATION__ = previous;
     }
   });
 });
@@ -1071,14 +1068,6 @@ describe('native Module Federation plugin', () => {
           entry: 'https://remote.example/mf-manifest.json',
         },
       ]);
-      expect(
-        (globalThis as Record<symbol, unknown>)[
-          Symbol.for('ultramodern.federation.host-instance')
-        ],
-      ).toBe(origin);
-      delete (globalThis as Record<symbol, unknown>)[
-        Symbol.for('ultramodern.federation.host-instance')
-      ];
       const bootstrap = path.join(
         path.dirname(generated),
         'index.federation.js',

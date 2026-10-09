@@ -12,6 +12,7 @@ import type {
   NativeEntryGeneration,
   NativeEntryGenerator,
 } from './native-infrastructure';
+import { NATIVE_FEDERATION_HYDRATION_MODULE } from './native-module-federation';
 import {
   discoverNativeFileSystemRoutes,
   emitNativeApplicationModule,
@@ -162,7 +163,7 @@ ${Object.entries(fields)
 ${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${federated ? nativeFederationDeclaration : ''}
 export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
   identity: ${JSON.stringify(identity)},
-  app: () => import("./app.server"),${federated ? `\n  federation: ${nativeFederationBinding},` : ''}${context.i18n ? '\n  i18n,' : ''}
+  app: () => import("./app.server"),${federated ? `\n  federation: ${nativeServerFederationBinding},` : ''}${context.i18n ? '\n  i18n,' : ''}
 });
 `;
       if (!federated) return server;
@@ -178,6 +179,8 @@ export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
 // entry keeps application ownership when another host or remote starts later.
 const nativeFederationBinding =
   '{ instance: () => __webpack_require__.federation.instance }';
+// The server names the client module that hydrates its remotes.
+const nativeServerFederationBinding = `{ instance: () => __webpack_require__.federation.instance, hydrationModule: ${JSON.stringify(NATIVE_FEDERATION_HYDRATION_MODULE)} }`;
 const nativeFederationDeclaration =
   'declare const __webpack_require__: { federation: { instance: import("@modern-js/renderer-core/federation").FederationInstance } };\n';
 

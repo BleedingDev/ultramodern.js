@@ -3,6 +3,7 @@ import {
   type DocumentInlineData,
   prepareDocument,
 } from '@modern-js/renderer-core/document';
+import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
 import {
   policyHeaders,
   type RequestSession,
@@ -26,6 +27,11 @@ import {
   NoHydration,
   runWithOwner,
 } from 'solid-js';
+import {
+  createFederationScope,
+  provideFederation,
+  type SolidFederationScope,
+} from './federation-context';
 import { withFederatedAssets } from './federation-ssr';
 import { nativePromiseSerializationPlugin } from './native-promise-serialization';
 
@@ -327,6 +333,8 @@ export interface SolidRenderOptions<Bindings extends object = object> {
   readonly document?: SolidDocumentOptions;
   /** Return Solid's native public error mapping, if one is required. */
   readonly onError?: NativeStreamOptions['onError'];
+  /** This server compilation's native Module Federation runtime. */
+  readonly federation?: NativeFederationBinding;
 }
 
 export type { DocumentInlineData };
@@ -355,6 +363,24 @@ export interface SolidDocumentRenderOptions<Bindings extends object = object>
  */
 export async function renderApplication<Bindings extends object>(
   options: SolidRenderOptions<Bindings>,
+): Promise<Response> {
+  let federation: SolidFederationScope | undefined;
+  try {
+    federation = createFederationScope(options.federation);
+  } catch (error) {
+    void options.session.fail(error);
+    throw error;
+  }
+  return renderNativeApplication(
+    { ...options, view: provideFederation(federation, options.view) },
+    federation,
+  );
+}
+
+/** The view already provides this response's federation scope. */
+async function renderNativeApplication<Bindings extends object>(
+  options: SolidRenderOptions<Bindings>,
+  federation: SolidFederationScope | undefined,
 ): Promise<Response> {
   const { session } = options;
   let readable: ReadableStream<Uint8Array> | undefined;
@@ -417,7 +443,10 @@ export async function renderApplication<Bindings extends object>(
             const native = renderToStream(options.view, {
               ...options.document,
               // Server-rendered federated components add their remote assets.
-              manifest: withFederatedAssets(options.document?.manifest),
+              manifest: withFederatedAssets(
+                options.document?.manifest,
+                federation,
+              ),
               plugins: [nativePromiseSerializationPlugin],
               // Restore the request event when transport cancellation occurs
               // outside the async scope that constructed the native stream.
@@ -523,41 +552,47 @@ export async function renderDocumentApplication<Bindings extends object>(
 ): Promise<Response> {
   try {
     const parts = createDocumentParts(options, true);
-    return await renderApplication({
-      session: options.session,
-      document: {
-        renderId: parts.renderId,
-        nonce: options.document?.nonce,
-        manifest: options.document?.manifest,
-        onHead: options.document?.onHead,
+    // The browser provides federation at its hydration root, inside Hydration.
+    const federation = createFederationScope(options.federation);
+    const view = provideFederation(federation, options.view);
+    return await renderNativeApplication(
+      {
+        session: options.session,
+        document: {
+          renderId: parts.renderId,
+          nonce: options.document?.nonce,
+          manifest: options.document?.manifest,
+          onHead: options.document?.onHead,
+        },
+        onError: options.onError,
+        view: () =>
+          createComponent(NoHydration, {
+            get children() {
+              return ssr(
+                [
+                  '<!doctype html><html',
+                  '><head>',
+                  '</head><body><div',
+                  '>',
+                  '</div>',
+                  '</body></html>',
+                ],
+                parts.lang,
+                ssr(parts.head),
+                parts.root,
+                createComponent(Hydration, {
+                  id: parts.renderId,
+                  get children() {
+                    return view();
+                  },
+                }),
+                ssr(parts.modules),
+              );
+            },
+          }),
       },
-      onError: options.onError,
-      view: () =>
-        createComponent(NoHydration, {
-          get children() {
-            return ssr(
-              [
-                '<!doctype html><html',
-                '><head>',
-                '</head><body><div',
-                '>',
-                '</div>',
-                '</body></html>',
-              ],
-              parts.lang,
-              ssr(parts.head),
-              parts.root,
-              createComponent(Hydration, {
-                id: parts.renderId,
-                get children() {
-                  return options.view();
-                },
-              }),
-              ssr(parts.modules),
-            );
-          },
-        }),
-    });
+      federation,
+    );
   } catch (error) {
     void options.session.fail(error);
     throw error;

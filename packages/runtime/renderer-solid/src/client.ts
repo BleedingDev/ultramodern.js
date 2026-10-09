@@ -2,10 +2,12 @@ import {
   type DocumentBootstrap,
   readDocumentBootstrap,
 } from '@modern-js/renderer-core/document';
+import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import type { JSX } from '@solidjs/web';
 import { hydrate, render } from '@solidjs/web';
 import { runWithOwner } from 'solid-js';
+import { createFederationScope, provideFederation } from './federation-context';
 
 type NativeMountOptions = NonNullable<Parameters<typeof hydrate>[2]>;
 export type ApplicationMountElement = Parameters<typeof hydrate>[1];
@@ -32,6 +34,8 @@ export interface ApplicationMountOptions {
   renderId?: NativeMountOptions['renderId'];
   onError?: NativeMountOptions['onError'];
   hot?: { dispose(callback: () => void): void };
+  /** This browser compilation's native Module Federation runtime. */
+  federation?: NativeFederationBinding;
 }
 
 const applications = new WeakSet<ApplicationMountElement>();
@@ -65,12 +69,17 @@ function createApplication(
       renderId: options.renderId,
       onError: options.onError,
     };
+    // Its federated components load through this application's own host.
+    const root = provideFederation(
+      createFederationScope(options.federation),
+      view,
+    );
     // Each application gets an independent native owner. Do not inherit a
     // caller's component owner, including when mounting during a transition.
     nativeDispose = runWithOwner(null, () =>
       hydrating
-        ? hydrate(view, element, nativeOptions)
-        : render(view, element, undefined, nativeOptions),
+        ? hydrate(root, element, nativeOptions)
+        : render(root, element, undefined, nativeOptions),
     );
     options.hot?.dispose(dispose);
     return dispose;

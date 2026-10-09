@@ -9,6 +9,7 @@ import {
   emitNativeEntryApplication,
 } from '../../src/native-composition/native-entry';
 import type { NativeEntryGeneration } from '../../src/native-composition/native-infrastructure';
+import { NATIVE_FEDERATION_HYDRATION_MODULE } from '../../src/native-composition/native-module-federation';
 import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
 
 describe('native owning entry generation', () => {
@@ -349,5 +350,9 @@ describe('native owning entry generation', () => {
       'utf8',
     );
     expect(handlers).toContain('createNativeServerEntry({');
+    // The server names its own client module that hydrates its remotes.
+    expect(handlers).toContain(
+      `federation: { instance: () => __webpack_require__.federation.instance, hydrationModule: ${JSON.stringify(NATIVE_FEDERATION_HYDRATION_MODULE)} },`,
+    );
   });
 });

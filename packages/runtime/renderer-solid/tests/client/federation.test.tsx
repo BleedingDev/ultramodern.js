@@ -100,4 +100,34 @@ describe('federated Solid components', () => {
       'no Module Federation runtime',
     );
   });
+
+  test('co-located applications load a remote through their own hosts', async () => {
+    const [first, second] = ['first', 'second'].map(name => {
+      const instance = {
+        name,
+        loadRemote: rstest.fn(async () => ({
+          default: () => <b data-remote="">{name}</b>,
+        })),
+      };
+      return { instance, binding: { instance: () => instance } };
+    });
+    // One component definition, mounted by two applications in one realm.
+    const Widget = federatedComponent('remote/Widget');
+    const elements = [first, second].map(host => {
+      const element = document.createElement('div');
+      return {
+        element,
+        dispose: mountApplication(() => <Widget />, element, {
+          federation: host.binding,
+        }),
+      };
+    });
+    await settle();
+    expect(first.instance.loadRemote).toHaveBeenCalledTimes(1);
+    expect(second.instance.loadRemote).toHaveBeenCalledTimes(1);
+    expect(
+      elements.map(({ element }) => element.querySelector('b')?.textContent),
+    ).toEqual(['first', 'second']);
+    for (const { dispose } of elements) dispose();
+  });
 });

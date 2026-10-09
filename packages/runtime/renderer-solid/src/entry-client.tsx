@@ -38,7 +38,10 @@ export function startNativeClient(options: SolidClientEntryOptions): void {
           ? componentView(view.component, view.i18n)
           : routerView(view.router, view.i18n),
         root,
-        bootstrap ? { renderId: bootstrap.documentId } : {},
+        {
+          ...(bootstrap ? { renderId: bootstrap.documentId } : {}),
+          federation: options.federation,
+        },
       );
     },
   });

@@ -1,23 +1,24 @@
+import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
 import { renderToStream, ssr } from '@solidjs/web';
 import { createComponent } from 'solid-js';
+import type { RendererIdentity } from '../../../renderer-core/src/identity';
+import { createRequestSession } from '../../../renderer-core/src/session/request';
 import { federatedComponent } from '../../src/federation';
 import {
-  FEDERATION_SSR,
-  type FederationSSRState,
-  withFederatedAssets,
-} from '../../src/federation-ssr';
+  createFederationScope,
+  provideFederation,
+} from '../../src/federation-context';
+import { withFederatedAssets } from '../../src/federation-ssr';
+import { renderDocumentApplication } from '../../src/server';
 
-const HOST_INSTANCE = Symbol.for('ultramodern.federation.host-instance');
-const globals = globalThis as Record<symbol, unknown>;
-
-function installHost(loadRemote: (id: string) => Promise<unknown>) {
-  const state: FederationSSRState = {
-    hydrationModule: 'static/js/federation-hydration.test.js',
-    assets: new Map(),
-  };
-  globals[FEDERATION_SSR] = state;
-  globals[HOST_INSTANCE] = {
-    loadRemote,
+function createHost(
+  loadRemote: (id: string) => Promise<unknown>,
+  name = 'host',
+  publicPath = 'http://remote.test/',
+) {
+  const instance = {
+    name,
+    loadRemote: rstest.fn(loadRemote),
     remoteHandler: {
       idToRemoteMap: {
         'remote/Widget': { name: 'remote', expose: './Widget' },
@@ -27,7 +28,7 @@ function installHost(loadRemote: (id: string) => Promise<unknown>) {
     snapshotHandler: {
       getGlobalRemoteInfo: () => ({
         remoteSnapshot: {
-          publicPath: 'http://remote.test/',
+          publicPath,
           remoteEntry: 'remoteEntry.js',
           modules: [
             {
@@ -42,28 +43,62 @@ function installHost(loadRemote: (id: string) => Promise<unknown>) {
       }),
     },
   };
-  return state;
+  const binding: NativeFederationBinding = {
+    instance: () => instance,
+    hydrationModule: 'static/js/federation-hydration.test.js',
+  };
+  return { instance, binding };
 }
 
-const render = (view: () => unknown) =>
-  Promise.resolve(
-    renderToStream(view as never, {
-      manifest: withFederatedAssets({ _base: '/' }),
+const render = (view: () => unknown, binding?: NativeFederationBinding) => {
+  const scope = createFederationScope(binding);
+  return Promise.resolve(
+    renderToStream(provideFederation(scope, view as never), {
+      manifest: withFederatedAssets({ _base: '/' }, scope),
     }) as unknown as PromiseLike<string>,
   );
+};
 
 const fallback = () => ssr(['<span data-fallback="">loading</span>']);
 const document = (child: () => unknown) => () =>
   ssr(['<html><head></head><body>', '</body></html>'], child() as never);
 
-afterEach(() => {
-  delete globals[FEDERATION_SSR];
-  delete globals[HOST_INSTANCE];
-});
+const identity: RendererIdentity = {
+  renderer: 'solid',
+  appId: 'shop',
+  entryName: 'main',
+  protocolVersion: 1,
+  buildId: 'build-a',
+};
+
+/** A generated entry's response: its own session, document and host binding. */
+async function renderResponse(
+  view: () => unknown,
+  binding: NativeFederationBinding,
+) {
+  const session = createRequestSession({
+    request: new Request('https://shop.test/'),
+    identity,
+    platform: { kind: 'node', bindings: {} },
+  });
+  session.resolveResponse({
+    kind: 'document',
+    status: 200,
+    headers: [['content-type', 'text/html; charset=utf-8']],
+    cache: { mode: 'no-store' },
+  });
+  const response = await renderDocumentApplication({
+    session,
+    view: view as never,
+    document: { manifest: { _base: '/' } },
+    federation: binding,
+  });
+  return response.text();
+}
 
 describe('federated Solid components on the server', () => {
   test('render the remote with its stylesheet and hydration module', async () => {
-    const state = installHost(async () => ({
+    const host = createHost(async () => ({
       default: (props: { label: string }) =>
         ssr(['<b data-remote="">', '</b>'], props.label),
     }));
@@ -72,7 +107,9 @@ describe('federated Solid components on the server', () => {
     });
     const html = await render(
       document(() => createComponent(Widget, { label: 'from host' })),
+      host.binding,
     );
+    expect(host.instance.loadRemote).toHaveBeenCalledWith('remote/Widget');
     // The shell waits for the remote: its markup is inline, not a deferred fragment.
     expect(html).toContain('<b data-remote="">from host</b>');
     expect(html).not.toContain('<template');
@@ -83,57 +120,67 @@ describe('federated Solid components on the server', () => {
     expect(html).toContain('http://remote.test/remoteEntry.js');
     expect(html).toContain('http://remote.test/static/js/widget.js');
     expect(html).toContain(
-      '/static/js/federation-hydration.test.js?id=remote%2FWidget',
+      '/static/js/federation-hydration.test.js?id=remote%2FWidget&host=host',
     );
-    expect([...state.assets.keys()]).toEqual([
-      'ultramodern-federation:remote/Widget',
-    ]);
   });
 
   test('render the fallback when the remote fails on the server', async () => {
-    const state = installHost(() =>
-      Promise.reject(new Error('remote offline')),
-    );
+    const host = createHost(() => Promise.reject(new Error('remote offline')));
     const Widget = federatedComponent('remote/Widget', { fallback });
-    const html = await render(document(() => createComponent(Widget, {})));
+    const html = await render(
+      document(() => createComponent(Widget, {})),
+      host.binding,
+    );
+    expect(host.instance.loadRemote).toHaveBeenCalledTimes(1);
     expect(html).toContain('data-fallback');
     expect(html).not.toContain('federation-hydration');
-    expect(state.assets.size).toBe(0);
   });
 
   test('load the remote again on a later request after a failure', async () => {
     let attempts = 0;
-    installHost(async () => {
+    const host = createHost(async () => {
       attempts += 1;
       if (attempts === 1) throw new Error('remote offline');
       return { default: () => ssr(['<b data-remote="">back</b>']) };
     });
     const Widget = federatedComponent('remote/Widget', { fallback });
-    const first = await render(document(() => createComponent(Widget, {})));
+    const first = await render(
+      document(() => createComponent(Widget, {})),
+      host.binding,
+    );
     expect(first).toContain('data-fallback');
-    const second = await render(document(() => createComponent(Widget, {})));
+    const second = await render(
+      document(() => createComponent(Widget, {})),
+      host.binding,
+    );
     expect(attempts).toBe(2);
     expect(second).toContain('<b data-remote="">back</b>');
     expect(second).not.toContain('data-fallback');
   });
 
   test('a remote that exceeds its timeout renders the fallback in time', async () => {
-    installHost(() => new Promise(() => {}));
+    const host = createHost(() => new Promise(() => {}));
     const Widget = federatedComponent('remote/Widget', {
       fallback,
       timeout: 50,
     });
     const started = Date.now();
-    const html = await render(document(() => createComponent(Widget, {})));
+    const html = await render(
+      document(() => createComponent(Widget, {})),
+      host.binding,
+    );
     expect(Date.now() - started).toBeLessThan(2000);
     expect(html).toContain('data-fallback');
   });
 
   test('custom loaders render in the browser only', async () => {
-    installHost(async () => ({ default: () => 'remote' }));
+    const host = createHost(async () => ({ default: () => 'remote' }));
     const load = rstest.fn(() => Promise.resolve({ default: () => 'remote' }));
     const Widget = federatedComponent(load, { fallback });
-    const html = await render(document(() => createComponent(Widget, {})));
+    const html = await render(
+      document(() => createComponent(Widget, {})),
+      host.binding,
+    );
     expect(html).toContain('data-fallback');
     expect(load).not.toHaveBeenCalled();
   });
@@ -142,5 +189,36 @@ describe('federated Solid components on the server', () => {
     const Widget = federatedComponent('remote/Widget');
     const html = await render(document(() => createComponent(Widget, {})));
     expect(html).toMatch(/<body>(?:<!--[^>]*-->)*<\/body>/u);
+  });
+
+  test('co-located hosts render a remote through their own instances and assets', async () => {
+    const [first, second] = ['first', 'second'].map(name =>
+      createHost(
+        async () => ({ default: () => ssr(`<b data-remote="">${name}</b>`) }),
+        name,
+        `http://${name}.test/`,
+      ),
+    );
+    // One component definition, rendered by two applications in one process.
+    const Widget = federatedComponent('remote/Widget', { fallback });
+    const view = () => createComponent(Widget, {});
+    const [firstHtml, secondHtml] = await Promise.all([
+      renderResponse(view, first.binding),
+      renderResponse(view, second.binding),
+    ]);
+    expect(first.instance.loadRemote).toHaveBeenCalledTimes(1);
+    expect(second.instance.loadRemote).toHaveBeenCalledTimes(1);
+    for (const [html, own, other] of [
+      [firstHtml, 'first', 'second'],
+      [secondHtml, 'second', 'first'],
+    ]) {
+      expect(html).toContain(`<b data-remote="">${own}</b>`);
+      expect(html).toContain(`http://${own}.test/remoteEntry.js`);
+      expect(html).toContain(
+        `/static/js/federation-hydration.test.js?id=remote%2FWidget&host=${own}`,
+      );
+      expect(html).not.toContain(`${other}.test`);
+      expect(html).not.toContain(`host=${other}`);
+    }
   });
 });
