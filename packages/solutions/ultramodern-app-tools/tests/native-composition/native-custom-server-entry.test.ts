@@ -87,6 +87,7 @@ describe('native custom server entry', () => {
 
   it('stops waiting for an authored module that never loads once the request aborts', async () => {
     // The generated import adopts this thenable module and never settles.
+    // biome-ignore lint/suspicious/noThenProperty: the thenable is the stalled import under test.
     const entry = await wrapper({ then() {} });
     for (const handler of [
       'nativeRequestHandler',
