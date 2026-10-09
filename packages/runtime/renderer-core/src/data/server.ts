@@ -1,3 +1,4 @@
+import { untilAborted } from '../abort';
 import { identityCacheKey, type RendererIdentity } from '../identity';
 import {
   responseHeaders as collectDataHeaders,
@@ -716,9 +717,13 @@ function createDeferredStream(
   let active = true;
   let finished = false;
   let cancelled = false;
+  // Releases deferred work that ignores cancellation, so the producer and
+  // the request data it holds are not retained after the client goes.
+  const stopped = new AbortController();
   const cancelResources = (reason: unknown) => {
     if (finished || cancelled) return;
     cancelled = true;
+    stopped.abort(reason);
     // The response is already interrupted. A resource callback must not crash
     // its transport or prevent writer/listener cleanup.
     try {
@@ -782,7 +787,7 @@ function createDeferredStream(
       Object.entries(outcome.deferred).map(async ([key, promise]) => {
         let frame: DataStreamFrame;
         try {
-          const value = await promise;
+          const value = await untilAborted(promise, stopped.signal);
           assertPublicData(value);
           frame = { type: 'resolve', key, value };
         } catch (error) {
