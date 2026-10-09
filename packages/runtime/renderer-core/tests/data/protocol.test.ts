@@ -1123,6 +1123,28 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(calls).toBe(0);
   });
 
+  it('stops awaiting route selection after the request aborts', async () => {
+    const controller = new AbortController();
+    let selecting!: () => void;
+    const started = new Promise<void>(resolve => {
+      selecting = resolve;
+    });
+    const pending = handleDataRequest({
+      request: new Request('https://example.test/products?__loader=products', {
+        signal: controller.signal,
+      }),
+      identity,
+      context: {},
+      selectRoute: () => {
+        selecting();
+        return new Promise(() => {});
+      },
+    });
+    await started;
+    controller.abort(new DOMException('superseded', 'AbortError'));
+    await expect(pending).rejects.toThrow('superseded');
+  });
+
   it('stops awaiting a data handler that ignores its aborted request', async () => {
     const controller = new AbortController();
     let entered = false;

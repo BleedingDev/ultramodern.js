@@ -935,8 +935,11 @@ export async function handleDataRequest<Context>(options: {
   }
   const operation: DataOperation =
     request.method === 'GET' || request.method === 'HEAD' ? 'loader' : 'action';
-  const selected = await options.selectRoute(request, routeId, operation);
-  request.signal.throwIfAborted();
+  // A custom selector that ignores cancellation must not hold the request.
+  const selected = await untilAborted(
+    options.selectRoute(request, routeId, operation),
+    request.signal,
+  );
   if (!selected || selected.routeId !== routeId) {
     return new Response('Data route is not authorized for this URL', {
       status: 403,
