@@ -422,6 +422,12 @@ function responseMetadata(init: ResponseInit = {}): DataResponseMetadata {
   };
 }
 
+const DOM_EXCEPTION_FIELDS = {
+  name: Object.getOwnPropertyDescriptor(DOMException.prototype, 'name')?.get,
+  message: Object.getOwnPropertyDescriptor(DOMException.prototype, 'message')
+    ?.get,
+};
+
 export function publicDataError(
   error: unknown,
   production = true,
@@ -436,9 +442,18 @@ export function publicDataError(
       for (let depth = 0; object !== null && depth < 100; depth++) {
         const descriptor = Object.getOwnPropertyDescriptor(object, key);
         if (descriptor) {
-          return typeof descriptor.value === 'string'
-            ? descriptor.value
-            : undefined;
+          if (typeof descriptor.value === 'string') return descriptor.value;
+          // DOMException keeps name and message behind its own intrinsic
+          // getters, which read internal slots and run no application code.
+          const intrinsic =
+            object === DOMException.prototype && key !== 'stack'
+              ? DOM_EXCEPTION_FIELDS[key]
+              : undefined;
+          if (intrinsic && descriptor.get === intrinsic) {
+            const value: unknown = intrinsic.call(error);
+            return typeof value === 'string' ? value : undefined;
+          }
+          return undefined;
         }
         object = Object.getPrototypeOf(object);
       }

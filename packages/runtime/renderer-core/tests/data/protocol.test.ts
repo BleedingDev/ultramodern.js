@@ -203,6 +203,23 @@ describe('renderer-neutral HTTP data outcomes', () => {
     }
   });
 
+  it('keeps DOMException diagnostics in development without running application getters', () => {
+    expect(
+      publicDataError(new DOMException('bad input', 'DataError'), false),
+    ).toMatchObject({ name: 'DataError', message: 'bad input' });
+    let reads = 0;
+    class Custom extends DOMException {
+      override get message() {
+        reads++;
+        return 'application getter';
+      }
+    }
+    expect(publicDataError(new Custom('hidden'), false).message).toBe(
+      'Unexpected Server Error',
+    );
+    expect(reads).toBe(0);
+  });
+
   it('keeps safe development error data strings and never reads a lazy stack', () => {
     const error = new TypeError('developer detail');
     expect(publicDataError(error, false)).toMatchObject({
