@@ -70,7 +70,14 @@ export function createNativeI18n(
     type: 'backend',
     init() {},
     read(language, namespace, callback) {
-      const load = loaders[language]?.[namespace];
+      // Own keys only: `constructor` or `__proto__` never reaches Object.
+      const bundles = Object.hasOwn(loaders, language)
+        ? loaders[language]
+        : undefined;
+      const load =
+        bundles && Object.hasOwn(bundles, namespace)
+          ? bundles[namespace]
+          : undefined;
       if (!load) {
         callback(null, {});
         return;

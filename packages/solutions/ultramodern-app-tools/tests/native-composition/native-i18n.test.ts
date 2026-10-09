@@ -189,6 +189,42 @@ describe('native i18n entry modules', () => {
     }
   });
 
+  it('keeps prototype-named namespaces as plain resource keys', async () => {
+    const appDirectory = appWithLocales();
+    try {
+      fs.writeFileSync(
+        path.join(appDirectory, 'locales', 'en', '__proto__.json'),
+        '{}',
+      );
+      fs.writeFileSync(
+        path.join(appDirectory, 'locales', 'en', 'constructor.json'),
+        '{}',
+      );
+      const config = findNativeI18nConfig([i18nPlugin({ localeDetection })])!;
+      const entry = resolveNativeI18nEntry(config, appDirectory, '/');
+      expect(Object.keys(entry.resources.en)).toEqual([
+        '__proto__',
+        'common',
+        'constructor',
+        'translation',
+      ]);
+      expect(Object.hasOwn(entry.resources, 'constructor')).toBe(false);
+      const calls: any[] = [];
+      await evaluate(emitNativeI18nModule(entry), {
+        '@modern-js/i18n-runtime-extensions/native': {
+          createNativeI18n: (_options: unknown, loaders: any) => {
+            calls.push(loaders);
+          },
+        },
+      });
+      expect(Object.keys(calls[0].en)).toContain('__proto__');
+      expect(typeof calls[0].en.constructor).toBe('function');
+      expect(Object.hasOwn(calls[0].en, '__proto__')).toBe(true);
+    } finally {
+      fs.rmSync(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   it('emits routing data and lazy bundle loaders for createNativeI18n()', async () => {
     const appDirectory = appWithLocales();
     try {
@@ -230,7 +266,7 @@ describe('native i18n entry modules', () => {
       expect(Object.keys(loaders.cs)).toEqual(['translation']);
       // Each language's bundles load on demand.
       expect(source).toContain(
-        `"translation": () => import(${JSON.stringify(path.join(appDirectory, 'locales/cs/translation.json'))}),`,
+        `["translation"]: () => import(${JSON.stringify(path.join(appDirectory, 'locales/cs/translation.json'))}),`,
       );
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });

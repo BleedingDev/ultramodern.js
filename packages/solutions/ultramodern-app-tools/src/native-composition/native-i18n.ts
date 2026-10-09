@@ -301,7 +301,9 @@ export function resolveNativeI18nEntry(
   appDirectory: string,
   basePath: string,
 ): NativeI18nEntry {
-  const resources: Record<string, Record<string, string>> = {};
+  // Null prototypes: a language or namespace named `constructor` or
+  // `__proto__` is a plain key, never an inherited Object member.
+  const resources: Record<string, Record<string, string>> = Object.create(null);
   if (config.backend.enabled) {
     const candidates = config.backend.localesDirectory
       ? [config.backend.localesDirectory]
@@ -326,11 +328,11 @@ export function resolveNativeI18nEntry(
       for (const file of fs.readdirSync(languageDirectory).sort()) {
         if (!file.endsWith('.json')) continue;
         const namespace = file.slice(0, -'.json'.length);
-        resources[language] ??= {};
+        resources[language] ??= Object.create(null);
         resources[language][namespace] = path.join(languageDirectory, file);
       }
     }
-    if (!resources[config.fallbackLanguage])
+    if (!Object.hasOwn(resources, config.fallbackLanguage))
       throw new Error(
         `i18nPlugin() found no translations for the fallback language in ${path.join(directory, config.fallbackLanguage)}`,
       );
@@ -382,13 +384,14 @@ export function emitNativeI18nModule(entry: NativeI18nEntry): string {
       : { localisedUrls: entry.localisedUrls }),
     initOptions: entry.initOptions,
   };
+  // Computed keys: a literal `"__proto__": ...` would set the prototype.
   const loaders = Object.entries(entry.resources)
     .map(
       ([language, namespaces]) =>
-        `  ${JSON.stringify(language)}: {\n${Object.entries(namespaces)
+        `  [${JSON.stringify(language)}]: {\n${Object.entries(namespaces)
           .map(
             ([namespace, file]) =>
-              `    ${JSON.stringify(namespace)}: () => import(${JSON.stringify(file)}),`,
+              `    [${JSON.stringify(namespace)}]: () => import(${JSON.stringify(file)}),`,
           )
           .join('\n')}\n  },`,
     )
