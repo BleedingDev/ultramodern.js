@@ -473,7 +473,13 @@ export function createNativeSharedConfig(
       throw federationError(
         `${name} is a ${renderer} runtime singleton owned by the renderer; remove it from shared.`,
       );
-    result[name] = value;
+    // An own property: a `__proto__` share key must not set the prototype.
+    Object.defineProperty(result, name, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   // Exact versions: workspace and alias ranges in manifests are not semver.
   for (const name of nativeSharedRequests(profile, environment)) {

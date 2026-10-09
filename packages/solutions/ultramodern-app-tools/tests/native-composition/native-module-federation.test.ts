@@ -111,6 +111,22 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     });
   });
 
+  it('keeps a prototype-named shared package as an own registration', () => {
+    const versions = resolveNativeSharedVersions(
+      'solid',
+      path.resolve(__dirname, '../..'),
+    );
+    for (const shared of [
+      ['__proto__'],
+      { ['__proto__']: { singleton: true } },
+    ]) {
+      const result = createNativeSharedConfig('solid', shared, versions);
+      expect(Object.hasOwn(result, '__proto__')).toBe(true);
+      expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+      expect(Object.keys(result)).toContain('__proto__');
+    }
+  });
+
   it('keeps a prototype-named remote alias as an own registration', () => {
     const remote = '__proto__@https://remote.test/mf-manifest.json';
     for (const remotes of [
