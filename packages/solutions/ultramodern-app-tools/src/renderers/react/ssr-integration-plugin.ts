@@ -10,7 +10,7 @@ import type { RsbuildPlugin } from '@rsbuild/core';
  * Resolve application-wide SSR policy once from explicit configuration;
  * environment hooks only apply it. Module Federation SSR is
  * `server.ssr.moduleFederationAppSSR`; the federation plugin itself owns its
- * server bundle shape (module-federation/core#5156 turns splitChunks off).
+ * server bundle shape and uses the normal Rsbuild server splitting defaults.
  */
 const normalizeSsrCapabilities = (config: AppToolsNormalizedConfig) => {
   const ssr = [

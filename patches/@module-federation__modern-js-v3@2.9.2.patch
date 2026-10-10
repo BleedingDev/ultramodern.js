@@ -79,14 +79,6 @@ index 247cf19..c8b38d4 100644
          }
          if ((0, external_utils_js_namespaceObject.isDev)() && 'auto' === chain.output.get('publicPath')) {
              var _modernjsConfig_server;
-@@ -236,6 +267,7 @@ var __webpack_exports__ = {};
-             chain.output.publicPath(publicPath);
-         }
-         if (isServer && enableSSR) {
-+            chain.optimization.splitChunks(false);
-             const uniqueName = mfConfig.name || chain.output.get('uniqueName');
-             const chunkFileName = chain.output.get('chunkFilename');
-             if ('string' == typeof chunkFileName && uniqueName && !chunkFileName.includes(uniqueName)) {
 @@ -323,7 +355,7 @@ var __webpack_exports__ = {};
                          },
                          resolve: {
@@ -563,14 +555,6 @@ index 4135698..d4fb758 100644
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {
          var _modernjsConfig_server;
-@@ -175,6 +203,7 @@ function patchBundlerConfig(options) {
-         chain.output.publicPath(publicPath);
-     }
-     if (isServer && enableSSR) {
-+        chain.optimization.splitChunks(false);
-         const uniqueName = mfConfig.name || chain.output.get('uniqueName');
-         const chunkFileName = chain.output.get('chunkFilename');
-         if ('string' == typeof chunkFileName && uniqueName && !chunkFileName.includes(uniqueName)) {
 @@ -262,7 +291,7 @@ const moduleFederationConfigPlugin = (userConfig)=>({
                      },
                      resolve: {
@@ -868,14 +852,6 @@ index 77ab998..7e4d367 100644
      }
      if (isDev() && 'auto' === chain.output.get('publicPath')) {
          var _modernjsConfig_server;
-@@ -205,6 +255,7 @@ function patchBundlerConfig(options) {
-         chain.output.publicPath(publicPath);
-     }
-     if (isServer && enableSSR) {
-+        chain.optimization.splitChunks(false);
-         var uniqueName = mfConfig.name || chain.output.get('uniqueName');
-         var chunkFileName = chain.output.get('chunkFilename');
-         if ('string' == typeof chunkFileName && uniqueName && !chunkFileName.includes(uniqueName)) {
 @@ -301,7 +352,7 @@ var configPlugin_moduleFederationConfigPlugin = function(userConfig) {
                                      },
                                      resolve: {
