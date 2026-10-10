@@ -29,6 +29,9 @@ export const DEFAULT_LOCALE_REDIRECT_SKIP_RULES: readonly LocaleRedirectSkipRule
       type: 'pattern',
       path: /^\/(?:backendRemoteEntry(?:\.[a-zA-Z0-9_-]+)?\.cjs|remoteEntry(?:\.[a-zA-Z0-9_-]+)?\.js)$/,
     },
+    // The static server admits only the container assets named by its
+    // manifest; locale middleware must not redirect their Node chunk URLs.
+    { type: 'pattern', path: /^\/bundles\/(?:[^/]+\/)*[^/]+\.(?:js|cjs|mjs)$/ },
     { type: 'prefix', path: '/static/' },
     { type: 'prefix', path: '/upload/' },
   ];
