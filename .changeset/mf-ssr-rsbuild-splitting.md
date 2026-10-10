@@ -2,6 +2,6 @@
 '@modern-js/ultramodern-create': patch
 ---
 
-Retain asynchronous Module Federation server chunks instead of disabling all
-splitting. Initial shared chunks remain excluded until the Node MF loader can
-report their startup readiness correctly, even when asyncStartup is enabled.
+Repair Module Federation Node chunk startup readiness and remove the server
+splitting restriction. Server bundles now use the normal Rsbuild splitting
+configuration with asyncStartup enabled.
