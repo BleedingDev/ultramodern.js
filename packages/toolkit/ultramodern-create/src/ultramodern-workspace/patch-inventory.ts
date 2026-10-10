@@ -63,11 +63,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.2',
     path: 'patches/@module-federation__modern-js-v3@2.9.2.patch',
-    sha256: 'fcc16b8d792e472d1491e9354a6968081cd47658197f2c0656469561991263f1',
+    sha256: '9543c4dbcf417cbf983d04179576384b66e9d12d51e18976e87c9c87c51ff4d1',
     repository: true,
     workspace: null,
     reason:
-      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); disable server splitChunks for SSR builds ([#5156](https://github.com/module-federation/core/pull/5156)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
+      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). UltraModern SSR hunk: replace the blanket restriction proposed in [#5156](https://github.com/module-federation/core/pull/5156) with async-only server filters, preserving disabled splitting until the Node loader supports initial shared chunks. UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
   },
   {
     packageName: '@module-federation/node',
