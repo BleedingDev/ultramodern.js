@@ -12,7 +12,7 @@ const patch = fs.readFileSync(
 );
 const filters = [
   ...patch.matchAll(
-    /\+\s+if \(enableSSR && splitChunkConfig[\s\S]*?\+\s+if \(shouldWarn\)[^\n]+/g,
+    /\+\s+if \(!isServer && enableSSR && splitChunkConfig[\s\S]*?\+\s+if \(shouldWarn\)[^\n]+/g,
   ),
 ].map(
   match =>
@@ -24,10 +24,11 @@ const filters = [
 assert.equal(filters.length, 3, 'exercise every shipped CLI module format');
 
 for (const [format, filter] of filters.entries()) {
-  function constrain(config, enableSSR = true) {
+  function constrain(config, enableSSR = true, isServer = false) {
     let result = config;
     vm.runInNewContext(filter, {
       enableSSR,
+      isServer,
       splitChunkConfig: config,
       _type_of__: value => typeof value,
       chain: {
@@ -47,6 +48,7 @@ for (const [format, filter] of filters.entries()) {
     assert.equal(constrain(false), false);
     const config = { chunks: 'all', minSize: 123 };
     assert.equal(constrain(config, false), config);
+    assert.equal(constrain(config, true, true), config);
     assert.equal(config.chunks, 'all');
   });
 

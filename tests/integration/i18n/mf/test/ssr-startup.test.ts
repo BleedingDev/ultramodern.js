@@ -48,7 +48,7 @@ test('split SSR initializes every entry in a cold Node process', async () => {
         path.join(inspection, 'rspack.config.server.mjs'),
         'utf8',
       );
-      expect(config).toMatch(/splitChunks:\s*\{\s*chunks: 'async'/);
+      expect(config).toMatch(/splitChunks:\s*\{\s*chunks: 'all'/);
       expect(config).toMatch(/asyncStartup: true/);
       expect(config).toMatch(/minSize: 0/);
 

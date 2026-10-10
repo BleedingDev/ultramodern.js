@@ -63,21 +63,21 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.2',
     path: 'patches/@module-federation__modern-js-v3@2.9.2.patch',
-    sha256: '9543c4dbcf417cbf983d04179576384b66e9d12d51e18976e87c9c87c51ff4d1',
+    sha256: '56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939',
     repository: true,
     workspace: null,
     reason:
-      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). UltraModern SSR hunk: replace the blanket restriction proposed in [#5156](https://github.com/module-federation/core/pull/5156) with async-only server filters, preserving disabled splitting until the Node loader supports initial shared chunks. UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
+      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
   },
   {
     packageName: '@module-federation/node',
     version: '2.7.52',
     path: 'patches/@module-federation__node@2.7.52.patch',
-    sha256: 'f54e44940ed53ee3ffd11428734c58a27c96d27374ea00596c746a2ab738a1a5',
+    sha256: '193eab16872abd3938bb6a68c60ebaa8f9e80f4d6b39a8033a2e7cd83f854b52',
     repository: true,
     workspace: null,
     reason:
-      'Reset the federation runtime in performReload ([#5152](https://github.com/module-federation/core/pull/5152)) and guard the bundle-only module cache when called from plain Node ([#5158](https://github.com/module-federation/core/pull/5158)).',
+      'Align Node chunk loading with startup readiness and preserve per-runtime chunk state ([#5192](https://github.com/module-federation/core/pull/5192)); reset the federation runtime in performReload ([#5152](https://github.com/module-federation/core/pull/5152)) and guard the bundle-only module cache when called from plain Node ([#5158](https://github.com/module-federation/core/pull/5158)).',
   },
   {
     packageName: '@module-federation/rspack',
