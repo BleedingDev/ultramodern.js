@@ -73,7 +73,7 @@ export default [
     packageName: '@module-federation/node',
     version: '2.7.52',
     path: 'patches/@module-federation__node@2.7.52.patch',
-    sha256: '193eab16872abd3938bb6a68c60ebaa8f9e80f4d6b39a8033a2e7cd83f854b52',
+    sha256: '69e8251a310c4a1f3cf338f8dfe27e4c6a4833dcd8a81155967d154689e2bce7',
     repository: true,
     workspace: null,
     reason:
