@@ -147,6 +147,9 @@ async function createCliApi(appDirectory: string) {
     'export default function App() { return <main>server composition</main>; }',
   );
   const cli = createCli<AppTools>();
+  const previousModernArgv = process.env.MODERN_ARGV;
+  // Stable app-tools prepares build entries from the actual CLI command.
+  process.env.MODERN_ARGV = 'node modern build';
   try {
     const { appContext } = await cli.init({
       configFile: false,
@@ -160,6 +163,8 @@ async function createCliApi(appDirectory: string) {
     return api;
   } finally {
     cli.dispose();
+    if (previousModernArgv === undefined) delete process.env.MODERN_ARGV;
+    else process.env.MODERN_ARGV = previousModernArgv;
   }
 }
 
@@ -684,6 +689,7 @@ assert.throws(
     );
     try {
       linkComposer(appDirectory);
+      const api = await createCliApi(appDirectory);
       const distDirectory = path.join(appDirectory, 'dist');
       fs.mkdirSync(path.join(distDirectory, 'html/main'), { recursive: true });
       fs.writeFileSync(
@@ -703,7 +709,6 @@ assert.throws(
           ],
         }),
       );
-      const api = await createCliApi(appDirectory);
       const { plugins } = await api
         .getHooks()
         ._internalServerPlugins.call({ plugins: [] });

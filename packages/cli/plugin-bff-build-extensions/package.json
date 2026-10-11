@@ -83,7 +83,7 @@
     "@swc/core": "1.16.13"
   },
   "peerDependencies": {
-    "@modern-js/app-tools": "workspace:^3.9.0",
+    "@modern-js/app-tools": "workspace:^3.9.3",
     "@effect/opentelemetry": "4.0.0",
     "effect": "4.0.0"
   },

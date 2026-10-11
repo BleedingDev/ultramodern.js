@@ -1,6 +1,6 @@
 {
   "name": "@modern-js/builder",
-  "version": "3.9.0",
+  "version": "3.9.3",
   "description": "A builder for Modern.js",
   "repository": {
     "type": "git",
@@ -17,6 +17,9 @@
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/types.d.ts"
     }
   },
   "main": "./dist/cjs/index.js",

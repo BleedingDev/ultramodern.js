@@ -88,9 +88,9 @@ export const pluginEnvironmentDefaults = (
       if (isServiceWorker) {
         const library = chain.output.get('library');
         chain.output.library({
-          ...(typeof library === 'object' && !Array.isArray(library)
-            ? library
-            : {}),
+          ...(typeof library === 'string' || Array.isArray(library)
+            ? { name: library }
+            : library),
           type: chain.output.get('module') === true ? 'module' : 'commonjs2',
         });
       }

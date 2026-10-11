@@ -5,6 +5,7 @@ import {
   useModernI18n,
 } from '@modern-js/plugin-i18n/runtime/consumer';
 import type { I18nInstance } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
+import { I18nRouterNavigationProvider } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
 import {
   InternalRuntimeContext,
   type RouterLifecycleContext,
@@ -24,7 +25,6 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { createTanstackNavigation } from '../../plugin-tanstack/src/runtime/navigation';
-import { I18nRouterNavigationProvider } from '../src/navigation';
 import type { I18nPluginOptions } from '../src/options';
 import { i18nPlugin } from '../src/runtime';
 import { createI18nUrlStrategy } from '../src/urlStrategy';

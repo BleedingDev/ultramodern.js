@@ -190,7 +190,7 @@ export const serverStaticPlugin = (
   },
 });
 
-export type PublicMiddlwareOptions = {
+export type PublicMiddlewareOptions = {
   pwd: string;
   routes: ServerRoute[];
   pathPrefix?: string;
@@ -202,7 +202,7 @@ export function createPublicMiddleware({
   pathPrefix = '/',
   respondAsset,
   respondPublicFallback,
-}: PublicMiddlwareOptions): Middleware {
+}: PublicMiddlewareOptions): Middleware {
   return async (c, next) => {
     const respondPublic = async (): Promise<Response | null> => {
       const route = matchPublicRoute(c.req, routes);

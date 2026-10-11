@@ -56,15 +56,6 @@
       },
       "default": "./dist/esm/runtime-no-react-i18next.mjs"
     },
-    "./server": {
-      "types": "./dist/types/server.d.ts",
-      "modern:source": "./src/server.ts",
-      "node": {
-        "import": "./dist/esm-node/server.mjs",
-        "require": "./dist/cjs/server.js"
-      },
-      "default": "./dist/cjs/server.js"
-    },
     "./federation": {
       "types": "./dist/types/federation/boundary.d.ts",
       "modern:source": "./src/federation/boundary.tsx",
@@ -99,9 +90,6 @@
       "runtime/no-react-i18next": [
         "./dist/types/runtime-no-react-i18next.d.ts"
       ],
-      "server": [
-        "./dist/types/server.d.ts"
-      ],
       "federation": [
         "./dist/types/federation/boundary.d.ts"
       ],
@@ -120,13 +108,11 @@
     "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-i18n": "workspace:*",
-    "@modern-js/runtime-extensions": "workspace:*",
-    "@modern-js/server-runtime": "workspace:*",
-    "@modern-js/types": "workspace:*"
+    "@modern-js/runtime-extensions": "workspace:*"
   },
   "peerDependencies": {
-    "@modern-js/app-tools": "workspace:^3.9.0",
-    "@modern-js/runtime": "workspace:^3.9.0",
+    "@modern-js/app-tools": "workspace:^3.9.3",
+    "@modern-js/runtime": "workspace:^3.9.3",
     "react": "^19.2.8"
   },
   "peerDependenciesMeta": {},
@@ -147,7 +133,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "17.0.15",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "@modern-js/types": "workspace:*"
   },
   "sideEffects": false,
   "publishConfig": {

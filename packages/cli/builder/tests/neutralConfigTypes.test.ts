@@ -29,7 +29,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B 
 type Assert<T extends true> = T;
 type ReactCompiler = Assert<Equal<NonNullable<BuilderConfig['source']>['reactCompiler'], Rspack.SwcLoaderTransformConfig['reactCompiler']>>;
 type SvgExport = Assert<Equal<NonNullable<BuilderConfig['output']>['svgDefaultExport'], 'component' | 'url' | undefined>>;
-const native: BuilderConfig = { output: { disableSvgr: true, svgDefaultExport: 'url' }, source: { reactCompiler: false } };
+const native: BuilderConfig = { tools: { svgr: false }, output: { disableSvgr: true, svgDefaultExport: 'url' }, source: { reactCompiler: false } };
 const react: BuilderConfig = { source: { reactCompiler: { target: '18', compilationMode: 'annotation' } }, output: { svgDefaultExport: 'component' } };
 const invalidCompiler: BuilderConfig = { source: {
   // @ts-expect-error The compiler remains strictly typed.

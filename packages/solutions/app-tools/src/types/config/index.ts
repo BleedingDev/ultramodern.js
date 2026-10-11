@@ -1,5 +1,6 @@
 import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types/cli';
+import type { PluginSvgrOptions } from '@rsbuild/plugin-svgr';
 import type { ReactNode } from 'react';
 import type {
   AppToolsExtendAPI,
@@ -10,6 +11,12 @@ import type {
   AppToolsUserConfigBase,
   AppToolsNormalizedConfig as BaseNormalizedConfig,
 } from './base';
+
+declare module '@modern-js/builder/types' {
+  interface BuilderSvgOptions {
+    options: PluginSvgrOptions;
+  }
+}
 
 declare module './base' {
   interface CLIElementTypes {

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { i18nServerPlugin } from '@modern-js/i18n-integration/server';
+import { i18nServerPlugin } from '@modern-js/plugin-i18n/server';
 import { applyPlugins, type ProdServerOptions } from '@modern-js/prod-server';
 import { createServerBase } from '@modern-js/server-core';
 import ultramodernServerPlugin from '@modern-js/server-runtime-extensions/server-plugin';
