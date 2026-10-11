@@ -245,6 +245,46 @@ export function assertPackedSidecarInstall(
 
 class QualificationProcessCleanupError extends Error {}
 
+export function qualificationGroupHasLiveMembers(
+  pid,
+  {
+    platform = process.platform,
+    uid = process.geteuid?.(),
+    kill = process.kill,
+    readProcessTable = () =>
+      execFileSync('/bin/ps', ['-axo', 'pid=,pgid=,uid=,stat='], {
+        encoding: 'utf8',
+        timeout: 1_000,
+      }),
+  } = {},
+) {
+  let permissionError;
+  try {
+    kill(-pid, 0);
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    // Darwin excludes zombies from group signalling and reports EPERM when
+    // the existing group has no signalable members. Prove closure with ps.
+    if (platform !== 'darwin' || error.code !== 'EPERM') throw error;
+    permissionError = error;
+  }
+  let live = false;
+  for (const line of readProcessTable().trim().split('\n')) {
+    const row = /^\s*(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s*$/u.exec(line);
+    assert.ok(row, 'Cannot confirm qualification process-group closure');
+    if (Number(row[2]) !== pid) continue;
+    assert.equal(
+      Number(row[3]),
+      uid,
+      'Qualification process group contains a foreign owner',
+    );
+    // Reparented zombies hold no workspace resources and cannot be killed.
+    if (!row[4].startsWith('Z')) live = true;
+  }
+  if (live && permissionError) throw permissionError;
+  return live;
+}
+
 export function runChild(
   command,
   args,
@@ -274,34 +314,10 @@ export function runChild(
     // Own cancellation so it signals the group before the leader can exit.
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    const groupHasLiveMembers = () => {
-      if (!privateGroup || !child.pid) return false;
-      try {
-        process.kill(-child.pid, 0);
-      } catch (error) {
-        if (error.code === 'ESRCH') return false;
-        throw error;
-      }
-      const snapshot = execFileSync(
-        '/bin/ps',
-        ['-axo', 'pid=,pgid=,uid=,stat='],
-        { encoding: 'utf8', timeout: 1_000 },
-      );
-      let live = false;
-      for (const line of snapshot.trim().split('\n')) {
-        const row = /^\s*(\d+)\s+(\d+)\s+(-?\d+)\s+(\S+)\s*$/u.exec(line);
-        assert.ok(row, 'Cannot confirm qualification process-group closure');
-        if (Number(row[2]) !== child.pid) continue;
-        assert.equal(
-          Number(row[3]),
-          process.geteuid(),
-          'Qualification process group contains a foreign owner',
-        );
-        // Reparented zombies hold no workspace resources and cannot be killed.
-        if (!row[4].startsWith('Z')) live = true;
-      }
-      return live;
-    };
+    const groupHasLiveMembers = () =>
+      privateGroup && child.pid
+        ? qualificationGroupHasLiveMembers(child.pid)
+        : false;
     const confirmGroupClosure = async () => {
       if (!groupHasLiveMembers()) return;
       stop();
