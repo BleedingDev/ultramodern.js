@@ -453,6 +453,10 @@ function evaluateAst(ast, environment) {
   }
   if (ast.operator === '==') {
     const right = evaluateAst(ast.right, environment);
+    // GitHub expression string comparisons ignore case.
+    if (typeof left === 'string' && typeof right === 'string') {
+      return left.toLowerCase() === right.toLowerCase();
+    }
     return left !== MISSING && right !== MISSING && left === right;
   }
   return MISSING;
