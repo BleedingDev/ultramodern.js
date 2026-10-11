@@ -51,21 +51,18 @@ test('generated root typecheck follows references and includes Node types under 
       input,
       'export const bytes: Buffer = Buffer.from("ok");\n',
     );
+    const typescriptManifest = require.resolve('typescript/package.json');
+    expect(
+      JSON.parse(fs.readFileSync(typescriptManifest, 'utf8')).version,
+    ).toBe('7.0.2');
     const compiler = path.join(
       path.dirname(
-        require.resolve(
-          `@typescript/native-preview-${process.platform}-${process.arch}/package.json`,
-          {
-            paths: [
-              path.dirname(
-                require.resolve('@typescript/native-preview/package.json'),
-              ),
-            ],
-          },
+        createRequire(typescriptManifest).resolve(
+          `@typescript/typescript-${process.platform}-${process.arch}/package.json`,
         ),
       ),
       'lib',
-      process.platform === 'win32' ? 'tsgo.exe' : 'tsgo',
+      process.platform === 'win32' ? 'tsc.exe' : 'tsc',
     );
     const compile = () =>
       spawnSync(

@@ -3,7 +3,7 @@ import {
   type HttpApiLike,
   type HttpApiReflect,
 } from '@modern-js/bff-effect/effect';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 import { loadEffectSourceModule } from './loader';
 
 type HttpApiRuntime = {

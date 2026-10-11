@@ -10,6 +10,7 @@ import {
   assertRecipeConsumers,
   assertRecipeGraph,
   findUpstreamedPatches,
+  isUnpublishedForkEdge,
   verifySidecar,
 } from './verify-sidecars.mjs';
 
@@ -40,6 +41,142 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
   );
   manifest.peerDependencies = { orphan: 'npm:@bleedingdev/orphan@1.0.0' };
   assertRecipeConsumers([orphan], consumers);
+});
+
+test('a listed unpublished fork edge at the exact upstream version consumes its recipe', () => {
+  const recipe = {
+    id: 'rsbuild-core',
+    upstream: { name: '@rsbuild/core', version: '2.2.11' },
+    fork: { name: '@bleedingdev/rsbuild-core', version: '2.2.11' },
+    manifestChanges: {},
+  };
+  const consumers = (name, specifier) => ({
+    generatorPins: [],
+    publishedManifests: [
+      { name, dependencies: { '@rsbuild/core': specifier } },
+    ],
+  });
+  assertRecipeConsumers(
+    [recipe],
+    consumers('@bleedingdev/modern-js-ultramodern-app-tools', '2.2.11'),
+  );
+  assert.throws(
+    () =>
+      assertRecipeConsumers(
+        [recipe],
+        consumers('@bleedingdev/modern-js-ultramodern-app-tools', '^2.2.11'),
+      ),
+    /declare npm:@bleedingdev\/rsbuild-core@2\.2\.11 in source/,
+  );
+  assert.throws(
+    () =>
+      assertRecipeConsumers(
+        [recipe],
+        consumers('@bleedingdev/modern-js-server', '2.2.11'),
+      ),
+    /declare npm:@bleedingdev\/rsbuild-core@2\.2\.11 in source/,
+  );
+  assert.equal(
+    isUnpublishedForkEdge(
+      'packages/cli/builder',
+      '@rsbuild/core',
+      '2.2.11(core-js@3.50.0)',
+      recipe,
+    ),
+    true,
+  );
+});
+
+test('unpublished recipe roots require the exact consumer, dependency and upstream version', () => {
+  const roots = [
+    [
+      'packages/runtime/federation-runtime',
+      '@bleedingdev/modern-js-federation-runtime',
+      '@module-federation/sdk',
+      '2.9.2',
+    ],
+    [
+      'packages/toolkit/utils',
+      '@bleedingdev/modern-js-utils',
+      'fast-glob',
+      '3.3.3',
+    ],
+    [
+      'packages/cli/builder',
+      '@bleedingdev/modern-js-builder',
+      '@rsbuild/plugin-source-build',
+      '1.0.7',
+    ],
+    [
+      'packages/cli/builder',
+      '@bleedingdev/modern-js-builder',
+      '@rsbuild/plugin-type-check',
+      '1.6.0',
+    ],
+    [
+      'packages/toolkit/ultramodern-create',
+      '@bleedingdev/modern-js-ultramodern-create',
+      'ultracite',
+      '7.12.2',
+    ],
+  ];
+  for (const [importer, published, dependency, version] of roots) {
+    const recipe = {
+      id: dependency,
+      upstream: { name: dependency, version },
+      fork: { name: `@bleedingdev/${dependency.split('/').pop()}`, version },
+      manifestChanges: {},
+    };
+    for (const consumer of [importer, published]) {
+      assert.equal(
+        isUnpublishedForkEdge(consumer, dependency, version, recipe),
+        true,
+      );
+      assert.equal(
+        isUnpublishedForkEdge(
+          consumer,
+          dependency,
+          `${version}(peer@1.0.0)`,
+          recipe,
+        ),
+        true,
+      );
+      for (const specifier of [
+        `^${version}`,
+        `${version}0`,
+        `${version}-next`,
+        `${version}+local`,
+      ])
+        assert.equal(
+          isUnpublishedForkEdge(consumer, dependency, specifier, recipe),
+          false,
+        );
+      assert.equal(
+        isUnpublishedForkEdge(consumer, `${dependency}-other`, version, recipe),
+        false,
+      );
+    }
+    const consumers = {
+      generatorPins: [],
+      publishedManifests: [
+        { name: published, dependencies: { [dependency]: version } },
+      ],
+    };
+    assertRecipeConsumers([recipe], consumers);
+    consumers.publishedManifests[0].name = '@bleedingdev/modern-js-unlisted';
+    assert.throws(
+      () => assertRecipeConsumers([recipe], consumers),
+      /declare npm:/u,
+    );
+    consumers.publishedManifests[0] = {
+      name: published,
+      devDependencies: { [dependency]: version },
+    };
+    assert.throws(
+      () => assertRecipeConsumers([recipe], consumers),
+      /has no runtime consumer/u,
+    );
+  }
 });
 
 test('recipes reached only through a reachable recipe alias edge are consumed', () => {
@@ -94,6 +231,55 @@ test('only exact generator runtime pins of the recipe fork version are consumers
   assertRecipeConsumers(
     [recipe],
     consumers([{ pinned: 'npm:@bleedingdev/pinned@1.0.1' }]),
+  );
+});
+
+test('closed SDK qualification consumes only its declared exact fork and leaves unrelated recipes rejected', async () => {
+  const { sidecarProfile } = await import(
+    '../ultramodern-publish/sidecar-profiles.mjs'
+  );
+  const profile = sidecarProfile('mf-sdk');
+  const pins = Object.fromEntries(
+    Object.entries(profile.dependencies).map(([name, version]) => [
+      name,
+      `npm:${name}@${version}`,
+    ]),
+  );
+  const sdk = {
+    id: 'mf-sdk',
+    upstream: { name: '@module-federation/sdk', version: '2.9.2' },
+    fork: { name: '@bleedingdev/mf-sdk', version: '2.9.2' },
+    manifestChanges: {},
+  };
+  const consumers = { generatorPins: [pins], publishedManifests: [] };
+  assertRecipeConsumers([sdk], consumers);
+  for (const fork of [
+    { name: '@bleedingdev/mf-sdk', version: '2.9.3' },
+    { name: '@bleedingdev/mf-other', version: '2.9.2' },
+  ]) {
+    assert.throws(
+      () => assertRecipeConsumers([{ ...sdk, fork }], consumers),
+      /no runtime consumer/,
+    );
+  }
+  assert.throws(
+    () =>
+      assertRecipeConsumers(
+        [
+          sdk,
+          {
+            ...sdk,
+            id: 'unused',
+            fork: { name: '@bleedingdev/unused', version: '2.9.2' },
+          },
+        ],
+        consumers,
+      ),
+    /sidecar unused has no runtime consumer/,
+  );
+  assert.throws(
+    () => assertRecipeGraph([], { generatorPins: [pins] }),
+    /no sidecar recipe/,
   );
 });
 
@@ -227,14 +413,104 @@ test('explicit offline provenance fails closed on missing or tampered tarballs',
     path.join(os.tmpdir(), 'sidecar-integrity-'),
   );
   try {
-    await assert.rejects(
-      verifySidecar('mf-cli', { artifactsDir: directory }),
-      /ENOENT/,
+    for (const id of ['mf-cli', 'rsbuild-core']) {
+      await assert.rejects(
+        verifySidecar(id, { artifactsDir: directory }),
+        /ENOENT/,
+      );
+      fs.writeFileSync(path.join(directory, `${id}.tgz`), 'untrusted bytes');
+      await assert.rejects(
+        verifySidecar(id, { artifactsDir: directory }),
+        /upstream tarball integrity/,
+      );
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('reconstruction drops node_modules the upstream tarball shipped but pnpm never installs', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-node-'));
+  try {
+    const recipe = JSON.parse(
+      fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
+    ).find(item => item.id === 'mf-node');
+    const response = await fetch(recipe.upstream.tarball, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    assert.ok(response.ok);
+    const tarball = path.join(directory, 'mf-node.tgz');
+    fs.writeFileSync(tarball, Buffer.from(await response.arrayBuffer()));
+    const shipped = execFileSync('tar', ['-tzf', tarball], {
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter(entry => entry.split('/').includes('node_modules'));
+    assert.ok(shipped.length > 0, 'upstream fixture still ships node_modules');
+    const packageDir = path.join(directory, 'reconstructed');
+    await verifySidecar('mf-node', {
+      artifactsDir: directory,
+      materializeTo: packageDir,
+    });
+    const stack = [packageDir];
+    while (stack.length) {
+      const current = stack.pop();
+      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+        assert.notEqual(entry.name, 'node_modules', current);
+        if (entry.isDirectory()) stack.push(path.join(current, entry.name));
+      }
+    }
+    assert.ok(fs.statSync(path.join(packageDir, 'dist/src/index.js')).isFile());
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Rsbuild reconstruction preserves the complete public package and applies its patch', async () => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'rsbuild-reconstruction-'),
+  );
+  try {
+    const recipe = JSON.parse(
+      fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
+    ).find(item => item.id === 'rsbuild-core');
+    const response = await fetch(recipe.upstream.tarball, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    assert.ok(response.ok);
+    fs.writeFileSync(
+      path.join(directory, 'rsbuild-core.tgz'),
+      Buffer.from(await response.arrayBuffer()),
     );
-    fs.writeFileSync(path.join(directory, 'mf-cli.tgz'), 'untrusted bytes');
-    await assert.rejects(
-      verifySidecar('mf-cli', { artifactsDir: directory }),
-      /upstream tarball integrity/,
+    const packageDir = path.join(directory, 'maintained');
+    const upstream = await verifySidecar('rsbuild-core', {
+      artifactsDir: directory,
+      materializeTo: packageDir,
+    });
+    const packedManifest = JSON.parse(
+      fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
+    );
+    for (const field of [
+      'exports',
+      'types',
+      'bin',
+      'dependencies',
+      'peerDependencies',
+      'license',
+    ])
+      assert.deepEqual(
+        packedManifest[field],
+        upstream[field],
+        `Rsbuild public ${field}`,
+      );
+    assert.notDeepEqual(
+      fs.readFileSync(path.join(packageDir, 'dist/m.js')),
+      execFileSync(
+        'tar',
+        ['-xOf', path.join(directory, 'rsbuild-core.tgz'), 'package/dist/m.js'],
+        { maxBuffer: 16 * 1024 * 1024 },
+      ),
+      'Rsbuild patch applied',
     );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

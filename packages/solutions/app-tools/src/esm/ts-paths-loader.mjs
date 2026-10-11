@@ -32,8 +32,22 @@ const getParentPath = parentURL => {
   return process.cwd();
 };
 
+// Node places the request's native condition before any user-added conditions.
+const resolveSourcePath = (resolvedPath, context, defaultResolve) =>
+  defaultResolve(
+    context.conditions?.find(
+      condition => condition === 'require' || condition === 'import',
+    ) === 'require'
+      ? resolvedPath
+      : pathToFileURL(resolvedPath).href,
+    context,
+    defaultResolve,
+  );
+
 export async function initialize({ appDir: currentAppDir, baseUrl, paths }) {
-  appDir = path.resolve(currentAppDir);
+  appDir = fs.existsSync(currentAppDir)
+    ? fs.realpathSync(currentAppDir)
+    : path.resolve(currentAppDir);
   matchPath = oCreateMatchPath(baseUrl || './', paths || {});
 }
 
@@ -59,15 +73,11 @@ export function resolve(specifier, context, defaultResolve) {
     const resolvedPath = findSourceEntry(matchedPath) || matchedPath;
 
     if (resolvedPath && fs.existsSync(resolvedPath)) {
-      return defaultResolve(
-        pathToFileURL(resolvedPath).href,
-        context,
-        defaultResolve,
-      );
+      return resolveSourcePath(resolvedPath, context, defaultResolve);
     }
   }
 
-  if (!matchPath) {
+  if (!matchPath || !isAppFile) {
     return defaultResolve(specifier, context, defaultResolve);
   }
 
@@ -80,9 +90,5 @@ export function resolve(specifier, context, defaultResolve) {
   }
 
   const resolvedPath = findSourceEntry(match) || match;
-  return defaultResolve(
-    pathToFileURL(resolvedPath).href,
-    context,
-    defaultResolve,
-  );
+  return resolveSourcePath(resolvedPath, context, defaultResolve);
 }

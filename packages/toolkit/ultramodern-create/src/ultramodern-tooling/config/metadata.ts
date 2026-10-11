@@ -5,9 +5,8 @@ import type { ResolvedPackageSource } from '../../ultramodern-workspace/types';
 import { readOptionalJsonObject } from './json';
 
 export function packageScopeFromRoot(workspaceRoot: string): string {
-  const rootPackage = readOptionalJsonObject(
-    path.join(workspaceRoot, 'package.json'),
-  );
+  const manifestPath = path.join(workspaceRoot, 'package.json');
+  const rootPackage = readOptionalJsonObject(manifestPath);
   return typeof rootPackage.name === 'string' && rootPackage.name.length > 0
     ? rootPackage.name
     : path.basename(workspaceRoot);
@@ -17,18 +16,17 @@ export function packageScopeFromRoot(workspaceRoot: string): string {
 export function readWorkspacePackageSource(
   workspaceRoot: string,
 ): ResolvedPackageSource {
-  const manifest = readOptionalJsonObject(
-    path.join(workspaceRoot, 'package.json'),
-  );
+  const manifestPath = path.join(workspaceRoot, 'package.json');
+  const manifest = readOptionalJsonObject(manifestPath);
   const name = '@modern-js/ultramodern-create';
   let request =
     manifest.devDependencies?.[name] ?? manifest.dependencies?.[name];
   if (typeof request !== 'string')
     throw new Error(`Missing ${name} dependency in package.json.`);
   if (request.startsWith('catalog:')) {
-    const config = yaml.load(
-      fs.readFileSync(path.join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf8'),
-    ) as Record<string, any>;
+    const catalogPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+    const catalogSource = fs.readFileSync(catalogPath, 'utf8');
+    const config = yaml.load(catalogSource) as Record<string, any>;
     const catalog = request.slice('catalog:'.length);
     request = (catalog ? config.catalogs?.[catalog] : config.catalog)?.[name];
     if (typeof request !== 'string')

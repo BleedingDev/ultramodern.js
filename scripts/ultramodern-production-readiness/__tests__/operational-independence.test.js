@@ -41,6 +41,7 @@ function reseal(envelopePath, envelope) {
     kind: envelope.kind,
     target: envelope.target,
     identity: envelope.identity,
+    ...(Object.hasOwn(envelope, 'ui') ? { ui: envelope.ui } : {}),
     artifacts: envelope.artifacts,
     surfaces: envelope.surfaces,
   };
@@ -57,8 +58,57 @@ function makeRoot(t, name) {
 // A real `node` release tree plus envelope/carrier metadata re-derived from bytes.
 function createEnvelopeFixture(
   root,
-  identity = createIdentity('a'.repeat(40), '0123456789abcdef'),
+  {
+    uiEnabled = true,
+    apiEnabled = true,
+    target = 'node',
+    appId = 'catalog',
+    buildMarker = '0123456789abcdef',
+    identity = createIdentity('a'.repeat(40), buildMarker),
+  } = {},
 ) {
+  const ui = {
+    rendererIdentity: {
+      renderer: 'react',
+      appId,
+      entryName: 'main',
+      protocolVersion: 1,
+      buildId: identity.buildMarker,
+    },
+    rendererProfile: {
+      renderer: 'react',
+      protocolVersion: 1,
+      compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
+      hydration: { name: 'react-dom', version: '19.3.0' },
+      router: {
+        name: '@tanstack/react-router',
+        version: '1.170.41',
+        coreName: '@tanstack/router-core',
+        coreVersion: '1.171.34',
+      },
+    },
+  };
+  const provider = { framework: 'tanstack', ...ui.rendererProfile.router };
+  ui.routerBindings = {
+    main: {
+      owner: '@fixture/tanstack-router-owner',
+      evidence: 'file-routes',
+      defaultProvider: provider,
+      providers: [provider],
+    },
+  };
+  const deliveryUnit = {
+    appId: ui.rendererIdentity.appId,
+    build: identity.buildMarker,
+    buildMarker: identity.buildMarker,
+    deployProfile: 'cloudflare-ssr-mf-effect-v1',
+    kind: 'microvertical-delivery-unit',
+    packageName: `@fixture/${appId}`,
+    schemaVersion: 1,
+    sourceRevision: identity.sourceRevision,
+    unitId: identity.unitId,
+    version: identity.releaseVersion,
+  };
   const runtimes = {
     'public/client.js': 'browser',
     'server/ssr.js': 'nodejs',
@@ -66,6 +116,7 @@ function createEnvelopeFixture(
     'backend-mf-manifest.json': 'module-federation-manifest',
     'backendRemoteEntry.cjs': 'nodejs',
     'node_modules/@bleedingdev/runtime/package.json': 'nodejs-deployment',
+    'ultramodern-build.json': 'release-identity-metadata',
   };
   const files = {
     'public/client.js': `export const identity=${JSON.stringify(identity)};`,
@@ -77,7 +128,25 @@ function createEnvelopeFixture(
       name: '@bleedingdev/runtime',
       version: '1.0.0',
     }),
+    'ultramodern-build.json': JSON.stringify({
+      schemaVersion: 2,
+      kind: 'ultramodern-build-artifact',
+      deliveryUnit,
+      surfaces: {
+        api: { ...deliveryUnit, surface: 'api' },
+        ...(uiEnabled ? { ui: { ...deliveryUnit, surface: 'ui', ...ui } } : {}),
+      },
+    }),
   };
+  if (!uiEnabled) {
+    delete files['public/client.js'];
+    delete files['server/ssr.js'];
+  }
+  if (!apiEnabled) {
+    delete files['api/index.js'];
+    delete files['backend-mf-manifest.json'];
+    delete files['backendRemoteEntry.cjs'];
+  }
   for (const [logicalPath, source] of Object.entries(files)) {
     const filePath = path.join(root, logicalPath);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -118,6 +187,7 @@ function createEnvelopeFixture(
     kind: 'ultramodern-release-identity-carriers',
     identity,
     carriers: Object.entries(carrierSurfaces)
+      .filter(([logicalPath]) => Object.hasOwn(files, logicalPath))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([logicalPath, surfaces]) => {
         const bytes = fs.readFileSync(path.join(root, logicalPath));
@@ -147,19 +217,24 @@ function createEnvelopeFixture(
     left.logicalPath.localeCompare(right.logicalPath),
   );
   const envelope = {
-    schemaVersion: 3,
+    schemaVersion: 5,
     kind: 'ultramodern-target-microvertical-release-envelope',
-    target: 'node',
+    target,
     identity,
+    ...(uiEnabled ? { ui } : {}),
     artifacts,
     surfaces: {
-      uiClient: ['public/client.js'],
-      ssr: ['server/ssr.js'],
-      apiBackend: ['api/index.js'],
-      backendFederation: {
-        manifest: 'backend-mf-manifest.json',
-        container: 'backendRemoteEntry.cjs',
-      },
+      uiClient: uiEnabled ? ['public/client.js'] : [],
+      ssr: uiEnabled ? ['server/ssr.js'] : [],
+      apiBackend: apiEnabled ? ['api/index.js'] : [],
+      ...(apiEnabled
+        ? {
+            backendFederation: {
+              manifest: 'backend-mf-manifest.json',
+              container: 'backendRemoteEntry.cjs',
+            },
+          }
+        : {}),
     },
   };
   const envelopePath = path.join(
@@ -169,6 +244,79 @@ function createEnvelopeFixture(
   reseal(envelopePath, envelope);
   return { envelope, envelopePath, identity };
 }
+
+test('cross-target coherence accepts distinct markers from separately verified target carriers', async t => {
+  const { assertCrossTargetIdentity, readAndVerifyEnvelope } =
+    await loadProof();
+  const nodeRoot = makeRoot(t, 'operational-node-coherence');
+  const cloudflareRoot = makeRoot(t, 'operational-cloudflare-coherence');
+  const nodeFixture = createEnvelopeFixture(nodeRoot, {
+    buildMarker: '3'.repeat(64),
+  });
+  const cloudflareFixture = createEnvelopeFixture(cloudflareRoot, {
+    target: 'cloudflare',
+    buildMarker: '6'.repeat(64),
+  });
+  const node = { envelope: readAndVerifyEnvelope(nodeRoot, 'node') };
+  const cloudflare = {
+    envelope: readAndVerifyEnvelope(cloudflareRoot, 'cloudflare'),
+  };
+
+  const binding = assertCrossTargetIdentity(node, cloudflare);
+
+  assert.deepEqual(binding.nodeIdentity, nodeFixture.identity);
+  assert.deepEqual(binding.cloudflareIdentity, cloudflareFixture.identity);
+  assert.notEqual(
+    binding.nodeIdentity.buildMarker,
+    binding.cloudflareIdentity.buildMarker,
+  );
+  assert.equal(Object.hasOwn(binding.identity, 'buildMarker'), false);
+  assert.equal(
+    Object.hasOwn(binding.renderer.rendererIdentity, 'buildId'),
+    false,
+  );
+  for (const field of ['sourceRevision', 'unitId', 'releaseVersion']) {
+    const foreign = structuredClone(cloudflare);
+    foreign.envelope.identity[field] = `foreign-${field}`;
+    assert.throws(
+      () => assertCrossTargetIdentity(node, foreign),
+      /identities do not match/u,
+      field,
+    );
+  }
+  for (const mutate of [
+    ui => {
+      ui.rendererIdentity.appId = 'foreign';
+    },
+    ui => {
+      ui.rendererProfile.compiler.version = '99.0.0';
+    },
+    ui => {
+      ui.rendererProfile.hydration.version = '99.0.0';
+    },
+    ui => {
+      ui.rendererProfile.router.coreVersion = '99.0.0';
+    },
+    ui => {
+      ui.routerBindings.main.owner = '@foreign/router-owner';
+    },
+  ]) {
+    const foreign = structuredClone(cloudflare);
+    mutate(foreign.envelope.ui);
+    assert.throws(
+      () => assertCrossTargetIdentity(node, foreign),
+      /identities do not match/u,
+    );
+  }
+  const wrongOwnMarker = structuredClone(cloudflareFixture.envelope);
+  wrongOwnMarker.identity.buildMarker = nodeFixture.identity.buildMarker;
+  wrongOwnMarker.ui.rendererIdentity.buildId = nodeFixture.identity.buildMarker;
+  reseal(cloudflareFixture.envelopePath, wrongOwnMarker);
+  assert.throws(
+    () => readAndVerifyEnvelope(cloudflareRoot, 'cloudflare'),
+    /carrier metadata does not match the release envelope identity/u,
+  );
+});
 
 test('operational process environment preserves exact pnpm and scrubs build identity overrides', async () => {
   const { createOperationalProcessEnv } = await loadProof();
@@ -272,6 +420,128 @@ test('final-envelope verification binds every released surface to real bytes and
   }
 });
 
+test('final-envelope verification accepts v5 UI-only output with paired UI and SSR carriers', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-ui-only-envelope');
+  const fixture = createEnvelopeFixture(root, { apiEnabled: false });
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+
+  assert.deepEqual(evidence.identity, fixture.identity);
+  assert.ok(evidence.ui);
+  assert.deepEqual(evidence.surfaces.uiClient.carrierPaths, [
+    'public/client.js',
+  ]);
+  assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
+  for (const surfaceName of ['apiBackend', 'backendFederation']) {
+    assert.equal(evidence.surfaces[surfaceName].artifactCount, 0);
+    assert.deepEqual(evidence.surfaces[surfaceName].carrierPaths, []);
+  }
+  assert.equal(
+    Object.hasOwn(fixture.envelope.surfaces, 'backendFederation'),
+    false,
+  );
+  const artifact = JSON.parse(
+    fs.readFileSync(path.join(root, 'ultramodern-build.json'), 'utf8'),
+  );
+  assert.equal(artifact.surfaces.api.buildMarker, fixture.identity.buildMarker);
+});
+
+test('final-envelope verification accepts v5 API-only output without UI metadata', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-api-only-envelope');
+  const fixture = createEnvelopeFixture(root, { uiEnabled: false });
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+
+  assert.deepEqual(evidence.identity, fixture.identity);
+  assert.equal(Object.hasOwn(evidence, 'ui'), false);
+  for (const surfaceName of ['uiClient', 'ssr']) {
+    assert.equal(evidence.surfaces[surfaceName].artifactCount, 0);
+    assert.deepEqual(evidence.surfaces[surfaceName].carrierPaths, []);
+  }
+  assert.deepEqual(evidence.surfaces.apiBackend.carrierPaths, ['api/index.js']);
+  assert.deepEqual(evidence.surfaces.backendFederation.carrierPaths, [
+    'backend-mf-manifest.json',
+    'backendRemoteEntry.cjs',
+  ]);
+});
+
+test('final-envelope verification rejects incomplete or inconsistent v5 surface pairs', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const [failure, message] of [
+    [
+      'missing-ssr',
+      'envelope UI/client and SSR surfaces must be declared together.',
+    ],
+    [
+      'missing-ui',
+      'envelope UI/client and SSR surfaces must be declared together.',
+    ],
+    [
+      'missing-federation',
+      'envelope API/backend and backend federation surfaces must be declared together.',
+    ],
+    [
+      'empty-api',
+      'envelope API/backend and backend federation surfaces must be declared together.',
+    ],
+    ['empty-release', 'envelope must declare a UI or API/backend surface.'],
+  ]) {
+    const root = makeRoot(t, `operational-invalid-surfaces-${failure}`);
+    const fixture = createEnvelopeFixture(root);
+    if (failure === 'missing-ssr') fixture.envelope.surfaces.ssr = [];
+    if (failure === 'missing-ui') fixture.envelope.surfaces.uiClient = [];
+    if (failure === 'missing-federation')
+      delete fixture.envelope.surfaces.backendFederation;
+    if (failure === 'empty-api') fixture.envelope.surfaces.apiBackend = [];
+    if (failure === 'empty-release') {
+      fixture.envelope.surfaces = { uiClient: [], ssr: [], apiBackend: [] };
+      delete fixture.envelope.ui;
+    }
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      { message },
+      failure,
+    );
+  }
+});
+
+test('final-envelope verification rejects carriers declared for absent executable surfaces', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const surfaceName of ['apiBackend', 'backendFederation']) {
+    const root = makeRoot(t, `operational-undeclared-carrier-${surfaceName}`);
+    const fixture = createEnvelopeFixture(root, { apiEnabled: false });
+    const carrierPath = path.join(
+      root,
+      'release/microvertical-release-identity-carriers.json',
+    );
+    const carriers = JSON.parse(fs.readFileSync(carrierPath, 'utf8'));
+    carriers.carriers.find(
+      carrier => carrier.logicalPath === 'public/client.js',
+    ).surfaces = [surfaceName, 'uiClient'];
+    const bytes = Buffer.from(`${JSON.stringify(carriers, null, 2)}\n`);
+    fs.writeFileSync(carrierPath, bytes);
+    const artifact = fixture.envelope.artifacts.find(
+      item =>
+        item.logicalPath ===
+        'release/microvertical-release-identity-carriers.json',
+    );
+    artifact.byteLength = bytes.byteLength;
+    artifact.sha256 = digest(bytes);
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      new RegExp(
+        `${surfaceName} carrier metadata does not exactly cover its executable release artifacts`,
+      ),
+    );
+  }
+});
+
 test('final-envelope verification rejects prior identity carrier metadata even when all hashes are resealed', async t => {
   const { readAndVerifyEnvelope } = await loadProof();
   const root = makeRoot(t, 'operational-independence-prior-carriers');
@@ -287,6 +557,27 @@ test('final-envelope verification rejects prior identity carrier metadata even w
   fs.writeFileSync(carrierPath, carrierBytes);
   const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
   envelope.identity = priorIdentity;
+  envelope.ui.rendererIdentity.buildId = priorIdentity.buildMarker;
+  const buildArtifactPath = path.join(root, 'ultramodern-build.json');
+  const buildArtifact = JSON.parse(fs.readFileSync(buildArtifactPath, 'utf8'));
+  for (const marker of [
+    buildArtifact.deliveryUnit,
+    buildArtifact.surfaces.api,
+    buildArtifact.surfaces.ui,
+  ]) {
+    marker.build = priorIdentity.buildMarker;
+    marker.buildMarker = priorIdentity.buildMarker;
+    marker.sourceRevision = priorIdentity.sourceRevision;
+  }
+  buildArtifact.surfaces.ui.rendererIdentity.buildId =
+    priorIdentity.buildMarker;
+  const buildArtifactBytes = Buffer.from(JSON.stringify(buildArtifact));
+  fs.writeFileSync(buildArtifactPath, buildArtifactBytes);
+  const boundBuildArtifact = envelope.artifacts.find(
+    artifact => artifact.logicalPath === 'ultramodern-build.json',
+  );
+  boundBuildArtifact.byteLength = buildArtifactBytes.byteLength;
+  boundBuildArtifact.sha256 = digest(buildArtifactBytes);
   const carrierArtifact = envelope.artifacts.find(
     artifact =>
       artifact.logicalPath ===
@@ -302,6 +593,53 @@ test('final-envelope verification rejects prior identity carrier metadata even w
         forbiddenIdentity: priorIdentity,
       }),
     /carrier metadata retains the prior release identity/,
+  );
+});
+
+test('final-envelope verification rejects a different immutable renderer profile even when all hashes are resealed', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const [component, field] of [
+    ['compiler', 'version'],
+    ['hydration', 'version'],
+    ['router', 'version'],
+    ['router', 'coreVersion'],
+  ]) {
+    const root = makeRoot(t, `operational-renderer-${component}-${field}`);
+    const fixture = createEnvelopeFixture(root);
+    const buildArtifactPath = path.join(root, 'ultramodern-build.json');
+    const buildArtifact = JSON.parse(
+      fs.readFileSync(buildArtifactPath, 'utf8'),
+    );
+    buildArtifact.surfaces.ui.rendererProfile[component][field] = '99.0.0';
+    const bytes = Buffer.from(JSON.stringify(buildArtifact));
+    fs.writeFileSync(buildArtifactPath, bytes);
+    const boundArtifact = fixture.envelope.artifacts.find(
+      artifact => artifact.logicalPath === 'ultramodern-build.json',
+    );
+    boundArtifact.byteLength = bytes.byteLength;
+    boundArtifact.sha256 = digest(bytes);
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      /renderer evidence must match/u,
+      `${component}.${field} must match the promoted renderer profile`,
+    );
+  }
+});
+
+test('final-envelope verification requires the immutable build artifact to be bound in the release envelope', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-renderer-unbound-artifact');
+  const fixture = createEnvelopeFixture(root);
+  fixture.envelope.artifacts = fixture.envelope.artifacts.filter(
+    artifact => artifact.logicalPath !== 'ultramodern-build.json',
+  );
+  reseal(fixture.envelopePath, fixture.envelope);
+
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /must bind an immutable build artifact/u,
   );
 });
 
@@ -454,14 +792,14 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
 
   const outputOf = appPath => path.join(root, appPath, '.output');
   writeFile(root, 'apps/shell/.output/index.js', 'served');
-  createEnvelopeFixture(
-    outputOf('verticals/catalog'),
-    createIdentity(c0, '1111111111111111'),
-  );
-  createEnvelopeFixture(
-    outputOf('verticals/checkout'),
-    createIdentity(c0, '2222222222222222'),
-  );
+  createEnvelopeFixture(outputOf('verticals/catalog'), {
+    appId: 'catalog',
+    identity: createIdentity(c0, '1111111111111111'),
+  });
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '2222222222222222'),
+  });
   const ids = { shell: 'shell', changed: 'catalog', sibling: 'checkout' };
   const baseline = captureOperationalBaseline({
     workspace: root,
@@ -471,10 +809,10 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
 
   // A sibling rebuilt after the snapshot: valid envelope, different bytes.
   fs.rmSync(outputOf('verticals/checkout'), { recursive: true });
-  createEnvelopeFixture(
-    outputOf('verticals/checkout'),
-    createIdentity(c0, '3333333333333333'),
-  );
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '3333333333333333'),
+  });
 
   writeFile(root, 'verticals/catalog/api.ts', 'export const title = "C1";');
   gitIn(root, ['add', '--all']);
@@ -491,10 +829,10 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
       expectedUiValue: 'C1 UI',
       run: (command, args) => {
         builds.push([command, ...args].join(' '));
-        createEnvelopeFixture(
-          outputOf('verticals/catalog'),
-          createIdentity(c1, '4444444444444444'),
-        );
+        createEnvelopeFixture(outputOf('verticals/catalog'), {
+          appId: 'catalog',
+          identity: createIdentity(c1, '4444444444444444'),
+        });
       },
     }),
     /node checkout final output bytes changed unexpectedly/,

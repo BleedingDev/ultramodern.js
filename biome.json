@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "vcs": {
     "enabled": true,
     "defaultBranch": "main",
@@ -194,6 +194,7 @@
       "!**/packages/server/server/tests/fixtures/mock/cjs/config/mock/**/*",
       "!**/tests/integration/ssr/fixtures/preload/**/*",
       "!**/tests/e2e/builder/cases/html/template/static/**/*.html",
+      "!**/packages/solutions/app-tools/tests/analyze/fixtures/html-templates/custom-partial/config/html/head.html",
       "!**/tests/e2e/builder/cases/**/dist-tools-*",
       "!**/tests/integration/swc/fixtures/transform-fail/src/App.jsx",
       "!**/tests/integration/module/plugins/vue/**/*",

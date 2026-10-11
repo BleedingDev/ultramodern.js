@@ -11,6 +11,12 @@ import { registerBffCompilation } from './compile';
 import { registerBffGeneratedEntries } from './generated-entries';
 import { resolveSelfModule } from './self-module';
 
+export type {
+  BffRuntimeBuildIdentity,
+  BffRuntimeBuildIdentityProvider,
+  WithBffRuntimeBuildIdentity,
+} from './runtime-build-identity';
+
 export const bffPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/plugin-bff-build-extensions',
   usePlugins: [nativeBffPlugin()],

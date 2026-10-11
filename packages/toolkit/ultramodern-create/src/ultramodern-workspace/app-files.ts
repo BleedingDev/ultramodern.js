@@ -54,7 +54,7 @@ export function createAppEnvDts(
     .join('\n');
 
   return [
-    '/// <reference types="@modern-js/app-tools/types" />',
+    '/// <reference types="@modern-js/ultramodern-app-tools/react-types" />',
     'declare const ULTRAMODERN_SITE_URL: string;',
     remoteModuleDeclarations.trimEnd(),
   ]

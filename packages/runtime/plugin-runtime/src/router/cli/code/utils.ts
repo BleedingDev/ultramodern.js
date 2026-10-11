@@ -4,7 +4,7 @@ import {
   JS_EXTENSIONS,
   normalizeToPosixPath,
 } from '@modern-js/utils';
-import { parse } from 'es-module-lexer';
+import { init, parse } from 'es-module-lexer';
 import { transform } from 'esbuild';
 import fs from 'fs';
 import path from 'path';
@@ -79,6 +79,7 @@ export const parseModule = async ({
     content = result.code;
   }
 
+  await init();
   return parse(content);
 };
 
@@ -92,7 +93,9 @@ export const hasLoader = async (filename: string, source?: string) => {
       source: content.toString(),
       filename,
     });
-    return moduleExports.some(e => e.n === LOADER_EXPORT_NAME);
+    return moduleExports.some(
+      e => e.type !== 'reexport-all' && e.name === LOADER_EXPORT_NAME,
+    );
   }
   return false;
 };
@@ -107,7 +110,9 @@ export const hasAction = async (filename: string, source?: string) => {
       source: content.toString(),
       filename,
     });
-    return moduleExports.some(e => e.n === ACTION_EXPORT_NAME);
+    return moduleExports.some(
+      e => e.type !== 'reexport-all' && e.name === ACTION_EXPORT_NAME,
+    );
   }
   return false;
 };

@@ -1,26 +1,46 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { createAppEnvDts } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/app-files';
 import { shellApp } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/descriptors';
 
 const repoRoot = join(__dirname, '../../../..');
+const compilerManifestPath = createRequire(import.meta.url).resolve(
+  'typescript/package.json',
+);
+const compilerManifest = JSON.parse(
+  readFileSync(compilerManifestPath, 'utf-8'),
+);
 const compilerLauncher = join(
-  dirname(
-    createRequire(import.meta.url).resolve(
-      '@typescript/native-preview/package.json',
-    ),
-  ),
-  'bin/tsgo',
+  dirname(compilerManifestPath),
+  compilerManifest.bin.tsc,
 );
 
 describe('app-tools types', () => {
   it('typechecks generated app environment globals and asset modules under strict settings', () => {
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
     const fixture = mkdtempSync(
       join(__dirname, '.tmp-app-tools-types-contract-'),
     );
     try {
+      const packageScope = join(fixture, 'node_modules/@modern-js');
+      mkdirSync(packageScope, { recursive: true });
+      symlinkSync(
+        join(repoRoot, 'packages/solutions/ultramodern-app-tools'),
+        join(packageScope, 'ultramodern-app-tools'),
+        'junction',
+      );
       writeFileSync(
         join(fixture, 'modern-app-env.d.ts'),
         createAppEnvDts(shellApp, [], 'tractor-store'),
@@ -56,16 +76,16 @@ describe('app-tools types', () => {
         }),
       );
 
-      expect(() =>
-        execFileSync(
-          process.execPath,
-          [compilerLauncher, '-p', 'tsconfig.json'],
-          {
-            cwd: fixture,
-            stdio: 'pipe',
-          },
-        ),
-      ).not.toThrow();
+      const result = spawnSync(
+        process.execPath,
+        [compilerLauncher, '-p', 'tsconfig.json'],
+        {
+          cwd: fixture,
+          encoding: 'utf8',
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

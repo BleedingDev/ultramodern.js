@@ -1,6 +1,7 @@
 import type { Server as NodeServer } from 'node:http';
 import type { Http2SecureServer } from 'node:http2';
 import type { Server as NodeHttpsServer } from 'node:https';
+import path from 'node:path';
 import type { BuilderInstance, Rspack } from '@modern-js/builder';
 import type {
   FileChangeEvent,
@@ -10,7 +11,7 @@ import type {
 } from '@modern-js/server-core';
 import { AGGRED_DIR } from '@modern-js/server-core';
 import { connectMid2HonoMid } from '@modern-js/server-core/node';
-import type { RequestHandler } from '@modern-js/types';
+import type { RequestHandler, ServerRoute } from '@modern-js/types';
 import { API_DIR, logger, SHARED_DIR } from '@modern-js/utils';
 import type { WatchEvent } from './dev-tools/watcher';
 import {
@@ -25,6 +26,26 @@ import {
 import type { ModernDevServerOptions } from './types';
 
 type BuilderDevServer = Awaited<ReturnType<BuilderInstance['createDevServer']>>;
+
+/** Whether Rsbuild's asset lookup would answer `pathname` with a page template. */
+export function isServerTemplateRequest(
+  pathname: string,
+  routes: readonly ServerRoute[] | undefined,
+): boolean {
+  const templates = new Set(
+    (routes ?? []).flatMap(route =>
+      route.entryName && route.entryPath?.endsWith('.html')
+        ? [`/${route.entryPath.replace(/\\/g, '/').replace(/^\.?\//, '')}`]
+        : [],
+    ),
+  );
+  if (!templates.size) return false;
+  const candidates = [pathname];
+  if (pathname.endsWith('/')) candidates.push(`${pathname}index.html`);
+  else if (!path.posix.extname(pathname))
+    candidates.push(`${pathname}.html`, `${pathname}/index.html`);
+  return candidates.some(candidate => templates.has(candidate));
+}
 
 export type DevPluginOptions = ModernDevServerOptions<ServerBaseOptions> & {
   builderDevServer?: BuilderDevServer;
@@ -94,11 +115,17 @@ export const devRuntimeMiddlewarePlugin = (
         handler: mockMiddleware,
       });
 
-      builderMiddlewares &&
-        middlewares.push({
-          name: 'rsbuild-dev',
-          handler: connectMid2HonoMid(builderMiddlewares as any),
-        });
+      if (builderMiddlewares) {
+        const builderHandler = connectMid2HonoMid(builderMiddlewares as any);
+        // Rsbuild serves every emitted file, including HTML templates that a
+        // root html distPath places at `/index.html`. Production renders
+        // page routes instead, so leave template requests to the render.
+        const handler: typeof builderHandler = (c, next) =>
+          isServerTemplateRequest(c.req.path, api.getServerContext().routes)
+            ? next()
+            : builderHandler(c, next);
+        middlewares.push({ name: 'rsbuild-dev', handler });
+      }
 
       after.forEach((middleware, index) => {
         middlewares.push({

@@ -28,4 +28,8 @@ Every release lane (source acceptance, published acceptance, the Tractor rehears
 
 Consumers that install outside these lanes keep the gate for sidecars. Publish a new or changed sidecar or fork version at least 24 hours before dispatching the cohort that pins it.
 
+The independent `sidecars` publication mode has two closed profiles. `parser` keeps the nine parser packages and their API probes. `mf-sdk` selects only `@bleedingdev/mf-sdk@2.9.2`; its immutable dependency contract drives both installed qualification and producer reachability. The installed public CJS and ESM APIs run under `--experimental-vm-modules` and must pass fetch tuple, response, fallback, cancellation, import retry and healthy cache checks. Each receipt binds its profile to the exact source, toolchain, producer attempt and packed bytes. This profile does not qualify a framework cohort or activate a framework source alias.
+
+The SDK name has no grandfathered releases. Package creation, trusted-publisher setup and publication remain separate authorized actions. A framework SDK consumer keeps the recipe's exact upstream version until the first signed fork release passes the 24-hour admission gate; full cohort staging still requires its source alias.
+
 Update pins only after reviewing an exact upstream artifact and its license. Refresh patches with a deterministic diff against that artifact, then run reconstruction and behavioral verification. Reconstructed vendor bytes are not authored-code savings; no sidecar is retired without equivalent actual sharpening, CLI, exports and browser isolation.

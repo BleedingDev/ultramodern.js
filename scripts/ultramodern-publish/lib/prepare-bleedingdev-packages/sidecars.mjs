@@ -64,6 +64,7 @@ function sidecarProvenancePolicy(name) {
 const sidecarBinNames = new Map([
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
+  ['@bleedingdev/rsbuild-core', 'rsbuild'],
 ]);
 
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;
@@ -365,9 +366,9 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage a committed sidecar verbatim or reconstruct a recipe-only sidecar from
- * its authenticated upstream artifact. Neither path applies cohort name/version
- * rewriting or consumer overrides.
+ * Stage a committed sidecar verbatim, or reconstruct a recipe-only sidecar
+ * from its authenticated upstream artifact. Neither path applies cohort
+ * name/version rewriting or consumer overrides.
  */
 async function stageSidecarPackage(
   sidecar,

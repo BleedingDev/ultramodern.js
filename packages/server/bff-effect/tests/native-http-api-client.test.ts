@@ -1,14 +1,14 @@
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
-import * as Schema from 'effect/Schema';
-import { FetchHttpClient } from 'effect/unstable/http';
+import { FetchHttpClient } from 'effect/http';
 import {
   HttpApi,
   HttpApiBuilder,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiSchema,
-} from 'effect/unstable/httpapi';
+} from 'effect/http-api';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 import { createHttpApiHandler } from '../src/effect';
 import { makeEffectHttpApiClient } from '../src/effect-client';
 

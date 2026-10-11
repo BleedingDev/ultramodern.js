@@ -1,0 +1,7 @@
+[data-testid='native-layout'] {
+  color: rgb(20, 40, 60);
+}
+[data-testid='native-route'] {
+  display: block;
+  padding: 12px;
+}

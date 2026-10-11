@@ -22,11 +22,24 @@ export const RENDERER_EXTENSIONS_PLUGIN_NAME = 'rendererHead';
 export const SERVER_EXTENSIONS_PLUGIN_NAME =
   '@modern-js/app-tools/server-plugin';
 
+export const ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME =
+  '@modern-js/ultramodern-app-tools/server-plugin';
+
 export interface PolicyDefaultsOptions {
   /** Default `true`. Set to `false` to drop the fork's renderer policy. */
   rendererExtensions?: boolean;
   /** Default `true`. Set to `false` to drop the fork's server policy. */
   serverExtensions?: boolean;
+}
+
+/** The native package that explicitly composes the policy. */
+export interface PolicyDefaultsComposition {
+  pluginName?: string;
+  serverPluginName?: string;
+  /** Additional runtime packages that share the resolution fallback. */
+  runtimePackages?: readonly string[];
+  /** Resolve runtime packages from the composing package. */
+  registrarUrl?: string;
 }
 
 type RuntimePluginDescriptor = {
@@ -62,6 +75,7 @@ export const POLICY_DEFAULTS_PLUGIN_NAME =
 export const applyPolicyDefaults = (
   api: PolicyDefaultsPluginApi,
   options: PolicyDefaultsOptions = {},
+  composition: PolicyDefaultsComposition = {},
 ): void => {
   if (options.rendererExtensions !== false) {
     api._internalRuntimePlugins(
@@ -80,28 +94,43 @@ export const applyPolicyDefaults = (
         return { entrypoint, plugins };
       },
     );
+  }
 
-    const moduleDirectories = collectRuntimePackageModuleDirectories(
-      [RENDERER_EXTENSIONS_PACKAGE],
-      import.meta.url,
-    );
-    if (moduleDirectories.length > 0) {
-      api.modifyResolvedConfig(config => ({
-        ...config,
-        builderPlugins: [
-          ...(config.builderPlugins ?? []),
-          createRuntimePackageResolutionPlugin(moduleDirectories),
-        ],
-      }));
-    }
+  const runtimePackages = [
+    ...(options.rendererExtensions !== false
+      ? [RENDERER_EXTENSIONS_PACKAGE]
+      : []),
+    ...(composition.runtimePackages ?? []).filter(
+      packageName => packageName !== RENDERER_EXTENSIONS_PACKAGE,
+    ),
+  ];
+  const moduleDirectories = collectRuntimePackageModuleDirectories(
+    runtimePackages,
+    composition.registrarUrl ?? import.meta.url,
+  );
+  if (moduleDirectories.length > 0) {
+    api.modifyResolvedConfig(config => ({
+      ...config,
+      builderPlugins: [
+        ...(config.builderPlugins ?? []),
+        createRuntimePackageResolutionPlugin(moduleDirectories),
+      ],
+    }));
   }
 
   if (options.serverExtensions !== false) {
+    const serverPluginName =
+      composition.serverPluginName ?? SERVER_EXTENSIONS_PLUGIN_NAME;
     api._internalServerPlugins(({ plugins }: ServerPluginsInput) => {
       if (
-        !plugins.some(plugin => plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME)
+        !plugins.some(
+          plugin =>
+            plugin.name === serverPluginName ||
+            plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME ||
+            plugin.name === ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+        )
       ) {
-        plugins.push({ name: SERVER_EXTENSIONS_PLUGIN_NAME });
+        plugins.push({ name: serverPluginName });
       }
       return { plugins };
     });
@@ -119,9 +148,10 @@ export const applyPolicyDefaults = (
  */
 export const createPolicyDefaultsPlugin = (
   options: PolicyDefaultsOptions = {},
+  composition: PolicyDefaultsComposition = {},
 ) => ({
-  name: POLICY_DEFAULTS_PLUGIN_NAME,
+  name: composition.pluginName ?? POLICY_DEFAULTS_PLUGIN_NAME,
   setup(api: PolicyDefaultsPluginApi) {
-    applyPolicyDefaults(api, options);
+    applyPolicyDefaults(api, options, composition);
   },
 });

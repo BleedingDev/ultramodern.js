@@ -1,32 +1,20 @@
 import {
-  createDispatchWorkerNameEnv,
-  createWorkerBindingEnv,
-  createWorkerBindingName,
-} from '../backend-federation';
-import { createDeliveryUnitRecord } from '../delivery-unit';
-import {
   appEmitsBrowserUi,
   appHasApi,
   createBackendFederationName,
   createCloudflarePublicUrlEnv,
-  createCloudflareWorkerName,
-  distributedSsrExposes,
-  distributedSsrFragmentRoute,
+  createRemoteManifestEnv,
   resolveApiPrefix,
   resolveApiProtocol,
   resolveRemoteRefs,
-  shellApp,
 } from '../descriptors';
 import { renderFileTemplate } from '../fs-io';
+import { hasNativeAppGeneration } from '../renderer-generations';
 import {
-  createRspackChunkLoadingGlobal,
-  createRspackUniqueName,
-  relativeRootFor,
-} from '../naming';
-import { createCloudflareSecurityContract, formatTsJsonValue } from '../policy';
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from '../renderer-profile';
 import type { WorkspaceApp } from '../types';
-import { sortJsonValue } from '../types';
-import { CLOUDFLARE_COMPATIBILITY_DATE } from '../versions';
 import {
   createModuleFederationRemotesConfig,
   createModuleFederationRemoteUrlHelpers,
@@ -37,69 +25,65 @@ import {
 } from './shared-config';
 
 export function createAppModernConfig(
-  scope: string,
   app: WorkspaceApp,
-  remotes: WorkspaceApp[] = [],
   enableTailwind = true,
-  _configuredDevPorts?: number[],
 ): string {
-  const deliveryUnit = createDeliveryUnitRecord(scope, app);
+  const renderer = resolveWorkspaceRenderer(app);
+  if (hasNativeAppGeneration(renderer)) {
+    const generation = resolveAppGenerationProfile(app)!;
+    const exposes = Object.keys(app.exposes ?? {}).length > 0;
+    return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+${exposes ? "import { createRemoteManifestUrl } from '@modern-js/app-tools-extensions/config';\n" : ''}
+${appHasApi(app) ? "import { bffPlugin } from '@modern-js/plugin-bff-build-extensions';\n" : ''}
+${enableTailwind ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n" : ''}
+${
+  exposes
+    ? `// Set ${createCloudflarePublicUrlEnv(app)} to this remote's public origin when deploying.
+const remoteAddress = createRemoteManifestUrl({
+  manifestEnv: ${JSON.stringify(createRemoteManifestEnv(app))},
+  publicUrlEnv: ${JSON.stringify(createCloudflarePublicUrlEnv(app))},
+  mfName: ${JSON.stringify(app.mfName)},
+  port: ${app.port},
+});
+const assetPrefix = new URL('.', remoteAddress.replace(/^[^@]+@(?=https?:\\/\\/)/u, '')).href;
+
+`
+    : ''
+}
+export default defineConfig({
+${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer: ${JSON.stringify(renderer)},
+${appHasApi(app) ? '  plugins: [bffPlugin()],\n' : ''}
+${exposes ? '  output: { assetPrefix },\n' : ''}
+  server: { port: ${app.port}, ssr: ${generation.capabilities.ssr}${
+    appHasApi(app)
+      ? `,
+    bff: {
+      effect: {
+        entry: './api/index',
+${resolveApiProtocol(app) === 'rest' ? "        openapi: { path: '/openapi.json' },\n" : ''}        strictEffectApproach: true,
+      },
+      prefix: ${JSON.stringify(resolveApiPrefix(app))},
+      runtimeFramework: 'effect',
+    }`
+      : ''
+  } },
+  source: { mainEntryName: 'main' },
+});
+`;
+  }
+  // Workspace policy (deploy, dev server, output, delivery identity, Zephyr)
+  // is owned by presetUltramodernWorkspace from the declared topology; the
+  // React config only authors its app-local plugins and BFF surface.
   const emitsUi = appEmitsBrowserUi(app);
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff-build-extensions';\n"
     : '';
-  // A headless (api-only) unit has no browser MF surface, no Zephyr build and
-  // no generated route metadata — its config must not import or register them.
   const uiImports = emitsUi
-    ? `import {
-  getBuildConfigEnvironment,
-  resolveDeployTarget,
-} from '@modern-js/app-tools-extensions/config';
+    ? `import { i18nPlugin } from '@modern-js/plugin-i18n';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 `
-    : "import {\n  getBuildConfigEnvironment,\n  resolveDeployTarget,\n} from '@modern-js/app-tools-extensions/config';\n";
-  const zephyrPluginSource = emitsUi
-    ? `const zephyrRspackPlugin = () => ({
-  name: 'ultramodern-zephyr-rspack-plugin',
-  pre: ['@modern-js/plugin-module-federation-config'],
-  setup(api: {
-    modifyRspackConfig: (
-      handler: ReturnType<typeof withZephyrRspack>,
-    ) => void;
-  }) {
-    // Zephyr uploads federated build artifacts to Zephyr Cloud (the fast
-    // rollback path). Uploading REQUIRES a Zephyr Cloud account and, in CI, a
-    // deploy-scoped ZE_CI_TOKEN; without it Zephyr fatally fails to load its
-    // application configuration. Zephyr therefore engages ONLY for such an
-    // authoritative deploy — a plain build never contacts Zephyr Cloud, needs
-    // no account, and is never blocked. This is the framework's "works with or
-    // without Zephyr" contract. The plugin stays registered unconditionally
-    // (this gate keys on Zephyr's native deploy token, not any UltraModern
-    // opt-out). The deploy environment sets ZE_FAIL_BUILD=true next to
-    // ZE_CI_TOKEN so an upload failure is a hard build failure.
-    const zephyrCiDeploy =
-      (getBuildConfigEnvironment('ZE_CI_TOKEN') ?? '').length > 0;
-    if (!zephyrCiDeploy) {
-      return;
-    }
-    if (getBuildConfigEnvironment('ZE_FAIL_BUILD') !== 'true') {
-      throw new Error(
-        'ZE_CI_TOKEN is set but ZE_FAIL_BUILD is not "true", so a failed Zephyr upload would not fail the deploy. Set ZE_FAIL_BUILD=true in the deploy environment next to ZE_CI_TOKEN.',
-      );
-    }
-    api.modifyRspackConfig(withZephyrRspack());
-  },
-});
-
-`
-    : '';
-  const localisedUrlsEntry = emitsUi
-    ? '            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,\n'
-    : '';
-  const uiPluginEntries = emitsUi
-    ? '        moduleFederationPlugin(),\n        zephyrRspackPlugin(),\n'
     : '';
   const tailwindImport = enableTailwind
     ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n"
@@ -116,114 +100,22 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
       },
 `
     : '';
-  const tailwindBuilderPluginsConfig = enableTailwind
-    ? '  builderPlugins: [pluginTailwindcss()],\n'
-    : '';
-  const bffPluginEntry = appHasApi(app) ? '        bffPlugin(),\n' : '';
-  const serviceBindings = resolveRemoteRefs(app, remotes).filter(
-    remote => appHasApi(remote) || distributedSsrExposes(remote).length > 0,
-  );
-  const serviceBindingsConfig =
-    serviceBindings.length > 0
-      ? `          services: [
-${serviceBindings
-  .map(
-    service => `            {
-              binding:
-                envValue('${createWorkerBindingEnv(service)}') ??
-                '${createWorkerBindingName(service)}',
-${
-  distributedSsrExposes(service).length > 0
-    ? `              fragments: [
-${distributedSsrExposes(service)
-  .map(
-    expose => `                {
-                  boundaryId: '${service.mfName}',
-                  expose: '${expose}',
-                  path: '${distributedSsrFragmentRoute(expose)}',
-                  remote: '${service.id}',
-                },`,
-  )
-  .join('\n')}
-              ],
-`
-    : ''
-}${appHasApi(service) ? `              prefix: '${resolveApiPrefix(service)}',\n` : ''}              service:
-                envValue('${createDispatchWorkerNameEnv(service)}') ??
-                '${createCloudflareWorkerName(scope, service)}',
-            },`,
-  )
-  .join('\n')}
-          ],
-`
-      : '';
-  const defaultAssetPrefixSource =
-    app.kind === 'shell'
-      ? "const defaultAssetPrefix = '/';"
-      : `const remoteAssetOrigin =
-  configuredCloudflareUrl ||
-  inferredCloudflareUrl ||
-  (cloudflareDeployEnabled ? '' : \`http://localhost:\${port}\`);
-// When deploying to Cloudflare without a configured public URL, publish an
-// 'auto' publicPath so the remote resolves its chunks from the origin its
-// remoteEntry.js was loaded from (the vertical's Worker), not the host shell's
-// origin — otherwise cross-origin chunk loading 404s and MF reports an empty
-// moduleId. A configured/inferred URL still wins as an absolute prefix.
-const defaultRemoteAssetPrefix = remoteAssetOrigin
-  ? \`\${remoteAssetOrigin.replace(/\\/+$/u, '')}/\`
-  : 'auto';
-const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
-  const devAssetPrefixSource =
-    app.kind === 'shell'
-      ? `        // Keep shell dev assets origin-relative so the shell works through
-        // tunnels and local previews without rewriting its own chunks.
-        assetPrefix: '/',`
-      : `        // Remote dev manifests must publish an absolute publicPath so host
-        // shells load remoteEntry.js and exposed chunks from this dev server.
-        assetPrefix,`;
-  const configuredCorsSource = `const moduleFederationDevServerAllowedOrigins = Object.values(developmentOverlay.ports).map(localPort => \`http://localhost:\${localPort}\`);`;
-  const configuredCorsDevServer = `        // MF assets are non-credentialed and only permit configured local app origins.
-        server: {
-          cors: {
-            credentials: false,
-            origin: moduleFederationDevServerAllowedOrigins,
-          },
-        },`;
-  const configuredCorsHeader =
-    "...(moduleFederationDevServerAllowedOrigins.length === 1 ? { 'Access-Control-Allow-Origin': moduleFederationDevServerAllowedOrigins[0] } : {}),";
   return renderFileTemplate('workspace/apps/modern.config.ts', {
-    value0: `${bffImport}${tailwindImport}`,
-    value1: app.id,
-    value2: createCloudflareWorkerName(scope, app),
-    value3: app.portEnv,
-    value4: String(app.port),
-    value5: createCloudflarePublicUrlEnv(app),
-    value6: String(shellApp.port),
-    value7: defaultAssetPrefixSource,
-    value9: bffConfig,
-    value10: CLOUDFLARE_COMPATIBILITY_DATE,
-    value11: formatTsJsonValue(
-      sortJsonValue(createCloudflareSecurityContract()),
-      16,
-    ),
-    value12: serviceBindingsConfig,
-    value13: devAssetPrefixSource,
-    value14: resolveApiPrefix(app),
-    value15: bffPluginEntry,
-    value16: createRspackUniqueName(app),
-    value17: createRspackChunkLoadingGlobal(app),
-    value18: tailwindBuilderPluginsConfig,
-    value19: configuredCorsSource,
-    value20: configuredCorsDevServer,
-    value21: configuredCorsHeader,
-    value22: uiImports,
-    value23: zephyrPluginSource,
-    value24: localisedUrlsEntry,
-    value25: uiPluginEntries,
-    value26: deliveryUnit.unitId,
-    value27: deliveryUnit.buildMarker,
-    value28: deliveryUnit.version,
-    value29: relativeRootFor(app.directory),
+    imports: `${bffImport}${tailwindImport}${uiImports}`,
+    appId: app.id,
+    bffConfig,
+    builderPlugins: enableTailwind
+      ? '      builderPlugins: [pluginTailwindcss()],\n'
+      : '',
+    uiPlugins: emitsUi
+      ? renderFileTemplate('workspace/apps/modern.config.ui-plugins.ts', {
+          apiPrefix: resolveApiPrefix(app),
+          localisedUrls:
+            '            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,\n',
+        })
+      : '',
+    bffPlugin: appHasApi(app) ? '        bffPlugin(),\n' : '',
+    federationPlugin: emitsUi ? '        moduleFederationPlugin(),\n' : '',
   });
 }
 
@@ -301,9 +193,10 @@ export default moduleFederationConfig;
 }
 
 export function createBackendModuleFederationConfig(app: WorkspaceApp): string {
+  const plainConfig = resolveWorkspaceRenderer(app) !== 'react';
   return `import { createRequire } from 'node:module';
-import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
-import { dependencies } from './package.json';
+${plainConfig ? '' : "import { createModuleFederationConfig } from '@module-federation/modern-js-v3';\n"}
+${plainConfig ? '' : "import { dependencies } from './package.json';\n"}
 
 const require = createRequire(import.meta.url);
 const bffVersion = (
@@ -312,10 +205,22 @@ const bffVersion = (
 const effectVersion = (
   require('effect/package.json') as { version: string }
 ).version;
+${
+  plainConfig
+    ? `const federationRuntimeVersion = (
+  require('@module-federation/runtime/package.json') as { version: string }
+).version;
+`
+    : ''
+}
 
-const moduleFederationConfig: Parameters<
+const moduleFederationConfig${
+    plainConfig
+      ? ''
+      : `: Parameters<
   typeof createModuleFederationConfig
->[0] = createModuleFederationConfig({
+>[0]`
+  } = ${plainConfig ? '' : 'createModuleFederationConfig('}{
   dts: false,
   exposes: {
     './effect-api': './api/effect-api.ts',
@@ -332,7 +237,7 @@ const moduleFederationConfig: Parameters<
       treeShaking: false,
     },
     '@module-federation/runtime': {
-      requiredVersion: dependencies['@module-federation/runtime'],
+      requiredVersion: ${plainConfig ? 'federationRuntimeVersion' : "dependencies['@module-federation/runtime']"},
       singleton: true,
       treeShaking: false,
     },
@@ -342,9 +247,23 @@ const moduleFederationConfig: Parameters<
       treeShaking: false,
     },
   },
-});
+}${plainConfig ? '' : ')'};
 
 export default moduleFederationConfig;
+`;
+}
+
+/** Native MF owns runtime sharing through the selected renderer adapter. */
+export function createNativeModuleFederationConfig(
+  scope: string,
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  return `${createModuleFederationRemoteUrlHelpers(app, remotes)}export default {
+  name: ${JSON.stringify(app.mfName)},
+  filename: 'remoteEntry.js',
+  exposes: ${formatTsObjectLiteral(app.exposes ?? {})},
+${createModuleFederationRemotesConfig(scope, app, remotes)}};
 `;
 }
 

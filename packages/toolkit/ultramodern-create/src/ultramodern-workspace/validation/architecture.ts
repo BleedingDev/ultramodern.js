@@ -1,9 +1,15 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type * as ts from 'typescript/unstable/ast';
-import type { API, Snapshot } from 'typescript/unstable/sync';
+import type * as ts from '@typescript/native/unstable/ast';
+import type { API, Snapshot } from '@typescript/native/unstable/sync';
+import { hasNativeAppGeneration } from '../renderer-generations';
+import {
+  getRendererGenerationProfile,
+  isApplicationRenderer,
+} from '../renderer-profile';
 import { assert, sameJson, selfCheckFailure } from './assertions';
+import { isForeignRendererPackage } from './renderer';
 import type { JsonRecord, ValidationContract } from './types';
 
 export function assertCompilerArchitecture(
@@ -21,8 +27,10 @@ export function assertCompilerArchitecture(
   // from its package root; npm invocation environment and repository paths cannot
   // silently substitute another compiler.
   const workspaceRequire = createRequire(path.join(root, 'package.json'));
-  let typescript!: typeof import('typescript/unstable/ast');
-  let typescriptApi: typeof import('typescript/unstable/sync') | undefined;
+  let typescript!: typeof import('@typescript/native/unstable/ast');
+  let typescriptApi:
+    | typeof import('@typescript/native/unstable/sync')
+    | undefined;
   try {
     typescript = workspaceRequire('@typescript/native/unstable/ast');
     typescriptApi = workspaceRequire('@typescript/native/unstable/sync');
@@ -400,6 +408,32 @@ export function assertCompilerArchitecture(
         ),
       ]);
       initializeCompilerSnapshot(compilerInputs);
+      if (compilerSnapshot !== undefined) {
+        for (const absolutePath of compilerInputs) {
+          const selectedApp = workspaceValidationContract.apps.find(app =>
+            absolutePath.startsWith(path.join(root, app.path) + path.sep),
+          );
+          if (!selectedApp?.renderer || selectedApp.renderer === 'react')
+            continue;
+          const sourceFile = parseCompilerInput(absolutePath);
+          for (const reference of runtimeModuleReferences(sourceFile)) {
+            if (
+              isForeignRendererPackage(
+                reference.specifier,
+                selectedApp.renderer,
+              )
+            ) {
+              compilerFailure(
+                sourceFile,
+                reference.node,
+                'renderer source profile',
+                `Application ${selectedApp.id} imports foreign renderer module ${reference.specifier}.`,
+                'use the selected renderer native runtime and router',
+              );
+            }
+          }
+        }
+      }
       for (const shell of structuralPolicy.shells ?? []) {
         for (const forbidden of structuralPolicy.forbiddenPathClasses ?? []) {
           // The platform shell can host its own authentication and BFF routes.
@@ -627,6 +661,18 @@ export function assertCompilerArchitecture(
           )
           .filter((entry: JsonRecord) => fs.existsSync(entry[0])),
       );
+      const nativeModuleFederationApps = new Map(
+        workspaceValidationContract.apps.flatMap(app => {
+          if (
+            !isApplicationRenderer(app.renderer) ||
+            !hasNativeAppGeneration(app.renderer)
+          )
+            return [];
+          return [
+            [app.path, getRendererGenerationProfile(app.renderer)] as const,
+          ];
+        }),
+      );
       const checkedFiles = new Set([
         ...shellRouteDirectories.flatMap(collectCompilerInputs),
         ...configFiles
@@ -641,6 +687,10 @@ export function assertCompilerArchitecture(
         });
         const moduleFederationAppPath =
           moduleFederationConfigAppPaths.get(absolutePath);
+        const nativeFederation =
+          moduleFederationAppPath === undefined
+            ? undefined
+            : nativeModuleFederationApps.get(moduleFederationAppPath);
         const tailwindFactories = new Set<string>();
         const presetFactories = new Set<string>();
         for (const statement of sourceFile.statements) {
@@ -666,7 +716,9 @@ export function assertCompilerArchitecture(
             if (
               statement.moduleSpecifier.text ===
                 '@modern-js/ultramodern-app-tools' &&
-              imported === 'presetUltramodern'
+              ['presetUltramodern', 'presetUltramodernWorkspace'].includes(
+                imported,
+              )
             )
               presetFactories.add(binding.name.text);
           }
@@ -748,15 +800,20 @@ export function assertCompilerArchitecture(
               'use Zephyr native deploy-token behavior',
             );
           }
-          if (typescript.isPropertyAssignment(node)) {
+          if (
+            typescript.isPropertyAssignment(node) ||
+            typescript.isShorthandPropertyAssignment(node)
+          ) {
             const property = nodeName(node.name);
             if (
               // Inside a Module Federation config the flag is required evidence
               // checked positionally after this walk; anywhere else it is a
               // deviation, whatever it is set to.
               (property === 'enableBridgeRouter' &&
-                moduleFederationAppPath === undefined) ||
+                (moduleFederationAppPath === undefined ||
+                  nativeFederation !== undefined)) ||
               (property === 'disableDynamicRemoteTypeHints' &&
+                typescript.isPropertyAssignment(node) &&
                 isBooleanLiteral(node.initializer, true)) ||
               property === 'treeShakingSharedExcludePlugins'
             ) {
@@ -820,7 +877,35 @@ export function assertCompilerArchitecture(
         };
         visit(sourceFile);
         if (moduleFederationAppPath !== undefined) {
-          assertBridgeRouterCapability(sourceFile, moduleFederationAppPath);
+          if (nativeFederation) {
+            if (!nativeFederation.capabilities.federation) {
+              compilerFailure(
+                sourceFile,
+                sourceFile,
+                'native module federation capability',
+                `Application ${moduleFederationAppPath} has no admitted native Module Federation template.`,
+                'use the selected renderer admitted Module Federation capability',
+              );
+            }
+            if (
+              !sourceFile.statements.some(
+                statement =>
+                  typescript.isExportAssignment(statement) &&
+                  !statement.isExportEquals &&
+                  typescript.isObjectLiteralExpression(statement.expression),
+              )
+            ) {
+              compilerFailure(
+                sourceFile,
+                sourceFile,
+                'native module federation config',
+                'Generated native Module Federation must export a literal configuration object.',
+                'use the selected renderer native Module Federation template',
+              );
+            }
+          } else {
+            assertBridgeRouterCapability(sourceFile, moduleFederationAppPath);
+          }
         }
       }
     };

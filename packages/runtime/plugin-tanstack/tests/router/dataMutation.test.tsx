@@ -108,66 +108,65 @@ describe('tanstack data mutation fetcher', () => {
   test.each([
     { amount: 2, count: 2, method: 'post' as const, name: 'explicit method' },
     { amount: 1, count: 1, method: undefined, name: 'default method' },
-  ])('tracks submitting/loading phases with the $name', async ({
-    amount,
-    count,
-    method,
-  }) => {
-    const actionResult = createDeferred<Response>();
-    const invalidateResult = createDeferred<void>();
-    const action = rstest.fn(async () => actionResult.promise);
-    const loader = rstest.fn(async () => ({ count: 0 }));
+  ])(
+    'tracks submitting/loading phases with the $name',
+    async ({ amount, count, method }) => {
+      const actionResult = createDeferred<Response>();
+      const invalidateResult = createDeferred<void>();
+      const action = rstest.fn(async () => actionResult.promise);
+      const loader = rstest.fn(async () => ({ count: 0 }));
 
-    currentRouter = createRouter({
-      action,
-      loader,
-      invalidate: async () => invalidateResult.promise,
-    });
+      currentRouter = createRouter({
+        action,
+        loader,
+        invalidate: async () => invalidateResult.promise,
+      });
 
-    render(<FetcherHarness />);
-    expect(screen.getByTestId('state').textContent).toBe('idle');
+      render(<FetcherHarness />);
+      expect(screen.getByTestId('state').textContent).toBe('idle');
 
-    let submitPromise: Promise<void> | undefined;
-    act(() => {
-      submitPromise = latestFetcher!.submit(
-        { amount },
-        {
-          ...(method === undefined ? {} : { method }),
-          action: '/mutation',
-        },
+      let submitPromise: Promise<void> | undefined;
+      act(() => {
+        submitPromise = latestFetcher!.submit(
+          { amount },
+          {
+            ...(method === undefined ? {} : { method }),
+            action: '/mutation',
+          },
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('state').textContent).toBe('submitting');
+      });
+      expect(action).toHaveBeenCalledTimes(1);
+      expect(loader).not.toHaveBeenCalled();
+
+      actionResult.resolve(
+        new Response(JSON.stringify({ count }), {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }),
       );
-    });
 
-    await waitFor(() => {
-      expect(screen.getByTestId('state').textContent).toBe('submitting');
-    });
-    expect(action).toHaveBeenCalledTimes(1);
-    expect(loader).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByTestId('state').textContent).toBe('loading');
+      });
 
-    actionResult.resolve(
-      new Response(JSON.stringify({ count }), {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }),
-    );
+      invalidateResult.resolve();
 
-    await waitFor(() => {
-      expect(screen.getByTestId('state').textContent).toBe('loading');
-    });
+      await act(async () => {
+        await submitPromise;
+      });
 
-    invalidateResult.resolve();
-
-    await act(async () => {
-      await submitPromise;
-    });
-
-    expect(screen.getByTestId('state').textContent).toBe('idle');
-    expect(screen.getByTestId('data').textContent).toBe(
-      JSON.stringify({ count }),
-    );
-    expect(states).toEqual(['idle', 'submitting', 'loading', 'idle']);
-  });
+      expect(screen.getByTestId('state').textContent).toBe('idle');
+      expect(screen.getByTestId('data').textContent).toBe(
+        JSON.stringify({ count }),
+      );
+      expect(states).toEqual(['idle', 'submitting', 'loading', 'idle']);
+    },
+  );
 
   test('passes built href and matched route params to mutation actions', async () => {
     const action = rstest.fn(

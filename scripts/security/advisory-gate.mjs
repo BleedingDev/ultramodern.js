@@ -10,6 +10,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import processKit from '../lib/process-kit.js';
+import {
+  assertBracesCorrectionPolicy,
+  bracesCorrection,
+  prepareRepositoryBracesCorrection,
+} from './braces-correction.mjs';
 
 const { runCommand } = processKit;
 
@@ -33,6 +38,13 @@ function readAdvisoryExceptions(exceptionsPath = defaultExceptionsPath) {
   }
   const byId = new Map();
   for (const entry of entries) {
+    if (entry?.id === bracesCorrection.id || entry?.correction !== undefined) {
+      assertBracesCorrectionPolicy(entry);
+      if (byId.has(entry.id))
+        throw new Error(`duplicate correction ${entry.id}`);
+      byId.set(entry.id, entry);
+      continue;
+    }
     const keys = Object.keys(entry ?? {})
       .sort()
       .join(',');
@@ -117,12 +129,13 @@ function formatAdvisory(advisory, via) {
  * critical advisory that no unexpired exception acknowledges. Returns the
  * acknowledged advisories so receipts can record them.
  */
-function assertNoHighAdvisories({
+async function assertNoHighAdvisories({
   cwd,
   env,
   exceptionsPath = defaultExceptionsPath,
   now = new Date(),
   runCommandImpl = runCommand,
+  allowRepositoryCorrections = false,
 }) {
   const exceptions = readAdvisoryExceptions(exceptionsPath);
   const today = now.toISOString().slice(0, 10);
@@ -139,15 +152,36 @@ function assertNoHighAdvisories({
     );
   }
 
+  const correctionPolicy = exceptions.get(bracesCorrection.id);
+  const correction =
+    correctionPolicy && allowRepositoryCorrections === true
+      ? await prepareRepositoryBracesCorrection({
+          cwd,
+          exception: correctionPolicy,
+          now,
+        })
+      : undefined;
+  const policyBefore = fs.readFileSync(exceptionsPath);
   const advisories = parseAuditReport(
     runCommandImpl('pnpm', [...auditArgs], { cwd, env, stdio: 'pipe' }),
   );
+  if (!fs.readFileSync(exceptionsPath).equals(policyBefore)) {
+    throw new Error('Advisory policy changed during audit');
+  }
+  correction?.assertUnchanged();
   const acknowledged = [];
   const blocking = [];
   for (const advisory of advisories) {
     const exception = exceptions.get(advisory.github_advisory_id);
     const uncovered = uncoveredPaths(advisory, exception);
-    if (exception?.package === advisory.module_name && uncovered.length === 0) {
+    if (exception?.correction !== undefined) {
+      if (correction?.acknowledges(advisory)) acknowledged.push(advisory);
+      else blocking.push(formatAdvisory(advisory, uncovered[0]));
+    } else if (
+      exception?.package === advisory.module_name &&
+      findingPaths(advisory).length > 0 &&
+      uncovered.length === 0
+    ) {
       acknowledged.push(advisory);
     } else {
       blocking.push(formatAdvisory(advisory, uncovered[0]));
@@ -161,13 +195,35 @@ function assertNoHighAdvisories({
   return {
     auditLevel: 'high',
     acknowledged: acknowledged.map(advisory => advisory.github_advisory_id),
+    ...(acknowledged.some(
+      advisory => advisory.github_advisory_id === bracesCorrection.id,
+    )
+      ? { corrections: [correction.proof] }
+      : {}),
   };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const cwd = path.resolve(process.argv[2] ?? '.');
   try {
-    const { acknowledged } = assertNoHighAdvisories({ cwd });
+    const { acknowledged, corrections = [] } = await assertNoHighAdvisories({
+      cwd,
+      allowRepositoryCorrections: true,
+    });
+    for (const proof of corrections)
+      console.log(
+        JSON.stringify({
+          id: proof.id,
+          owner: proof.owner,
+          reason: proof.reason,
+          remediation: proof.remediation,
+          expires: proof.expires,
+          proofSha256: proof.proofSha256,
+          patchSha256: proof.patchSha256,
+          upstreamIntegrity: proof.upstreamIntegrity,
+          sourceFiles: proof.sourceFiles,
+        }),
+      );
     console.log(
       `No unacknowledged high or critical advisories in ${cwd}${
         acknowledged.length > 0

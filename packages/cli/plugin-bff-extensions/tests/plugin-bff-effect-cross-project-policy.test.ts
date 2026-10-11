@@ -9,14 +9,14 @@ import {
 } from '@modern-js/bff-effect/effect';
 import { resolveCrossProjectPolicy } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
-import * as Schema from 'effect/Schema';
 import {
   HttpApi,
   HttpApiBuilder,
   HttpApiEndpoint,
   HttpApiGroup,
-} from 'effect/unstable/httpapi';
+} from 'effect/http-api';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 import { checkCrossProjectPolicyForRequest } from '../src/cross-project-policy/evaluation';
 
 const REQUEST_ID = 'crm.producer-app';

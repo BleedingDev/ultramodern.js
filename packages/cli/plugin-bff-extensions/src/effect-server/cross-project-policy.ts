@@ -8,7 +8,7 @@ import {
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import type { resolveOperationProducer } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import { logger } from '@modern-js/utils';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 
 import { resolveAdapterCrossProjectPolicy } from '../cross-project-policy';
 import type { ResolvedCrossProjectPolicy } from '../cross-project-policy/evaluation';

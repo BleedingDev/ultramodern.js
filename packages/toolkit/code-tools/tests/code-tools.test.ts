@@ -233,15 +233,14 @@ export function App() {
     expect(combinedOutput(result)).toContain('data-mf-* boundary attributes');
   });
 
-  test.each([
-    'server',
-    'hono-server',
-  ])('workspace runner rejects raw API handler drift through Oxlint from %s', endpoint => {
-    const root = trackTempRoot();
-    writeFile(
-      root,
-      'verticals/catalog/api/index.ts',
-      `
+  test.each(['server', 'hono-server'])(
+    'workspace runner rejects raw API handler drift through Oxlint from %s',
+    endpoint => {
+      const root = trackTempRoot();
+      writeFile(
+        root,
+        'verticals/catalog/api/index.ts',
+        `
 import { createHandler } from '@modern-js/plugin-bff/${endpoint}';
 
 export const handler = async (request: Request) => {
@@ -256,27 +255,28 @@ export default async function fallback() {
 const runtimeFramework = 'hono';
 const strictEffectApproach = false;
 `,
-    );
+      );
 
-    const result = captureConsole(() =>
-      runWorkspaceSourceCheck({
-        cwd: root,
-        sourceRoots: ['verticals'],
-        locales: [],
-      }),
-    );
-    const output = combinedOutput(result);
+      const result = captureConsole(() =>
+        runWorkspaceSourceCheck({
+          cwd: root,
+          sourceRoots: ['verticals'],
+          locales: [],
+        }),
+      );
+      const output = combinedOutput(result);
 
-    expect(result.exitCode).toBe(1);
-    expect(output).toContain('must not import Hono server helpers');
-    expect(output).toContain(
-      'use @modern-js/bff-effect/effect-edge and HttpApi',
-    );
-    expect(output).toContain('must not hand-build Response objects');
-    expect(output).toContain('must not manually parse request bodies');
-    expect(output).toContain('must not export raw request handlers');
-    expect(output).toContain('must keep strictEffectApproach enabled');
-  });
+      expect(result.exitCode).toBe(1);
+      expect(output).toContain('must not import Hono server helpers');
+      expect(output).toContain(
+        'use @modern-js/bff-effect/effect-edge and HttpApi',
+      );
+      expect(output).toContain('must not hand-build Response objects');
+      expect(output).toContain('must not manually parse request bodies');
+      expect(output).toContain('must not export raw request handlers');
+      expect(output).toContain('must keep strictEffectApproach enabled');
+    },
+  );
 
   test('Hono diagnostics cover template imports without treating server-plugin as the Hono endpoint', () => {
     const root = trackTempRoot();

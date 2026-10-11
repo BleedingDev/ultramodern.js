@@ -157,13 +157,13 @@ test('an unpublished sidecar version is published; a byte-identical one is reuse
   const sidecar = stagedMfCli();
 
   assert.deepEqual(
-    sidecarRegistryDecision(sidecar, null).action,
+    (await sidecarRegistryDecision(sidecar, null)).action,
     'publish',
     'a package that has never been published must publish',
   );
 
   // The re-run case: the exact version exists and resolves identically.
-  const reuse = sidecarRegistryDecision(sidecar, packumentFor(sidecar));
+  const reuse = await sidecarRegistryDecision(sidecar, packumentFor(sidecar));
   assert.equal(reuse.action, 'reuse');
   assert.equal(reuse.currentTag, '3.2.0');
   assert.match(reuse.reason, /accepted tarball bytes/u);
@@ -175,7 +175,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
 
   // Matching manifest fields are insufficient: registry reuse must bind the
   // exact accepted tarball bytes.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(
         sidecar,
@@ -193,7 +193,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
 
   // Content drift on an immutable version: the published package is not the
   // one this run staged, and no re-run can fix it.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(
         sidecar,
@@ -205,14 +205,14 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
   );
 
   // The dist-tag must land on the version the cohort aliases.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, packumentFor(sidecar, { tag: '3.3.0' })),
     /dist-tag latest points at 3\.3\.0, expected the already-published 3\.2\.0/u,
   );
 
   // A backwards republish would make the cohort alias resolve to older bytes.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, {
         name: sidecar.name,
@@ -223,7 +223,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
   );
 
   // Uncertain registry shapes are never read as "not published yet".
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, { name: sidecar.name, versions: {} }),
     /invalid registry dist-tags/u,
@@ -392,15 +392,17 @@ test('a missing dist-tag and an unindexed version are retried until they settle'
   assert.ok(waits.length > 0, 'each pending read must wait');
 
   assert.equal(
-    classifySidecarPropagation(sidecar, untaggedPackument(sidecar), {
-      tag: 'latest',
-    }).state,
+    (
+      await classifySidecarPropagation(sidecar, untaggedPackument(sidecar), {
+        tag: 'latest',
+      })
+    ).state,
     propagationPendingStates.tagAbsent,
   );
   // Settled: both the version and the tag are readable, so the decision is
   // final and there is nothing left to wait for.
   assert.equal(
-    classifySidecarPropagation(sidecar, packumentFor(sidecar), {
+    await classifySidecarPropagation(sidecar, packumentFor(sidecar), {
       tag: 'latest',
     }),
     null,
@@ -510,6 +512,8 @@ const withTrustedPublishEnv = t => {
     GITHUB_ACTIONS: 'true',
     GITHUB_REF: 'refs/heads/main-ultramodern',
     GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    GITHUB_RUN_ID: '12345',
+    GITHUB_RUN_ATTEMPT: '2',
   };
   const savedEnv = Object.fromEntries(
     Object.keys(trustedEnv).map(key => [key, process.env[key]]),
@@ -537,6 +541,10 @@ const publishedPackumentFor = (sidecar, overrides = {}) =>
     overrides: {
       bin: sidecar.packageJson.bin,
       dependencies: sidecar.packageJson.dependencies,
+      dist: {
+        ...packumentFor(sidecar).versions[sidecar.version].dist,
+        attestations: { provenance: {} },
+      },
       ...overrides,
     },
   });
@@ -552,10 +560,17 @@ const sidecarLaneDependencies = ({
     publish: async packageJson => onPublish(packageJson.name),
   }),
   readPackument,
+  verifyFreshTarball: async () => {},
+  verifyFreshProvenance: async () => {},
+  verifyReuse: async () => {},
   readSidecars: () => ({
     manifest: { publishBefore: '@bleedingdev/modern-js-image' },
     release: {
       manifest: {
+        source: {
+          repository: 'BleedingDev/ultramodern.js',
+          commit: 'a'.repeat(40),
+        },
         tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
       },
     },
@@ -690,7 +705,7 @@ test('a dist-tag on a different real version is terminal, never retried', async 
   // version - waiting cannot move it, so it must fail immediately.
   const elsewhere = packumentFor(sidecar, { tag: '3.3.0' });
   assert.equal(
-    classifySidecarPropagation(sidecar, elsewhere, { tag: 'latest' }),
+    await classifySidecarPropagation(sidecar, elsewhere, { tag: 'latest' }),
     null,
     'a tag pointing at another version is settled, not pending',
   );
@@ -811,6 +826,171 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
   ).map(recipe => recipe.fork.name);
   assert.deepEqual(result.checked, committed);
   assert.deepEqual(checked, committed);
+});
+
+test('bundle-free sidecar registry checks read only their closed profile', async () => {
+  const { checkSidecarRegistry, parseArgs } = await importCli();
+  const parserNames = [
+    '@bleedingdev/braces',
+    '@bleedingdev/chokidar',
+    '@bleedingdev/fast-glob',
+    '@bleedingdev/find-workspaces',
+    '@bleedingdev/micromatch',
+    '@bleedingdev/rsbuild-plugin-source-build',
+    '@bleedingdev/rsbuild-plugin-type-check',
+    '@bleedingdev/ts-checker-rspack-plugin',
+    '@bleedingdev/ultracite',
+  ];
+  for (const [profile, expected] of [
+    ['mf-sdk', ['@bleedingdev/mf-sdk']],
+    ['parser', parserNames],
+  ]) {
+    const options = parseArgs([
+      '--mode',
+      'sidecars',
+      '--profile',
+      profile,
+      '--check-registry',
+    ]);
+    const reads = [];
+    const result = await checkSidecarRegistry(
+      {
+        readPackument: async name => {
+          reads.push(name);
+          // Every name outside this profile is uncreated on the registry.
+          return expected.includes(name) ? { name } : null;
+        },
+        readRecipes: () => {
+          throw new Error('Profile preflight must validate producer inputs');
+        },
+      },
+      options,
+    );
+    assert.deepEqual(reads, expected);
+    assert.deepEqual(result.checked, expected);
+  }
+});
+
+test('registry preflight rejects mixed CLI inputs before output resolution', async () => {
+  const { parseArgs } = await importCli();
+  const preflight = [
+    '--mode',
+    'sidecars',
+    '--profile',
+    'mf-sdk',
+    '--check-registry',
+  ];
+  assert.throws(
+    () => parseArgs(['--mode', 'sidecars', '--check-registry']),
+    /requires --profile/u,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        '--mode',
+        'sidecars',
+        '--profile',
+        'other',
+        '--check-registry',
+      ]),
+    /Unknown sidecar profile/u,
+  );
+  for (const [option, value] of [
+    ['--out', '/outside-owned-output'],
+    ['--qualification', '/outside-owned-receipt'],
+    ['--tag', 'latest'],
+  ])
+    assert.throws(
+      () => parseArgs([...preflight, option, value]),
+      /--check-registry is bundle-free/u,
+    );
+  for (const argv of [
+    ['--check-registry', '--profile', 'mf-sdk'],
+    ['--mode', 'sidecars', '--profile', 'mf-sdk'],
+    ['--mode', 'sidecars', '--profile', 'parser', '--check-staging'],
+    [
+      '--mode',
+      'sidecars',
+      '--profile',
+      'mf-sdk',
+      '--qualification',
+      path.join(repoRoot, '.modern/bleedingdev-sidecars/qualification.json'),
+      '--dry-run',
+    ],
+  ])
+    assert.throws(
+      () => parseArgs(argv),
+      /--profile requires --mode sidecars --check-registry/u,
+    );
+  assert.throws(() => parseArgs(['--mode', 'sidecars']), /--qualification/u);
+});
+
+test('SDK registry preflight rejects recipe drift before any network read', async t => {
+  const { checkSidecarRegistry } = await importCli();
+  const recipesPath = path.join(
+    repoRoot,
+    'scripts/ultramodern-supply/sidecars.json',
+  );
+  const recipes = JSON.parse(fs.readFileSync(recipesPath, 'utf8'));
+  const originalRead = fs.readFileSync;
+  let selectedRecipes = recipes;
+  t.mock.method(fs, 'readFileSync', (file, ...args) => {
+    const filePath =
+      file instanceof URL ? require('node:url').fileURLToPath(file) : file;
+    if (filePath === recipesPath) return JSON.stringify(selectedRecipes);
+    return originalRead.call(fs, file, ...args);
+  });
+  let reads = 0;
+  const dependencies = {
+    readPackument: async () => {
+      reads += 1;
+      throw new Error('Invalid profile reached the network');
+    },
+  };
+  for (const [mutate, expected] of [
+    [
+      values =>
+        values.map(recipe =>
+          recipe.id === 'mf-sdk'
+            ? {
+                ...recipe,
+                fork: { ...recipe.fork, name: '@bleedingdev/other-sdk' },
+              }
+            : recipe,
+        ),
+      /dependencies differ from the closed profile/u,
+    ],
+    [
+      values =>
+        values.map(recipe =>
+          recipe.id === 'mf-sdk'
+            ? { ...recipe, fork: { ...recipe.fork, version: '2.9.3' } }
+            : recipe,
+        ),
+      /dependencies differ from the closed profile/u,
+    ],
+    [
+      values => values.filter(recipe => recipe.id !== 'mf-sdk'),
+      /Expected exactly one reviewed sidecar recipe mf-sdk/u,
+    ],
+  ]) {
+    selectedRecipes = mutate(structuredClone(recipes));
+    await assert.rejects(
+      checkSidecarRegistry(dependencies, {
+        mode: 'sidecars',
+        profile: 'mf-sdk',
+      }),
+      expected,
+    );
+    assert.equal(reads, 0);
+  }
+  for (const profile of [undefined, 'other']) {
+    await assert.rejects(
+      checkSidecarRegistry(dependencies, { mode: 'sidecars', profile }),
+      /requires --profile|Unknown sidecar profile/u,
+    );
+    assert.equal(reads, 0);
+  }
 });
 
 test('the packed-consumer proof publishes to loopback registries only', async () => {
@@ -1047,7 +1227,10 @@ test('publishSidecars verifies provenance before reusing a published version', a
   };
   const result = await publishSidecars(publishOptions, dependencies);
   assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
-  assert.deepEqual(verified, [['@bleedingdev/mf-cli', releaseSource]]);
+  assert.deepEqual(verified, [
+    ['@bleedingdev/mf-cli', releaseSource],
+    ['@bleedingdev/mf-cli', releaseSource],
+  ]);
 
   dependencies.verifyReuse = async () => {
     throw new Error('not grandfathered');
@@ -1079,7 +1262,7 @@ test('a reuse resumed while npm indexes the tag still verifies provenance on the
   };
   const result = await publishSidecars(publishOptions, dependencies);
   assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
-  assert.deepEqual(verified, [settled]);
+  assert.deepEqual(verified, [settled, settled]);
 
   dependencies.readPackument = stubReads([untaggedPackument(sidecar), settled]);
   dependencies.verifyReuse = async () => {
@@ -1221,3 +1404,258 @@ test('a resumed reuse finishes provenance before any later sidecar publishes', a
   );
   assert.deepEqual(events, [`verify ${resumed.name}`]);
 });
+
+test('all new-version authorizations pass before the first irreversible publication', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const second = namedSidecar('@bleedingdev/ipx-second');
+  const events = [];
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [first, second],
+    readPackument: async name =>
+      priorReleaseOnly(name === first.name ? first : second),
+    onPublish: name => events.push(`publish:${name}`),
+    requestToken: async name => {
+      events.push(`authorize:${name}`);
+      if (name === second.name)
+        throw new Error('not authorized for second package');
+      return 'opaque-test-token';
+    },
+  });
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /preflight failed[\s\S]*second package/,
+  );
+  assert.deepEqual(events, [
+    `authorize:${first.name}`,
+    `authorize:${second.name}`,
+  ]);
+});
+
+test('a later missing package or unclassified manifest stops the entire lane before authorization', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const second = namedSidecar('@bleedingdev/ipx-second');
+  const noPublish = () => assert.fail('must fail before publishing');
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [first, second],
+    readPackument: async name =>
+      name === first.name ? priorReleaseOnly(first) : null,
+    onPublish: noPublish,
+    requestToken: async () => assert.fail('must fail before OIDC exchange'),
+  });
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /Bootstrap @bleedingdev\/ipx-second/,
+  );
+  second.packageJson.unspecifiedConsumerField = true;
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /does not classify/,
+  );
+});
+
+test('typings participates in immutable resolution comparison while explicit development metadata does not', async () => {
+  const { sidecarRegistryDecision, sidecarContentProjection } =
+    await importPublication();
+  const sidecar = stagedMfCli();
+  Object.assign(sidecar.packageJson, {
+    typings: 'out/index.d.ts',
+    packageManager: 'bun@1.4.2',
+    verb: { tasks: ['readme'] },
+    'simple-git-hooks': { 'pre-commit': 'lint' },
+  });
+  assert.equal(
+    sidecarContentProjection(sidecar.packageJson, sidecar.name).typings,
+    'out/index.d.ts',
+  );
+  await assert.rejects(
+    sidecarRegistryDecision(sidecar, packumentFor(sidecar)),
+    /typings/,
+  );
+  assert.equal(
+    (
+      await sidecarRegistryDecision(
+        sidecar,
+        packumentFor(sidecar, { overrides: { typings: 'out/index.d.ts' } }),
+      )
+    ).action,
+    'reuse',
+  );
+});
+
+test('fresh publication verifies exact source/run provenance and registry bytes before chronology', async t => {
+  const { verifyFreshSidecar } = await importCli();
+  withTrustedPublishEnv(t);
+  const keys = ['GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'];
+  const saved = keys.map(key => process.env[key]);
+  process.env.GITHUB_RUN_ID = '12345';
+  process.env.GITHUB_RUN_ATTEMPT = '2';
+  t.after(() =>
+    keys.forEach((key, i) => {
+      if (saved[i] === undefined) delete process.env[key];
+      else process.env[key] = saved[i];
+    }),
+  );
+  const sidecar = stagedMfCli();
+  const events = [];
+  await verifyFreshSidecar(
+    sidecar,
+    { source: releaseSource },
+    {
+      readPackument: async () => publishedPackumentFor(sidecar),
+      verifyFreshTarball: async item => {
+        assert.equal(item.targetName, sidecar.name);
+        events.push('bytes');
+      },
+      verifyFreshProvenance: async (_item, _dist, expectation) => {
+        assert.equal(expectation.source.commit, releaseSource.commit);
+        assert.deepEqual(expectation.invocation, {
+          repository: 'BleedingDev/ultramodern.js',
+          runId: '12345',
+          runAttempt: '2',
+          exactAttempt: true,
+        });
+        events.push('exact provenance');
+      },
+      verifyReuse: async () => events.push('chronology'),
+    },
+  );
+  assert.deepEqual(events, ['bytes', 'exact provenance', 'chronology']);
+  await assert.rejects(
+    verifyFreshSidecar(
+      sidecar,
+      { source: releaseSource },
+      {
+        readPackument: async () => publishedPackumentFor(sidecar),
+        verifyFreshTarball: async () => {},
+        verifyFreshProvenance: async () => {
+          throw new Error('wrong source/run');
+        },
+        verifyReuse: async () =>
+          assert.fail('chronology cannot replace exact provenance'),
+      },
+    ),
+    /wrong source\/run/,
+  );
+});
+
+test('settled fresh bytes wait only for absent provenance, never mismatched signed provenance', async t => {
+  const { verifyFreshSidecar } = await importCli();
+  const { RegistryProvenancePendingError } = await import(
+    '../lib/prepare-bleedingdev-packages/provenance.mjs'
+  );
+  withTrustedPublishEnv(t);
+  const sidecar = stagedMfCli();
+  const visible = () =>
+    packumentFor(sidecar, {
+      overrides: {
+        dist: {
+          integrity: sidecar.integrity,
+          shasum: sidecar.shasum,
+          attestations: { provenance: {} },
+        },
+      },
+    });
+  let reads = 0;
+  let provenanceReads = 0;
+  let waits = 0;
+  let chronology = 0;
+  await verifyFreshSidecar(
+    sidecar,
+    { source: releaseSource },
+    {
+      readPackument: async () =>
+        ++reads === 1 ? packumentFor(sidecar) : visible(),
+      verifyFreshTarball: async () => {},
+      verifyFreshProvenance: async () => {
+        if (++provenanceReads === 1)
+          throw new RegistryProvenancePendingError(
+            'attestation endpoint returned HTTP 404',
+          );
+      },
+      verifyReuse: async () => {
+        chronology += 1;
+      },
+      wait: async () => {
+        waits += 1;
+      },
+    },
+  );
+  assert.equal(reads, 3);
+  assert.equal(provenanceReads, 2);
+  assert.equal(waits, 2);
+  assert.equal(chronology, 1);
+  waits = 0;
+  await assert.rejects(
+    verifyFreshSidecar(
+      sidecar,
+      { source: releaseSource },
+      {
+        readPackument: async () => ({
+          ...visible(),
+          time: { [sidecar.version]: new Date().toISOString() },
+        }),
+        verifyFreshTarball: async () => {},
+        verifyFreshProvenance: async () => {
+          throw new Error('mismatched signed source and producer attempt');
+        },
+        verifyReuse: async () =>
+          assert.fail(
+            'untrusted signed provenance cannot authorize chronology',
+          ),
+        wait: async () => {
+          waits += 1;
+        },
+      },
+    ),
+    /mismatched signed source/,
+  );
+  assert.equal(
+    waits,
+    0,
+    'fresh timestamps cannot turn mismatched signed provenance into a propagation state',
+  );
+});
+
+for (const state of ['missing tag', 'unindexed tagged version']) {
+  test(`a later resumed reuse with ${state} must authenticate before any earlier package publishes`, async t => {
+    const { publishSidecars } = await importCli();
+    withTrustedPublishEnv(t);
+    const first = namedSidecar('@bleedingdev/ipx-first');
+    const second = namedSidecar('@bleedingdev/mf-cli');
+    let secondReads = 0;
+    const events = [];
+    const dependencies = sidecarLaneDependencies({
+      sidecars: [first, second],
+      readPackument: async name => {
+        if (name === first.name) return priorReleaseOnly(first);
+        if (++secondReads === 1)
+          return state === 'missing tag'
+            ? untaggedPackument(second)
+            : { ...packumentFor(second), versions: {} };
+        return publishedPackumentFor(second);
+      },
+      onPublish: name => events.push(`publish:${name}`),
+      requestToken: async name => {
+        events.push(`authorize:${name}`);
+        return 'opaque-test-token';
+      },
+    });
+    dependencies.verifyReuse = async candidate => {
+      if (candidate.name === second.name)
+        throw new Error('resumed candidate has untrusted provenance');
+    };
+    await assert.rejects(
+      publishSidecars(publishOptions, dependencies),
+      /untrusted provenance/,
+    );
+    assert.deepEqual(
+      events,
+      [],
+      'the complete existing registry set must be trusted before OIDC or publication',
+    );
+  });
+}

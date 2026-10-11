@@ -30,6 +30,7 @@ import type {
   RuntimePluginConfig,
   ServerPluginConfig,
 } from '../types/cli/hooks';
+import type { AsyncHook, CollectAsyncHook } from '../types/hooks';
 import type { DeepPartial } from '../types/utils';
 
 export type {
@@ -67,7 +68,7 @@ export function initHooks<
   NormalizedConfig,
   ExtendBuildUtils,
   ExtendConfigUtils,
->() {
+>(): Hooks<Config, NormalizedConfig, ExtendBuildUtils, ExtendConfigUtils> {
   return {
     /**
      * add config for this cli plugin
@@ -121,11 +122,32 @@ export type Hooks<
   NormalizedConfig,
   ExtendBuildUtils,
   ExtendConfigUtils,
-> = ReturnType<
-  typeof initHooks<
-    Config,
-    NormalizedConfig,
-    ExtendBuildUtils,
-    ExtendConfigUtils
-  >
->;
+> = {
+  config: CollectAsyncHook<ConfigFn<DeepPartial<Config>>>;
+  modifyConfig: AsyncHook<ModifyConfigFn<Config, ExtendConfigUtils>>;
+  modifyResolvedConfig: AsyncHook<
+    ModifyResolvedConfigFn<NormalizedConfig, ExtendConfigUtils>
+  >;
+  modifyRsbuildConfig: AsyncHook<ModifyRsbuildConfigFn<ExtendBuildUtils>>;
+  modifyBundlerChain: AsyncHook<ModifyBundlerChainFn<ExtendBuildUtils>>;
+  modifyRspackConfig: AsyncHook<ModifyRspackConfigFn<ExtendBuildUtils>>;
+  modifyHtmlPartials: AsyncHook<ModifyHtmlPartialsFn>;
+  addCommand: AsyncHook<AddCommandFn>;
+  addWatchFiles: CollectAsyncHook<AddWatchFilesFn>;
+  onPrepare: AsyncHook<OnPrepareFn>;
+  onFileChanged: AsyncHook<OnFileChangedFn>;
+  onBeforeRestart: AsyncHook<OnBeforeRestartFn>;
+  onBeforeCreateCompiler: AsyncHook<OnBeforeCreateCompilerFn>;
+  onAfterCreateCompiler: AsyncHook<OnAfterCreateCompilerFn>;
+  onDevCompileDone: AsyncHook<OnDevCompileDoneFn>;
+  onBeforeBuild: AsyncHook<OnBeforeBuildFn>;
+  onAfterBuild: AsyncHook<OnAfterBuildFn>;
+  onBeforeDev: AsyncHook<OnBeforeDevFn>;
+  onAfterDev: AsyncHook<OnAfterDevFn>;
+  onBeforeDeploy: AsyncHook<OnBeforeDeployFn>;
+  onAfterDeploy: AsyncHook<OnAfterDeployFn>;
+  onBeforeExit: AsyncHook<OnBeforeExitFn>;
+  _internalRuntimePlugins: AsyncHook<InternalRuntimePluginsFn>;
+  _internalServerPlugins: AsyncHook<InternalServerPluginsFn>;
+  modifyServerRoutes: AsyncHook<ModifyServerRoutesFn>;
+};

@@ -15,12 +15,15 @@ import { workspaceTemplateDir } from '../src/ultramodern-workspace/fs-io';
 
 const createBinPath = path.resolve(__dirname, '../bin/run.js');
 
-function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
+async function scaffoldWorkspace(): Promise<{
+  tempRoot: string;
+  workspaceDir: string;
+}> {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-postinstall-safety-'),
   );
   const workspaceDir = path.join(tempRoot, 'safety-workspace');
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'safety-workspace',
     modernVersion: '3.2.1',
@@ -147,8 +150,8 @@ function withCreateBinEnv() {
   };
 }
 
-test('generated postinstall installs vendored Codex skills without formatting consumer source', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('generated postinstall installs vendored Codex skills without formatting consumer source', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
 
   try {
     // Bootstrap copies the authoritative vendored bytes. Initial generation
@@ -186,7 +189,50 @@ test('generated postinstall installs vendored Codex skills without formatting co
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf8'),
     );
+    const createPackageRoot = path.resolve(__dirname, '..');
+    const createPackageJson = JSON.parse(
+      fs.readFileSync(path.join(createPackageRoot, 'package.json'), 'utf8'),
+    );
+    assert.equal(
+      packageJson.devDependencies[createPackageJson.name],
+      'workspace:*',
+    );
+    const installedCreate = path.join(
+      workspaceDir,
+      'node_modules',
+      createPackageJson.name,
+    );
+    fs.mkdirSync(path.dirname(installedCreate), { recursive: true });
+    fs.symlinkSync(
+      createPackageRoot,
+      installedCreate,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const nativeCreateBin = path.join(
+      installedCreate,
+      createPackageJson.bin['ultramodern-create'],
+    );
+    assert.equal(
+      fs.realpathSync(nativeCreateBin),
+      fs.realpathSync(createBinPath),
+    );
+    const installedBinDir = path.join(workspaceDir, 'node_modules/.bin');
+    fs.mkdirSync(installedBinDir, { recursive: true });
+    if (process.platform === 'win32') {
+      fs.writeFileSync(
+        path.join(installedBinDir, 'ultramodern-create.cmd'),
+        `@echo off\r\n"${process.execPath}" "${nativeCreateBin}" %*\r\n`,
+      );
+    } else {
+      fs.symlinkSync(
+        path.relative(installedBinDir, nativeCreateBin),
+        path.join(installedBinDir, 'ultramodern-create'),
+        'file',
+      );
+    }
     const env = withFakeToolEnv(fakeBinDir);
+    env.PATH = `${installedBinDir}${path.delimiter}${env.PATH ?? ''}`;
+    if (process.platform === 'win32') env.Path = env.PATH;
     delete env.ULTRAMODERN_CODEX_SKILLS;
     delete env.ULTRAMODERN_SKIP_CODEX_SKILLS;
 
@@ -252,8 +298,8 @@ test('generated postinstall installs vendored Codex skills without formatting co
   }
 });
 
-test('installed skills command --postinstall skips Lefthook in nested Git worktrees', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('installed skills command --postinstall skips Lefthook in nested Git worktrees', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
 
   try {
     const { fakeBinDir, gitLog, lefthookLog } = createFakeGitAndLefthookBin(
@@ -284,8 +330,8 @@ test('installed skills command --postinstall skips Lefthook in nested Git worktr
   }
 });
 
-test('installed skills command --postinstall installs Lefthook for standalone generated repos', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('installed skills command --postinstall installs Lefthook for standalone generated repos', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
 
   try {
     const { fakeBinDir, gitLog, lefthookLog } = createFakeGitAndLefthookBin(
@@ -314,9 +360,9 @@ test('installed skills command --postinstall installs Lefthook for standalone ge
   }
 });
 
-test('installed skills command --postinstall supports documented Codex skill opt-outs', () => {
+test('installed skills command --postinstall supports documented Codex skill opt-outs', async () => {
   for (const envPatch of [{ ULTRAMODERN_SKIP_CODEX_SKILLS: '1' }]) {
-    const { tempRoot, workspaceDir } = scaffoldWorkspace();
+    const { tempRoot, workspaceDir } = await scaffoldWorkspace();
 
     try {
       fs.rmSync(
@@ -361,8 +407,8 @@ test('installed skills command --postinstall supports documented Codex skill opt
   }
 });
 
-test('installed skills command resolves the agents-standard .agents/ lockfile layout', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('installed skills command resolves the agents-standard .agents/ lockfile layout', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
 
   try {
     fs.mkdirSync(path.join(workspaceDir, '.agents'), { recursive: true });

@@ -1,7 +1,8 @@
 /** Server-only assembly for the invariant tail of a strict Effect BFF runtime factory. */
+
+import type { HttpApi, HttpApiGroup } from 'effect/http-api';
+import { HttpApiBuilder } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
-import type { HttpApi, HttpApiGroup } from 'effect/unstable/httpapi';
-import { HttpApiBuilder } from 'effect/unstable/httpapi';
 import { defineEffectBff } from './effect/handler/definition';
 import type { EffectRuntimeRequirements } from './effect/handler/types';
 

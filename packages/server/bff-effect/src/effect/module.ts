@@ -1,6 +1,6 @@
 // @effect-diagnostics strictBooleanExpressions:off
 import type * as EffectServiceContext from 'effect/Context';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 import {
   classifyEffectBffEntryModule,
   type EffectBffEntryShapeFacts,

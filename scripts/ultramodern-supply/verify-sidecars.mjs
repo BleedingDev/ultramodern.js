@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
 import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
+import { sidecarProfile } from '../ultramodern-publish/sidecar-profiles.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const recipes = JSON.parse(
@@ -31,23 +32,96 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * `@bleedingdev/mf-runtime@2.9.2` reaches runtime-core's
  * resetFederationRuntime (module-federation/core#5152). Backend federation in
  * plugin-bff-extensions creates its own instance and never calls it.
+ *
+ * `@bleedingdev/rsbuild-core` (onAfterPrepareDevCompiler) is a new sidecar
+ * name that has not been bootstrapped on npm yet. Until it is, these framework
+ * edges are its declared consumers and resolve the patched upstream package
+ * in the monorepo.
  */
 export const unpublishedForkEdges = [
+  // The SDK fork has not had its first signed release plus 24h admission.
+  {
+    importer: 'packages/runtime/federation-runtime',
+    published: '@bleedingdev/modern-js-federation-runtime',
+    dependency: '@module-federation/sdk',
+  },
+  // These exact source consumers declare the parser-correction recipes until
+  // their new fork names are published. This validates recipe reachability;
+  // it does not correct the current installation or compiled utility bytes.
+  {
+    importer: 'packages/toolkit/utils',
+    published: '@bleedingdev/modern-js-utils',
+    dependency: 'fast-glob',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-source-build',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-type-check',
+  },
+  {
+    importer: 'packages/toolkit/ultramodern-create',
+    published: '@bleedingdev/modern-js-ultramodern-create',
+    dependency: 'ultracite',
+  },
   {
     importer: 'packages/cli/plugin-bff-extensions',
     published: '@bleedingdev/modern-js-plugin-bff-extensions',
     dependency: '@module-federation/runtime',
   },
+  ...[
+    ['packages/cli/builder', '@bleedingdev/modern-js-builder'],
+    ['packages/solutions/app-tools', '@bleedingdev/modern-js-app-tools'],
+    [
+      'packages/solutions/app-tools-extensions',
+      '@bleedingdev/modern-js-app-tools-extensions',
+    ],
+    [
+      'packages/solutions/ultramodern-app-tools',
+      '@bleedingdev/modern-js-ultramodern-app-tools',
+    ],
+    ['packages/toolkit/plugin', '@bleedingdev/modern-js-plugin'],
+    // Renderer adapters type their compiler plugins against an optional peer.
+    ['packages/runtime/renderer-core', '@bleedingdev/modern-js-renderer-core'],
+    [
+      'packages/runtime/renderer-octane',
+      '@bleedingdev/modern-js-renderer-octane',
+    ],
+    [
+      'packages/runtime/renderer-solid',
+      '@bleedingdev/modern-js-renderer-solid',
+    ],
+  ].map(([importer, published]) => ({
+    importer,
+    published,
+    dependency: '@rsbuild/core',
+  })),
+  // The merged 2.9.2 patch carries a renderer hunk the published 2.9.3
+  // modern-js-v3 fork lacks; its fork version moves to 2.9.4 and this edge
+  // declares it once published.
+  {
+    importer: 'packages/toolkit/ultramodern-create',
+    published: '@bleedingdev/modern-js-ultramodern-create',
+    dependency: '@module-federation/modern-js-v3',
+  },
 ];
 
-/** Whether `consumer`'s `dependency` edge may still be the upstream `specifier`. */
+/**
+ * Whether `consumer`'s `dependency` edge may still be the upstream `specifier`.
+ * A lockfile version may carry its peer suffix, e.g. `2.2.11(core-js@3.50.0)`.
+ */
 export const isUnpublishedForkEdge = (
   consumer,
   dependency,
   specifier,
   recipe,
 ) =>
-  specifier === recipe.upstream.version &&
+  (specifier === recipe.upstream.version ||
+    String(specifier).startsWith(`${recipe.upstream.version}(`)) &&
   unpublishedForkEdges.some(
     edge =>
       edge.dependency === dependency &&
@@ -97,12 +171,16 @@ export function assertRecipeConsumers(
         const recipe = recipeByUpstream.get(name);
         const expected =
           recipe && `npm:${recipe.fork.name}@${recipe.fork.version}`;
+        const unpublished =
+          recipe &&
+          isUnpublishedForkEdge(manifest.name, name, specifier, recipe);
         assert.ok(
-          !recipe ||
-            specifier === expected ||
-            isUnpublishedForkEdge(manifest.name, name, specifier, recipe),
+          !recipe || specifier === expected || unpublished,
           `${manifest.name} ${block}.${name} is ${specifier}; declare ${expected} in source`,
         );
+        // A listed unpublished fork edge is the recipe's declared consumer
+        // until the fork is on npm and the edge becomes its exact alias.
+        if (unpublished) reach(recipe);
       }
     }
   }
@@ -118,13 +196,26 @@ export function assertRecipeConsumers(
 
 /** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
+  const qualifiedSdkPins = Object.fromEntries(
+    Object.entries(sidecarProfile('mf-sdk').dependencies).map(
+      ([name, version]) => [name, `npm:${name}@${version}`],
+    ),
+  );
   assertRecipeGraph(recipes, {
-    generatorPins: Object.values(ULTRAMODERN_PACKAGE_PINS),
+    generatorPins: [
+      ...Object.values(ULTRAMODERN_PACKAGE_PINS),
+      qualifiedSdkPins,
+    ],
   });
   assertRecipeConsumers(recipes, {
-    generatorPins: Object.entries(ULTRAMODERN_PACKAGE_PINS)
-      .filter(([block]) => !block.endsWith('DevDependencies'))
-      .map(([, pins]) => pins),
+    // The standalone SDK qualifier is a direct installed public API consumer.
+    // Its immutable profile also drives the exact installer dependencies.
+    generatorPins: [
+      ...Object.entries(ULTRAMODERN_PACKAGE_PINS)
+        .filter(([block]) => !block.endsWith('DevDependencies'))
+        .map(([, pins]) => pins),
+      qualifiedSdkPins,
+    ],
     publishedManifests,
   });
 }
@@ -330,6 +421,14 @@ async function fetchLatestTarball(recipe) {
 }
 
 /**
+ * Extract `name` inside `directory`. tar runs there with a relative archive
+ * name: Git Bash's GNU tar on Windows reads `C:\...` as a remote `host:path`.
+ */
+function extractTarball(directory, name) {
+  execFileSync('tar', ['-xzf', name], { cwd: directory, stdio: 'pipe' });
+}
+
+/**
  * Map each patched recipe whose patch reverse-applies with zero fuzz to the
  * newest upstream release of its major.minor, i.e. upstream already ships it.
  */
@@ -345,11 +444,8 @@ export async function findUpstreamedPatches(
       if (!latest) continue;
       const directory = path.join(temp, recipe.id);
       fs.mkdirSync(directory);
-      const tarball = path.join(directory, 'upstream.tgz');
-      fs.writeFileSync(tarball, latest.bytes);
-      execFileSync('tar', ['-xzf', tarball, '-C', directory], {
-        stdio: 'pipe',
-      });
+      fs.writeFileSync(path.join(directory, 'upstream.tgz'), latest.bytes);
+      extractTarball(directory, 'upstream.tgz');
       try {
         execFileSync('patch', ['-p1', '-R', '-f', '--dry-run', '--fuzz=0'], {
           cwd: path.join(directory, 'package'),
@@ -367,7 +463,22 @@ export async function findUpstreamedPatches(
   return upstreamed;
 }
 
-/** Reconstruct a recipe from its pinned tarball in an owned temporary directory. */
+function nestedNodeModules(directory) {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => {
+      const absolute = path.join(directory, entry.name);
+      return entry.name === 'node_modules'
+        ? [absolute]
+        : nestedNodeModules(absolute);
+    });
+}
+
+/**
+ * Reconstruct a recipe from its pinned tarball in an owned temporary directory,
+ * or into `materializeTo` when given.
+ */
 export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   const recipe = recipes.find(item => item.id === id);
   assert.ok(recipe, `unknown sidecar: ${id}`);
@@ -396,10 +507,18 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
       recipe.upstream.integrity,
       `${id}: upstream tarball integrity`,
     );
-    const tarball = path.join(temp, 'upstream.tgz');
-    fs.writeFileSync(tarball, bytes);
-    execFileSync('tar', ['-xzf', tarball, '-C', temp], { stdio: 'pipe' });
+    fs.writeFileSync(path.join(temp, 'upstream.tgz'), bytes);
+    extractTarball(temp, 'upstream.tgz');
     const upstreamDir = path.join(temp, 'package');
+    // pnpm never installs node_modules directories shipped inside a package
+    // tarball, so they are not part of the installable artifact. Republishing
+    // them would declare files no consumer can receive.
+    for (const nested of nestedNodeModules(upstreamDir)) {
+      fs.rmSync(nested, { recursive: true, force: true });
+      console.log(
+        `${id}: dropped uninstallable ${path.relative(upstreamDir, nested)}`,
+      );
+    }
     const upstream = JSON.parse(
       fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
     );

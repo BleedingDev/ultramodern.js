@@ -62,7 +62,13 @@ const lintProbes = (relativePaths, source = PROBE_SOURCE) => {
     for (const line of `${result.stdout}${result.stderr}`.split('\n')) {
       const match = /title=([^,]+),file=([^,]+),/.exec(line);
       if (match) {
-        rulesByFile.get(match[2])?.add(match[1]);
+        rulesByFile
+          .get(
+            path.isAbsolute(match[2])
+              ? path.relative(fs.realpathSync(root), match[2])
+              : match[2],
+          )
+          ?.add(match[1]);
       }
     }
     return rulesByFile;

@@ -13,6 +13,35 @@ const { createGitFixture } = require('../../lib/git-fixture');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 
+test('loading checker modules and running divergence self-tests needs no parser installation', () => {
+  const output = execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `
+        const Module = require('node:module');
+        const load = Module._load;
+        Module._load = function (specifier, ...args) {
+          if (['@babel/core', 'yaml', 'js-yaml'].includes(specifier)) {
+            throw new Error('Parser dependency unavailable: ' + specifier);
+          }
+          return load.call(this, specifier, ...args);
+        };
+        require(process.argv[1]);
+        require(process.argv[2]);
+        process.argv = [process.execPath, process.argv[3], '--self-test'];
+        require(process.argv[1]);
+      `,
+      path.join(__dirname, '../checker.js'),
+      path.join(__dirname, '../import-ownership.js'),
+      path.join(__dirname, '../check-fork-import-boundary.js'),
+    ],
+    { cwd: repoRoot, encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } },
+  );
+  assert.match(output, /checks passed/);
+  assert.doesNotMatch(output, /FAIL/);
+});
+
 const makeGitFixture = () => {
   const {
     cleanup,
@@ -151,6 +180,45 @@ test('an unresolvable ownership base fails closed instead of reporting clean', (
           allowlistPath,
         }),
       /ownership base.*does not resolve/,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('an actual import scan fails closed when its source parser is unavailable', () => {
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
+  try {
+    assert.throws(
+      () =>
+        execFileSync(
+          process.execPath,
+          [
+            '-e',
+            `
+              const Module = require('node:module');
+              const load = Module._load;
+              Module._load = function (specifier, ...args) {
+                if (specifier === '@babel/core') {
+                  throw new Error('Source parser unavailable');
+                }
+                return load.call(this, specifier, ...args);
+              };
+              require(process.argv[1]).scanUpstreamOwnedForkImports({
+                rootDir: process.argv[2], baseRef: process.argv[3],
+              });
+            `,
+            path.join(__dirname, '../checker.js'),
+            rootDir,
+            baseRef,
+          ],
+          { cwd: repoRoot, stdio: 'pipe' },
+        ),
+      error => {
+        assert.equal(error.status, 1);
+        assert.match(error.stderr.toString(), /Source parser unavailable/);
+        return true;
+      },
     );
   } finally {
     cleanup();

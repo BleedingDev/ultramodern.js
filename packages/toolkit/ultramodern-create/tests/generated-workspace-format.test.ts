@@ -60,8 +60,8 @@ function assertFormatStatus(
   assert.equal(result.status, expectedStatus, `${state} failed.\n${output}`);
 }
 
-test('formatGeneratedWorkspaceFiles produces output that already satisfies the generated oxfmt config', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('generated-format', {
+test('formatGeneratedWorkspaceFiles produces output that already satisfies the generated oxfmt config', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace('generated-format', {
     tempPrefix: 'um-generated-format-',
   });
   const configPath = createFormatHarness(workspaceDir);

@@ -1,128 +1,238 @@
-import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
-import { createBuilderGenerator } from '@modern-js/app-tools/builder';
-import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
-import { createCloudflareBuilderPlugin } from '@modern-js/app-tools-extensions/cloudflare-builder';
+import { appTools } from '@modern-js/app-tools';
+import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import {
   createDeployOutputAliasesPlugin,
   createDeployOutputPublicAssetsPlugin,
 } from '@modern-js/app-tools-extensions/deploy-output/plugin';
-import {
-  RENDERER_EXTENSIONS_PACKAGE,
-  SERVER_EXTENSIONS_PLUGIN_NAME,
-} from '@modern-js/app-tools-extensions/policy-defaults';
-import {
-  collectRuntimePackageModuleDirectories,
-  createRuntimePackageResolutionPlugin,
-} from '@modern-js/app-tools-extensions/runtime-package-resolution';
-import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
+import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
+import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
+import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
+import { createDefineConfig } from './config';
+import { isEntryMetadataRead } from './config-read-context';
+import { createRendererModuleFederationIntegration } from './module-federation-renderer-plugin';
+import { nativeClientAssetsPlugin } from './native-assets';
+import { createNativeEntryStubGenerator } from './native-entry';
+import { nativeEntryCommandPlugin } from './native-entry-command';
+import { findNativeI18nConfig } from './native-i18n';
+import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
+import { nativeModuleFederationPlugin } from './native-module-federation';
+import { nativePrerenderPlugin } from './native-prerender';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
-import { ultramodernRouterIntegrationPlugin } from './router-integration-plugin';
-import { rscDisabledRuntimePlugin } from './rsc-disabled-plugin';
-import { ultramodernSSRIntegrationPlugin } from './ssr-integration-plugin';
+import { createRendererBuildOutputResolver } from './renderer-build-output';
+import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
+import {
+  nativeInfrastructurePluginName,
+  resolveRendererAdapter,
+} from './renderer-registration';
+import {
+  assertRendererCompilerOwnership,
+  attachRendererCompilerClaim,
+  nativeRendererIsolationPlugin,
+  rendererSelectionGuard,
+  resolveRendererBuilderPlugins,
+} from './renderer-selection';
+import { nativeSvgComponentsPlugin } from './svg-components';
+import { rendererTypeCheckerPlugin } from './type-checker';
 
+export {
+  type ConfigParams,
+  type LoadUltramodernConfigOptions,
+  loadUltramodernConfig,
+  loadUltramodernConfigFile,
+  resolveUltramodernConfig,
+  resolveUltramodernEntryIdentities,
+  type UserConfigExport,
+} from './config';
+export {
+  RENDERER_BUILD_MANIFEST_FILE,
+  RENDERER_DEVELOPMENT_DIRECTORY,
+  type RendererBuildManifest,
+  type RendererDevelopmentBuildManifest,
+  type RendererDevelopmentCompilation,
+  readRendererBuildManifest,
+  readRendererDevelopmentBuildManifest,
+  validateRendererBuildManifest,
+  validateRendererDevelopmentBuildManifest,
+} from './native-build-manifest';
+export {
+  i18nPlugin,
+  type NativeI18nBackendOptions,
+  type NativeI18nLocaleDetection,
+  type NativeI18nPluginOptions,
+} from './native-i18n';
 export {
   createPresetUltramodernConfig,
   type PresetUltramodernOptions,
   presetUltramodern,
 } from './preset';
 export { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
+export {
+  type RegisteredRenderer,
+  type RendererBuildProfile,
+  registeredRenderers,
+  resolveCandidateRendererProfile,
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
+export {
+  resolveRendererAdapter,
+  specifierRenderer,
+  type UltramodernRendererAdapter,
+} from './renderer-registration';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
+export {
+  createPresetUltramodernWorkspaceConfig,
+  type PresetUltramodernWorkspaceOptions,
+  presetUltramodernWorkspace,
+} from './workspace-preset';
+export type { PolicyDefaultsOptions };
 
-const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
-  name: '@modern-js/headless-cloudflare-worker',
-  post: ['@modern-js/ultramodern-release-envelope'],
-  setup(api) {
-    api.onAfterBuild(async () => {
-      const appContext = api.getAppContext();
-      if (
-        !appContext.apiOnly ||
-        appContext.deployTarget.target !== 'cloudflare'
-      ) {
-        return;
-      }
-      const normalizedConfig = api.getNormalizedConfig();
-
-      // Native API-only builds intentionally skip their UI builder. Reuse the
-      // same builder generator with the Cloudflare plugin's worker-only entry.
-      const createBuilderForModern = await createBuilderGenerator();
-      const builder = await createBuilderForModern({
-        appContext,
-        normalizedConfig,
-      });
-      // This compiler has only an Effect worker entry. The framework SSR
-      // adapter filters page entries and requires a UI route, so it does not
-      // apply to a headless API worker.
-      builder.removePlugins(['builder-plugin-adapter-modern-ssr']);
-      await builder.build();
-    });
-  },
-});
-
-/** Compose the fork's build and release features through native CLI plugins. */
-export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
-  name: '@modern-js/ultramodern-app-tools',
-  usePlugins: [
-    appTools(),
-    ultramodernI18nIntegrationPlugin(),
-    ultramodernRouterIntegrationPlugin(),
-    ultramodernSSRIntegrationPlugin(),
-    backendFederationBuildPlugin(),
-    createCloudflareBuilderPlugin(),
-    headlessCloudflareWorkerPlugin(),
+function composeNativeRenderer(
+  adapter: NativeRendererAdapter,
+  consumerPlugins: readonly CliPlugin<AppTools>[],
+): CliPlugin<AppTools> {
+  const renderer = adapter.name;
+  const infrastructurePluginName = nativeInfrastructurePluginName(renderer);
+  let rendererIdentities: Readonly<Record<string, RendererIdentity>> = {};
+  const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
+  const federation = createRendererModuleFederationIntegration(renderer);
+  // Prerendering derives paths from the same final trees the build generates.
+  const routeTrees = new Map<string, readonly unknown[]>();
+  const selected = [
+    appTools({ rendererExtensions: false, serverExtensions: false }),
+    rendererTypeCheckerPlugin(renderer),
+    nativeEntryCommandPlugin(),
+    nativeRendererInfrastructurePlugin(
+      renderer,
+      createNativeEntryStubGenerator(adapter),
+      {
+        adapter,
+        i18n: findNativeI18nConfig(consumerPlugins),
+        onRoutes: (entryName, routes) => routeTrees.set(entryName, routes),
+        async resolveBuildIdentities(context) {
+          const resolved = await resolveBuildIdentities(context);
+          if (
+            context.mode !== 'development' ||
+            !Object.keys(rendererIdentities).length
+          ) {
+            rendererIdentities = resolved.identities;
+            federation.controller.onBuildIdentities(resolved);
+          }
+          return resolved;
+        },
+      },
+    ),
+    {
+      ...rendererBuildArtifactStampPlugin({
+        rendererBuildPlugin: infrastructurePluginName,
+        resolveRendererBuild: createRendererBuildOutputResolver(renderer),
+      }),
+      post: ['@modern-js/ultramodern-release-envelope'],
+    },
+    ...(adapter.profile.capabilities.ssg
+      ? [
+          nativePrerenderPlugin(
+            adapter,
+            findNativeI18nConfig(consumerPlugins),
+            routeTrees,
+          ),
+        ]
+      : []),
+    nativeModuleFederationPlugin(renderer),
+    federation.plugin,
     createDeployOutputAliasesPlugin(),
     createDeployOutputPublicAssetsPlugin(),
-    ultramodernReleaseEnvelopePlugin(),
-  ],
-  setup(api) {
-    // The composed runtime packages are dependencies of this package, not of
-    // the app that composes it. Contribute the directories that host them so
-    // the generated `runtime-register.js` resolves them under an isolated
-    // (pnpm) linker without the app having to declare them itself.
-    const runtimeModuleDirectories = collectRuntimePackageModuleDirectories(
-      [RENDERER_EXTENSIONS_PACKAGE, '@modern-js/i18n-integration'],
-      import.meta.url,
-    );
-
-    api.modifyResolvedConfig(config => {
-      const builderPlugins = [
-        ...(config.builderPlugins ?? []),
-        ...(runtimeModuleDirectories.length > 0
-          ? [createRuntimePackageResolutionPlugin(runtimeModuleDirectories)]
-          : []),
-        ...(config.server?.rsc ? [] : [rscDisabledRuntimePlugin()]),
-      ];
-      return { ...config, builderPlugins };
-    });
-    api._internalServerPlugins(({ plugins }) => {
-      // `appTools()` already registered the fork's server policy under its own
-      // specifier. An app that composes this package declares *this* package,
-      // so the descriptor is renamed rather than duplicated: both specifiers
-      // export the same server plugin, and this one is the one such an app can
-      // always resolve.
-      const name = '@modern-js/ultramodern-app-tools/server-plugin';
-      const renamed = plugins.map(plugin =>
-        plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME
-          ? { ...plugin, name }
-          : plugin,
-      );
-      if (!renamed.some(plugin => plugin.name === name)) {
-        renamed.push({ name });
-      }
-      return { plugins: renamed };
-    });
-    api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-      // Same story for the renderer descriptor: `appTools()` already appended
-      // it unless the app opted out.
-      if (
-        !plugins.some(plugin => plugin.path === RENDERER_EXTENSIONS_PACKAGE)
-      ) {
-        plugins.push({
-          name: 'rendererHead',
-          path: RENDERER_EXTENSIONS_PACKAGE,
-          config: {},
+    ultramodernReleaseEnvelopePlugin(renderer),
+  ];
+  return {
+    name: '@modern-js/ultramodern-app-tools',
+    usePlugins: [
+      rendererSelectionGuard(renderer, selected, consumerPlugins, true),
+      ...selected,
+    ],
+    setup(api) {
+      if (!isEntryMetadataRead())
+        api.modifyResolvedConfig(async config => {
+          const svgComponents =
+            adapter.profile.capabilities.svgComponent &&
+            adapter.svgComponentTemplate?.();
+          // The adapter compiles sources; UltraModern owns SVG and ownership.
+          const compiler = attachRendererCompilerClaim(
+            adapter.compiler({
+              rendererIdentities: () => rendererIdentities,
+              workerEnvironmentName: SERVICE_WORKER_ENVIRONMENT_NAME,
+            }),
+            {
+              renderer,
+              sourceExtensions: adapter.profile.sourceExtensions,
+              transform: 'native',
+              refresh: 'native',
+              svg: svgComponents ? 'component' : 'url',
+            },
+          );
+          const builderPlugins = [
+            nativeRendererIsolationPlugin(renderer),
+            nativeClientAssetsPlugin(
+              renderer,
+              () => rendererIdentities,
+              adapter.lazyStyles,
+            ),
+            compiler,
+            ...(svgComponents
+              ? [
+                  nativeSvgComponentsPlugin({
+                    renderer,
+                    template: svgComponents,
+                    defaultExport: config.output?.svgDefaultExport,
+                  }),
+                ]
+              : []),
+            ...(await resolveRendererBuilderPlugins(
+              config.builderPlugins ?? [],
+            )),
+          ];
+          assertRendererCompilerOwnership(renderer, builderPlugins);
+          return { ...config, builderPlugins };
         });
-      }
-      return { entrypoint, plugins };
-    });
-  },
-});
+      api._internalRuntimePlugins(({ entrypoint, plugins }) => {
+        if (plugins.length) {
+          throw new Error(
+            `Renderer ${renderer} does not support React runtime descriptors: ${plugins.map(plugin => plugin.path).join(', ')}`,
+          );
+        }
+        return { entrypoint, plugins };
+      });
+    },
+  };
+}
+
+/** Compose the fork's build and release features through native CLI plugins. */
+const composeUltramodernAppTools = (
+  options: {
+    renderer?: Renderer;
+    consumerPlugins?: readonly CliPlugin<AppTools>[];
+    policy?: PolicyDefaultsOptions;
+  } = {},
+): CliPlugin<AppTools> => {
+  const adapter = resolveRendererAdapter(options.renderer);
+  const consumers = options.consumerPlugins ?? [];
+  return adapter.kind === 'native'
+    ? composeNativeRenderer(adapter, consumers)
+    : adapter.compose(consumers, options.policy);
+};
+
+/**
+ * The explicit default base is React; renderer selection belongs to config.
+ * `policy` opts out of the fork's React renderer or server policy.
+ */
+export const ultramodernAppTools = (
+  policy: PolicyDefaultsOptions = {},
+): CliPlugin<AppTools> =>
+  composeUltramodernAppTools({ renderer: 'react', policy });
+
+/** Select one base plugin graph during config evaluation, before registration. */
+export const defineConfig = createDefineConfig((renderer, consumerPlugins) =>
+  composeUltramodernAppTools({ renderer, consumerPlugins }),
+);

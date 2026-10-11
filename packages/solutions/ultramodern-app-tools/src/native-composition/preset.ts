@@ -1,20 +1,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { builderPluginAdapterPrecompress } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
-import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
-import { configureUltramodernTypeChecker } from '@modern-js/app-tools-extensions/native-type-checker';
 import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
+import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
-import { ultramodernModuleFederationSharedPlugin } from './module-federation-shared-plugin';
+import { ultramodernModuleFederationSharedPlugin } from '../renderers/react/module-federation-shared-plugin';
+import { rendererTypeCheckerOptions } from './type-checker';
 import type { AppUserConfig } from './types';
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VICTORIA_METRICS_ENDPOINT =
   'http://127.0.0.1:8428/api/v1/import/prometheus';
 
+/** API-only bundles retain their release identity; UI owns a compiler binding. */
+const RELEASE_IDENTITY_BANNER = Symbol.for(
+  '@modern-js/ultramodern-app-tools/release-identity-banner',
+);
+
+export class UltramodernReleaseIdentityBannerPlugin extends rspack.BannerPlugin {
+  constructor(options: ConstructorParameters<typeof rspack.BannerPlugin>[0]) {
+    super(options);
+    Object.defineProperty(this, RELEASE_IDENTITY_BANNER, { value: true });
+  }
+}
+
+export function isUltramodernReleaseIdentityBannerPlugin(
+  plugin: unknown,
+): boolean {
+  return (
+    typeof plugin === 'object' &&
+    plugin !== null &&
+    Object.getOwnPropertyDescriptor(plugin, RELEASE_IDENTITY_BANNER)?.value ===
+      true
+  );
+}
+
 export interface PresetUltramodernOptions {
+  /** Build environment; defaults to the current process environment. */
+  environment?: Readonly<NodeJS.ProcessEnv>;
   /**
    * Stable producer identity used by BFF cross-project clients.
    * @default "app"
@@ -29,6 +54,9 @@ export interface PresetUltramodernOptions {
     buildMarker: string;
     unitId: string;
     version: string;
+    /** Workspace containing the delivery unit, independent of process cwd. */
+    workspaceRoot?: string;
+    sourceRevision?: string;
   };
   /**
    * Enable BFF requestId contract by default.
@@ -142,26 +170,37 @@ const setReactRouterBridgeSafeAliases = (
  * an application config so nested records, arrays, and hooks keep the normal
  * Modern.js merge behavior.
  */
-export const createPresetUltramodernConfig = (
+const createRendererPreset = (
   options: PresetUltramodernOptions = {},
+  renderer: Renderer = 'react',
 ): AppUserConfig => {
   const {
+    environment = process.env,
     appId = 'app',
     deliveryUnit,
     enableBffRequestId = true,
     enableTelemetry = true,
     enableTelemetryExporters,
-    otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
-    victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
+    otlpEndpoint = environment.MODERN_TELEMETRY_OTLP_ENDPOINT,
+    victoriaMetricsEndpoint = environment.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
     telemetryFailLoudStartup = false,
-    enableModuleFederationSSR = true,
+    enableModuleFederationSSR = renderer === 'react',
   } = options;
+
+  if (renderer !== 'react' && enableModuleFederationSSR) {
+    throw new Error(
+      `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation SSR`,
+    );
+  }
 
   const server: NonNullable<AppUserConfig['server']> = {};
   const releaseIdentity = deliveryUnit
     ? resolveUltramodernReleaseIdentity({
         generationBuildMarker: deliveryUnit.buildMarker,
         unitId: deliveryUnit.unitId,
+        workspaceRoot: deliveryUnit.workspaceRoot,
+        sourceRevision: deliveryUnit.sourceRevision,
+        environment,
       })
     : undefined;
   const bundledReleaseIdentity = releaseIdentity
@@ -215,12 +254,16 @@ export const createPresetUltramodernConfig = (
       // Keep build artifacts predictable across apps.
       precompress: true,
     },
-    plugins: [ultramodernModuleFederationSharedPlugin()],
+    // React's Module Federation shares its JSX runtimes and framework
+    // contexts; native renderers own their federation shares.
+    ...(renderer === 'react'
+      ? { plugins: [ultramodernModuleFederationSharedPlugin()] }
+      : {}),
     server,
     source: {
       // Client code only: the builder applies React Compiler to `web`
       // environments and never to node/workerSSR/BFF graphs.
-      reactCompiler: true,
+      ...(renderer === 'react' ? { reactCompiler: true } : {}),
       ...(deliveryUnit
         ? {
             globalVars: {
@@ -232,13 +275,9 @@ export const createPresetUltramodernConfig = (
         : {}),
     },
     tools: {
+      tsChecker: rendererTypeCheckerOptions(renderer),
       bundlerChain: (chain, utils) => {
-        setReactRouterBridgeSafeAliases(chain, utils);
-        configureUltramodernTypeChecker(
-          chain,
-          utils.CHAIN_ID.PLUGIN.TS_CHECKER,
-          from => resolveEffectTsgoCompiler({ from }),
-        );
+        if (renderer === 'react') setReactRouterBridgeSafeAliases(chain, utils);
       },
       // Keep generated Tailwind apps on Rsbuild's native CSS pipeline.
       lightningcssLoader: true,
@@ -247,7 +286,7 @@ export const createPresetUltramodernConfig = (
             rspack: config => {
               config.plugins ??= [];
               config.plugins.push(
-                new rspack.BannerPlugin({
+                new UltramodernReleaseIdentityBannerPlugin({
                   banner: `void ${JSON.stringify(bundledReleaseIdentity.buildMarker)};void ${JSON.stringify(bundledReleaseIdentity.sourceRevision)};void ${JSON.stringify(bundledReleaseIdentity.releaseVersion)};`,
                   raw: true,
                   // The default additions stage runs before production
@@ -276,6 +315,10 @@ export const createPresetUltramodernConfig = (
   return presetConfig;
 };
 
+export const createPresetUltramodernConfig = (
+  options: PresetUltramodernOptions = {},
+): AppUserConfig => createRendererPreset(options);
+
 /**
  * Compose an application config over the UltraModern preset.
  *
@@ -290,7 +333,7 @@ export const presetUltramodern = (
   options: PresetUltramodernOptions = {},
 ): AppUserConfig => {
   const merged = mergeConfig<AppUserConfig, AppUserConfig>([
-    createPresetUltramodernConfig(options),
+    createRendererPreset(options, resolveRenderer(config.renderer)),
     config,
   ]);
   merged.builderPlugins = [

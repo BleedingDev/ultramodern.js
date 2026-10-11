@@ -19,7 +19,6 @@
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-ssg": "workspace:*",
-    "@modern-js/ultramodern-app-tools": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@modern-js/ultramodern-app-tools": "workspace:*"
   }
 }

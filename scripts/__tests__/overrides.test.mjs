@@ -3,9 +3,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import { parse } from 'yaml';
-
 import {
   findForcedMajors,
   findOverrideViolations,
@@ -14,6 +11,7 @@ import {
   readImporterNames,
   readInstalledManifest,
 } from '../check-overrides.mjs';
+import { parsePnpmLockfile as parse } from '../lib/parse-pnpm-lockfile.mjs';
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

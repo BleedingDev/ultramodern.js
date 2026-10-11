@@ -8,13 +8,13 @@
     "start": "tsx ./src/index.ts"
   },
   "dependencies": {
-    "@changesets/assemble-release-plan": "^6.0.10",
-    "@changesets/config": "^3.1.4",
-    "@changesets/read": "^0.6.7",
+    "@changesets/assemble-release-plan": "^7.0.0",
+    "@changesets/config": "^4.0.1",
+    "@changesets/read": "^1.0.1",
     "@manypkg/get-packages": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "tsx": "^4.23.15"
   }
 }

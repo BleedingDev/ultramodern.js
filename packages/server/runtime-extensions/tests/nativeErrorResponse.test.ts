@@ -96,23 +96,23 @@ describe('fork error response selection', () => {
     expect(response.headers.get('Retry-After')).toBeNull();
   });
 
-  test.each([
-    'declines',
-    'throws',
-  ])('applies the fork policy when the user handler %s', async outcome => {
-    const instance = await initialize(() => {
-      if (outcome === 'throws') throw new Error('custom handler detail');
-    });
-    const response = await instance.request('/rpc/failure', {}, {});
-    expect(response.status).toBe(503);
-    expect(response.headers.get('Retry-After')).toBe('15');
-    await expect(response.json()).resolves.toMatchObject({
-      success: false,
-      error: {
-        code: 'SERVICE_UNAVAILABLE',
-        message: 'Service Unavailable',
-        status: 503,
-      },
-    });
-  });
+  test.each(['declines', 'throws'])(
+    'applies the fork policy when the user handler %s',
+    async outcome => {
+      const instance = await initialize(() => {
+        if (outcome === 'throws') throw new Error('custom handler detail');
+      });
+      const response = await instance.request('/rpc/failure', {}, {});
+      expect(response.status).toBe(503);
+      expect(response.headers.get('Retry-After')).toBe('15');
+      await expect(response.json()).resolves.toMatchObject({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Service Unavailable',
+          status: 503,
+        },
+      });
+    },
+  );
 });

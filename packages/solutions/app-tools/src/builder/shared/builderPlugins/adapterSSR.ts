@@ -97,8 +97,8 @@ export const builderPluginAdapterSSR = (
         }
 
         if (isUseSSRBundle(normalizedConfig) || isUseRsc(normalizedConfig)) {
-          await applySSRLoaderEntry(chain, options, isServer);
-          applySSRDataLoader(chain, options);
+          await applySSRLoaderEntry(chain, options, isServer, isServiceWorker);
+          applySSRDataLoader(chain, options, isServer || isServiceWorker);
         }
 
         if (!isHtmlDisabled(builderConfig, target)) {
@@ -322,10 +322,11 @@ function applyFilterEntriesBySSRConfig({
   });
 }
 
-async function applySSRLoaderEntry(
+export async function applySSRLoaderEntry(
   chain: RspackChain,
   optinos: BuilderOptions,
   isServer: boolean,
+  isServiceWorker: boolean,
 ) {
   const { appContext } = optinos;
   const { internalDirectory } = appContext;
@@ -356,7 +357,12 @@ async function applySSRLoaderEntry(
         } catch (err) {
           // ignore the error
         }
-      } else if (isUseRsc(optinos.normalizedConfig)) {
+      } else if (!isServiceWorker && isUseRsc(optinos.normalizedConfig)) {
+        // RSC pairs the browser client with the server compiler, so the
+        // client mirrors the server loader entry with an empty module. The
+        // service worker owns its `<entry>-server-loaders` entry (the
+        // Cloudflare route data handler); an empty module there would emit a
+        // route data bundle without a handler or shadow the handler's exports.
         chain
           .entry(`${entryName}-server-loaders`)
           .add('data:text/javascript,export%20{};');
@@ -365,7 +371,11 @@ async function applySSRLoaderEntry(
   );
 }
 
-function applySSRDataLoader(chain: RspackChain, options: BuilderOptions) {
+function applySSRDataLoader(
+  chain: RspackChain,
+  options: BuilderOptions,
+  server: boolean,
+) {
   const { normalizedConfig, appContext } = options;
   const { appDirectory } = appContext;
 
@@ -385,8 +395,10 @@ function applySSRDataLoader(chain: RspackChain, options: BuilderOptions) {
   chain.module
     .rule('ssr-data-loader')
     .test(reg)
+    .enforce('pre')
     .use('data-loader')
     // TODO: support ESM
     .loader(require.resolve('@modern-js/plugin-data-loader/loader'))
+    .options({ server })
     .end();
 }

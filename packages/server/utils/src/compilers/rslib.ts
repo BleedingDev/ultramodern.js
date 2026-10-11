@@ -1,4 +1,4 @@
-import { fs, logger, mergeAlias } from '@modern-js/utils';
+import { fs, logger, mergeAlias, semver } from '@modern-js/utils';
 import type { LibConfig, Rspack } from '@rslib/core';
 import path from 'path';
 import type { CompileOptions, IConfig } from '../common';
@@ -267,7 +267,10 @@ export const compileServerSources = async (
     '.mjs': 'esm',
     '.cjs': 'cjs',
   };
-  const createLibs = (entries: Record<OutputExtension, string[]>) => {
+  const createLibs = (
+    entries: Record<OutputExtension, string[]>,
+    emitDeclarations: boolean,
+  ) => {
     const libs = (Object.keys(entries) as OutputExtension[])
       .filter(extension => entries[extension].length > 0)
       .map(
@@ -281,7 +284,7 @@ export const compileServerSources = async (
         }),
       );
     // TS-Go emits declarations for the whole program; one library runs it.
-    if (declaration) {
+    if (emitDeclarations) {
       libs[0].redirect = { dts: { extension: moduleType === 'module' } };
       libs[0].dts = {
         bundle: false,
@@ -307,12 +310,29 @@ export const compileServerSources = async (
       return;
     }
     const { createRslib } = await import('@rslib/core');
+    const appPackage = await fs
+      .readJSON(path.join(appDirectory, 'package.json'))
+      .catch(() => undefined);
+    const nodeEngine = appPackage?.engines?.node;
+    const nodeRange =
+      typeof nodeEngine === 'string' ? semver.validRange(nodeEngine) : null;
+    const nodeVersion = nodeRange ? semver.minVersion(nodeRange) : null;
+    const nodeTarget: Rspack.Configuration['target'] = nodeVersion?.major
+      ? `node${nodeVersion.major}.${nodeVersion.minor}`
+      : undefined;
+    // The declaration program is the tsconfig, which the passes below never
+    // change, so every pass would emit the same declarations. Only the first
+    // one emits them.
+    let emitDeclarations = declaration;
     for (;;) {
       const reached = new Set<string>();
       const rslib = await createRslib({
         cwd: appDirectory,
         config: {
-          lib: createLibs(groupEntries(appDirectory, sources)),
+          lib: createLibs(
+            groupEntries(appDirectory, sources),
+            emitDeclarations,
+          ),
           source: {
             tsconfigPath: resolvedConfigPath,
             ...(compilerOptions.experimentalDecorators
@@ -330,6 +350,9 @@ export const compileServerSources = async (
           performance: { buildCache: false },
           tools: {
             rspack: rspackConfig => {
+              // Keep Rslib's engine-based syntax transforms, but describe the
+              // Node runtime with Rspack's native target, not its browser database.
+              if (nodeTarget) rspackConfig.target = nodeTarget;
               // Externals run in order; app imports must not reach Rslib's
               // redirect, which knows only one output extension per library.
               rspackConfig.externals = [
@@ -348,6 +371,7 @@ export const compileServerSources = async (
         },
       });
       await rslib.build();
+      emitDeclarations = false;
       if (reached.size === 0) {
         return;
       }

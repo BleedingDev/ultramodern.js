@@ -22,6 +22,8 @@ import {
 } from './constants';
 import type { DeliveryUnitStamp } from './delivery-unit';
 import { createI18nWorkerManifest } from './i18n-worker';
+import { readNativeRendererWorkerResources } from './native-renderer';
+import { readWorkerRendererBuild } from './renderer-identity';
 import { createCloudflareWorkerSecurityPolicy } from './security-policies';
 import type { CloudflareAppContext, CloudflareModernConfig } from './types';
 import { isRecord, normalizeRelativePath } from './utils';
@@ -121,7 +123,38 @@ const createModuleFederationWorkerManifest = async (
     ];
   });
 
-  return name && exposes.length > 0 ? { name, exposes } : undefined;
+  if (!name || exposes.length === 0) return undefined;
+
+  // A fragment is rendered by this app's own route, so it depends on the
+  // route stylesheets too (for example a global Tailwind sheet no exposed
+  // component imports). Bundle them so the worker reports them to the
+  // composing shell without reading assets at request time.
+  const routeManifestPath = path.join(
+    outputDirectory,
+    PUBLIC_ASSETS_DIRECTORY,
+    ROUTE_MANIFEST_FILE,
+  );
+  const routeManifest = (await fse.pathExists(routeManifestPath))
+    ? ((await fse.readJson(routeManifestPath)) as unknown)
+    : undefined;
+  const routeAssets =
+    isRecord(routeManifest) && isRecord(routeManifest.routeAssets)
+      ? Object.values(routeManifest.routeAssets).filter(isRecord)
+      : [];
+  const routeCss = [
+    ...new Set(
+      routeAssets.flatMap(routeAsset =>
+        [routeAsset.referenceCssAssets, routeAsset.assets]
+          .flatMap(value => (Array.isArray(value) ? value : []))
+          .filter(
+            (asset): asset is string =>
+              typeof asset === 'string' && asset.endsWith('.css'),
+          ),
+      ),
+    ),
+  ];
+
+  return { name, exposes, routeCss };
 };
 
 export const createWorkerManifest = async (
@@ -155,9 +188,41 @@ export const createWorkerManifest = async (
           ? await fse.pathExists(path.join(outputDirectory, worker))
           : false,
         ...(hasRouteDataWorker ? { routeDataWorker } : {}),
+        // Native workers apply configured route headers as the Node host does.
+        ...(route.responseHeaders && typeof route.responseHeaders === 'object'
+          ? { responseHeaders: route.responseHeaders }
+          : {}),
       };
     }),
   );
+  const rendererBuild = await readWorkerRendererBuild(
+    appContext.distDirectory,
+    routeSpec.routes,
+    deliveryUnitStamp,
+  );
+  const rendererIdentities = rendererBuild?.identities;
+  const nativeRenderer = await readNativeRendererWorkerResources(
+    appContext.distDirectory,
+    rendererBuild,
+  );
+  // Native-document renderers serve pages only through their native server
+  // handler. Fail deploy before emitting an entry that could only reject.
+  for (const route of routes) {
+    const renderer =
+      typeof route.entryName === 'string' &&
+      rendererIdentities &&
+      Object.hasOwn(rendererIdentities, route.entryName)
+        ? rendererIdentities[route.entryName].renderer
+        : undefined;
+    if (
+      renderer !== undefined &&
+      rendererBuild?.renderer.nativeDocuments &&
+      (nativeRenderer?.renderer !== renderer || !route.workerExists)
+    )
+      throw new Error(
+        `Cloudflare worker deploy of the ${renderer} renderer requires its native worker build for entry ${route.entryName}. Set deploy.worker.ssr: true and rebuild with the Cloudflare deploy target.`,
+      );
+  }
 
   const isEffectApi =
     Boolean(modernConfig.bff) && modernConfig.bff?.runtimeFramework !== 'hono';
@@ -223,6 +288,10 @@ export const createWorkerManifest = async (
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
     ...(moduleFederation === undefined ? {} : { moduleFederation }),
     ...(deliveryUnitStamp ? { deliveryUnit: deliveryUnitStamp } : {}),
+    ...(rendererBuild
+      ? { renderer: rendererBuild.renderer, rendererIdentities }
+      : {}),
+    ...(nativeRenderer ? { nativeRenderer } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:
       effectBffPrefix !== undefined && effectApiWorkerExists

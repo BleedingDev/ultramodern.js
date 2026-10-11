@@ -7,6 +7,7 @@ import {
   zephyrRemoteDependency,
 } from '../descriptors';
 import { packageName } from '../naming';
+import { appSupportsFederation } from '../renderer-profile';
 import type {
   AddUltramodernVerticalOptions,
   UltramodernGenerationResult,
@@ -17,22 +18,36 @@ import type {
 } from '../types';
 import { executeAddUltramodernVertical } from './execute';
 import type { AddUltramodernVerticalPreflight } from './preflight';
-import { prepareAddUltramodernVertical } from './preflight';
+import {
+  prepareAddUltramodernVertical,
+  stageAddUltramodernVerticalPreflight,
+} from './preflight';
 import { describeJsonChanges } from './preview';
 import { runWorkspaceTransaction } from './transaction';
 
-export function planUltramodernVertical(
+export async function planUltramodernVertical(
   options: AddUltramodernVerticalOptions,
-): UltramodernVerticalPlan {
-  const preflight = prepareAddUltramodernVertical(options);
+): Promise<UltramodernVerticalPlan> {
+  const originalPreflight = await prepareAddUltramodernVertical(options);
   let jsonMutations: UltramodernJsonMutation[] = [];
-  const result = runWorkspaceTransaction(
+  const { preflight, result } = await runWorkspaceTransaction(
     options.workspaceRoot,
-    stagingRoot =>
-      executeAddUltramodernVertical(
-        { ...options, workspaceRoot: stagingRoot, overlays: undefined },
+    async stagingRoot => {
+      const stagedOptions = {
+        ...options,
+        workspaceRoot: stagingRoot,
+      };
+      const preflight = stageAddUltramodernVerticalPreflight(
+        originalPreflight,
+        stagingRoot,
+      );
+      const result = await executeAddUltramodernVertical(
+        stagedOptions,
         options.workspaceRoot,
-      ),
+        preflight,
+      );
+      return { preflight, result };
+    },
     {
       mode: 'preview',
       inspectChanges: changes => {
@@ -55,11 +70,15 @@ function createVerticalPlan(
     ...result,
     dryRun: true,
     selectedPort: vertical.port,
-    moduleFederationRemote: {
-      id: vertical.id,
-      name: vertical.mfName,
-      manifestUrl,
-    },
+    ...(appSupportsFederation(vertical)
+      ? {
+          moduleFederationRemote: {
+            id: vertical.id,
+            name: vertical.mfName,
+            manifestUrl,
+          },
+        }
+      : {}),
     ...(vertical.api ? { apiPrefix: resolveApiPrefix(vertical) } : {}),
     jsonMutations,
     shellDependencyChanges: createShellDependencyChanges(

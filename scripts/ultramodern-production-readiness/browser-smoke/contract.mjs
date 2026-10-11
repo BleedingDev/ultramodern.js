@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../../lib/cli-kit.js';
@@ -32,6 +31,8 @@ export function parseArgs(argv) {
     '--public-url',
     '--shell-runtime',
     '--timeout-ms',
+    '--continue-from',
+    '--backend-report',
   ]);
 
   const parsed = parseCliArgs(argv, {
@@ -84,6 +85,14 @@ export function parseArgs(argv) {
         key: 'timeoutMs',
         requiredValue: false,
       },
+      'continue-from': {
+        key: 'continueFrom',
+        requiredValue: true,
+      },
+      'backend-report': {
+        key: 'backendReport',
+        requiredValue: true,
+      },
     },
   });
 
@@ -129,6 +138,18 @@ export function parseArgs(argv) {
   if (!Number.isInteger(parsed.timeoutMs) || parsed.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
   }
+  if (parsed.backendReport && !parsed.continueFrom) {
+    throw new Error('--backend-report requires --continue-from');
+  }
+  if (
+    parsed.continueFrom &&
+    (parsed.mode !== 'local' ||
+      parsed.artifactMode !== 'source' ||
+      parsed.platform !== 'node' ||
+      parsed.shellRuntime !== 'node')
+  ) {
+    throw new Error('--continue-from requires local source/node release smoke');
+  }
 
   return {
     ...resolvedOptions,
@@ -136,6 +157,12 @@ export function parseArgs(argv) {
     out: path.resolve(repoRoot, parsed.out),
     publicUrls,
     projectDir: path.resolve(parsed.projectDir),
+    ...(parsed.continueFrom
+      ? { continueFrom: path.resolve(parsed.continueFrom) }
+      : {}),
+    ...(parsed.backendReport
+      ? { backendReport: path.resolve(parsed.backendReport) }
+      : {}),
   };
 }
 
@@ -201,23 +228,6 @@ export function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
-// Must stay in sync with packages/toolkit/ultramodern-create delivery-unit.ts
-// createBuildMarker, which seeds the hash with the delivery-unit generation
-// seed. Without this prefix the expected marker drifts from what generated apps
-// actually emit (data-build-marker), failing the browser-smoke SSR marker check.
-const DELIVERY_UNIT_GENERATION_SEED =
-  'ultramodern-delivery-unit-build-marker:v1';
-
-export function createBuildMarker(scope, app) {
-  return crypto
-    .createHash('sha256')
-    .update(
-      `${DELIVERY_UNIT_GENERATION_SEED}:${scope}:${app.packageSuffix}:${app.id}:0.1.0`,
-    )
-    .digest('hex')
-    .slice(0, 16);
-}
-
 export function createCloudflareRoutes(app) {
   return {
     ssr: '/en',
@@ -233,14 +243,44 @@ export function createCloudflareRoutes(app) {
 }
 
 function createSmokeContractApp(config, app) {
+  if (
+    app.surfaceProfile !== undefined &&
+    !['api-only', 'ui-only', 'full-stack'].includes(app.surfaceProfile)
+  )
+    throw new BrowserSmokeError(
+      `${app.id} has an invalid declared surface profile.`,
+    );
   const packageScope =
     typeof config.workspace?.packageScope === 'string'
       ? config.workspace.packageScope
       : path.basename(process.cwd());
+  const deliveryUnit = app.deliveryUnit;
+  if (
+    !deliveryUnit ||
+    typeof deliveryUnit !== 'object' ||
+    Array.isArray(deliveryUnit) ||
+    typeof deliveryUnit.buildMarker !== 'string' ||
+    !deliveryUnit.buildMarker.trim()
+  )
+    throw new BrowserSmokeError(
+      `${app.id} requires a stamped deliveryUnit.buildMarker.`,
+    );
+  if (
+    (Object.hasOwn(deliveryUnit, 'appId') && deliveryUnit.appId !== app.id) ||
+    deliveryUnit.packageName !== app.package ||
+    deliveryUnit.version !== app.version ||
+    deliveryUnit.unitId !== `${packageScope}/${app.domain ?? app.id}`
+  )
+    throw new BrowserSmokeError(
+      `${app.id} stamped delivery-unit identity must match its topology and app manifest.`,
+    );
 
   return {
     id: app.id,
     kind: app.kind,
+    ...(app.surfaceProfile === undefined
+      ? {}
+      : { surfaceProfile: app.surfaceProfile }),
     ...(typeof app.domain === 'string' ? { domain: app.domain } : {}),
     api: app.api,
     package: app.package,
@@ -278,17 +318,13 @@ function createSmokeContractApp(config, app) {
         routes: app.deploy?.cloudflare?.routes ?? createCloudflareRoutes(app),
       },
     },
-    ...(app.deliveryUnit &&
-    typeof app.deliveryUnit === 'object' &&
-    !Array.isArray(app.deliveryUnit)
-      ? { deliveryUnit: { ...app.deliveryUnit } }
-      : {}),
+    deliveryUnit: { ...deliveryUnit },
     i18n: {
       namespace: appNamespace(app),
     },
     marker: {
       appId: app.id,
-      build: createBuildMarker(packageScope, app),
+      build: deliveryUnit.buildMarker,
     },
     moduleFederation: {
       ...app.moduleFederation,

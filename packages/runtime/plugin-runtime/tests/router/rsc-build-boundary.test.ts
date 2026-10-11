@@ -133,12 +133,12 @@ describe('React Router RSC build boundary', () => {
   it.each([
     { enableRsc: false, expectedInBundle: false, mode: 'non-RSC' },
     { enableRsc: true, expectedInBundle: true, mode: 'RSC' },
-  ])('keeps the RSC router module out of the $mode browser bundle when appropriate', async ({
-    enableRsc,
-    expectedInBundle,
-  }) => {
-    await expect(compileRouterPlugin(enableRsc)).resolves.toBe(
-      expectedInBundle,
-    );
-  });
+  ])(
+    'keeps the RSC router module out of the $mode browser bundle when appropriate',
+    async ({ enableRsc, expectedInBundle }) => {
+      await expect(compileRouterPlugin(enableRsc)).resolves.toBe(
+        expectedInBundle,
+      );
+    },
+  );
 });

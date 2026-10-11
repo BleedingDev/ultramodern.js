@@ -116,38 +116,38 @@ function recoverFlightBytes(html: string) {
 }
 
 describe('native stream regressions', () => {
-  test.each([
-    true,
-    false,
-  ])('empty HTML and Flight finish with closing tags=%s', async injectClosingTags => {
-    const html = await readStreamAsText(
-      createByteStream([]).pipeThrough(
-        injectRSCPayload(createByteStream([]), { injectClosingTags }),
-      ),
-    );
-    expect(html).toBe(injectClosingTags ? '</body></html>' : '');
-  });
+  test.each([true, false])(
+    'empty HTML and Flight finish with closing tags=%s',
+    async injectClosingTags => {
+      const html = await readStreamAsText(
+        createByteStream([]).pipeThrough(
+          injectRSCPayload(createByteStream([]), { injectClosingTags }),
+        ),
+      );
+      expect(html).toBe(injectClosingTags ? '</body></html>' : '');
+    },
+  );
 
-  test.each([
-    true,
-    false,
-  ])('preserves or strips a split original trailer with closing tags=%s', async injectClosingTags => {
-    const trailer = '</BoDy>\n</HtMl>  ';
-    const html = await readStreamAsText(
-      createStreamFromChunks([
-        '<body>hello</Bo',
-        'Dy>\n<',
-        '/H',
-        't',
-        'M',
-        'l',
-        '>  ',
-      ]).pipeThrough(
-        injectRSCPayload(createByteStream([]), { injectClosingTags }),
-      ),
-    );
-    expect(html).toBe(`<body>hello${injectClosingTags ? trailer : ''}`);
-  });
+  test.each([true, false])(
+    'preserves or strips a split original trailer with closing tags=%s',
+    async injectClosingTags => {
+      const trailer = '</BoDy>\n</HtMl>  ';
+      const html = await readStreamAsText(
+        createStreamFromChunks([
+          '<body>hello</Bo',
+          'Dy>\n<',
+          '/H',
+          't',
+          'M',
+          'l',
+          '>  ',
+        ]).pipeThrough(
+          injectRSCPayload(createByteStream([]), { injectClosingTags }),
+        ),
+      );
+      expect(html).toBe(`<body>hello${injectClosingTags ? trailer : ''}`);
+    },
+  );
 
   test('preserves HTML and Flight bytes split within UTF-8, binary data and script escapes', async () => {
     const encoder = new TextEncoder();
@@ -221,29 +221,29 @@ describe('native stream regressions', () => {
     expect(await remaining).toBe('<div>content</div></body></html>');
   });
 
-  test.each([
-    'readable',
-    'writable',
-  ])('cancels pending Flight on %s cancellation', async side => {
-    let cancelReason: unknown;
-    const rsc = new ReadableStream<Uint8Array>({
-      cancel(reason) {
-        cancelReason = reason;
-      },
-    });
-    const stream = injectRSCPayload(rsc, {});
-    const writer = stream.writable.getWriter();
-    const reader = stream.readable.getReader();
-    const write = writer.write(new TextEncoder().encode('<body>ready'));
-    await reader.read();
-    await write;
-    void writer.closed.catch(() => {});
-    void reader.closed.catch(() => {});
-    if (side === 'readable') await reader.cancel('stop');
-    else await writer.abort('stop');
-    expect(cancelReason).toBe('stop');
-    expect(rsc.locked).toBe(false);
-  });
+  test.each(['readable', 'writable'])(
+    'cancels pending Flight on %s cancellation',
+    async side => {
+      let cancelReason: unknown;
+      const rsc = new ReadableStream<Uint8Array>({
+        cancel(reason) {
+          cancelReason = reason;
+        },
+      });
+      const stream = injectRSCPayload(rsc, {});
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+      const write = writer.write(new TextEncoder().encode('<body>ready'));
+      await reader.read();
+      await write;
+      void writer.closed.catch(() => {});
+      void reader.closed.catch(() => {});
+      if (side === 'readable') await reader.cancel('stop');
+      else await writer.abort('stop');
+      expect(cancelReason).toBe('stop');
+      expect(rsc.locked).toBe(false);
+    },
+  );
 
   test('propagates Flight errors and releases its reader', async () => {
     const failure = new Error('Flight failed');
@@ -281,40 +281,40 @@ describe('native stream regressions', () => {
 });
 
 describe('injectCSS', () => {
-  test.each([
-    true,
-    false,
-  ])('injects once before a split mixed-case head and preserves UTF-8 with closing tags=%s', async injectClosingTags => {
-    const encoder = new TextEncoder();
-    const html = '<html><head><title>🦊中文</title></HeAd><body>app';
-    const output = await readStreamAsText(
-      createByteStream(
-        [...encoder.encode(html)].map(byte => new Uint8Array([byte])),
-      ).pipeThrough(injectCSS(['app.css'], { injectClosingTags })),
-    );
-    expect(output).toBe(
-      html.replace(
-        '</HeAd>',
-        '<link href="app.css" rel="stylesheet" /></HeAd>',
-      ) + (injectClosingTags ? '</body></html>' : ''),
-    );
-  });
+  test.each([true, false])(
+    'injects once before a split mixed-case head and preserves UTF-8 with closing tags=%s',
+    async injectClosingTags => {
+      const encoder = new TextEncoder();
+      const html = '<html><head><title>🦊中文</title></HeAd><body>app';
+      const output = await readStreamAsText(
+        createByteStream(
+          [...encoder.encode(html)].map(byte => new Uint8Array([byte])),
+        ).pipeThrough(injectCSS(['app.css'], { injectClosingTags })),
+      );
+      expect(output).toBe(
+        html.replace(
+          '</HeAd>',
+          '<link href="app.css" rel="stylesheet" /></HeAd>',
+        ) + (injectClosingTags ? '</body></html>' : ''),
+      );
+    },
+  );
 
-  test.each([
-    true,
-    false,
-  ])('preserves pass-through and fallback behavior with closing tags=%s', async injectClosingTags => {
-    for (const files of [[], ['app.css']]) {
-      const html = await readStreamAsText(
-        createStreamFromChunks(['<body>🦊']).pipeThrough(
-          injectCSS(files, { injectClosingTags }),
-        ),
-      );
-      expect(html).toBe(
-        '<body>🦊' +
-          (files.length ? '<link href="app.css" rel="stylesheet" />' : '') +
-          (injectClosingTags ? '</body></html>' : ''),
-      );
-    }
-  });
+  test.each([true, false])(
+    'preserves pass-through and fallback behavior with closing tags=%s',
+    async injectClosingTags => {
+      for (const files of [[], ['app.css']]) {
+        const html = await readStreamAsText(
+          createStreamFromChunks(['<body>🦊']).pipeThrough(
+            injectCSS(files, { injectClosingTags }),
+          ),
+        );
+        expect(html).toBe(
+          '<body>🦊' +
+            (files.length ? '<link href="app.css" rel="stylesheet" />' : '') +
+            (injectClosingTags ? '</body></html>' : ''),
+        );
+      }
+    },
+  );
 });

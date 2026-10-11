@@ -295,21 +295,23 @@ describe('test runtime router utils', () => {
     expect(JSON.stringify(serialized)).not.toContain('deferred stack secret');
   });
 
-  it.each([
-    undefined,
-    'staging',
-  ])('fails closed for streaming deferred errors when NODE_ENV is %s', nodeEnv => {
-    const error = new Error('deferred stream secret');
-    error.stack = 'deferred stack secret';
+  it.each([undefined, 'staging'])(
+    'fails closed for streaming deferred errors when NODE_ENV is %s',
+    nodeEnv => {
+      const error = new Error('deferred stream secret');
+      error.stack = 'deferred stack secret';
 
-    const serialized = withNodeEnv(nodeEnv, () => toErrorInfo(error));
+      const serialized = withNodeEnv(nodeEnv, () => toErrorInfo(error));
 
-    expect(serialized).toEqual({
-      message: 'Unexpected Server Error',
-    });
-    expect(JSON.stringify(serialized)).not.toContain('deferred stream secret');
-    expect(JSON.stringify(serialized)).not.toContain('deferred stack secret');
-  });
+      expect(serialized).toEqual({
+        message: 'Unexpected Server Error',
+      });
+      expect(JSON.stringify(serialized)).not.toContain(
+        'deferred stream secret',
+      );
+      expect(JSON.stringify(serialized)).not.toContain('deferred stack secret');
+    },
+  );
 
   it('preserves development route error diagnostics', () => {
     const error = new Error('development detail');

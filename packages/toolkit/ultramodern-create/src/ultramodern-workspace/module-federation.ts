@@ -2,6 +2,7 @@ export { createBuildMarker } from './delivery-unit';
 export {
   createAppModernConfig,
   createBackendModuleFederationConfig,
+  createNativeModuleFederationConfig,
   createRemoteModuleFederationConfig,
   createShellModuleFederationConfig,
 } from './module-federation/config';

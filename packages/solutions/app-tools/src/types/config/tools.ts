@@ -1,5 +1,5 @@
 import type { BuilderConfig } from '@modern-js/builder';
-import type { JestConfig } from '@modern-js/types';
+import type { JestConfig } from '@modern-js/types/cli/base';
 import type { UnwrapBuilderConfig } from '../utils';
 
 type BuilderToolsConfig = UnwrapBuilderConfig<BuilderConfig, 'tools'>;

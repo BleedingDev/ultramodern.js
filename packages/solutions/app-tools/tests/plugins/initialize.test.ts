@@ -103,45 +103,45 @@ describe('initialize plugin: default lazyCompilation', () => {
 });
 
 describe('initialize plugin: programmatic dev port', () => {
-  it.each([
-    'dev',
-    'start',
-  ])('selects an available port for appContext.command=%s', async command => {
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    const occupiedServer = createServer();
-    await new Promise<void>(resolve => {
-      occupiedServer.listen(0, '0.0.0.0', resolve);
-    });
-    const address = occupiedServer.address();
-    const occupiedPort =
-      typeof address === 'object' && address ? address.port : 0;
-
-    try {
-      const captured = setupPlugin({}, { appDirectory: '/tmp/app', command });
-      await captured.modifyCb?.({
-        dev: {},
-        output: {},
-        server: { port: occupiedPort },
-        source: {},
+  it.each(['dev', 'start'])(
+    'selects an available port for appContext.command=%s',
+    async command => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+      const occupiedServer = createServer();
+      await new Promise<void>(resolve => {
+        occupiedServer.listen(0, '0.0.0.0', resolve);
       });
+      const address = occupiedServer.address();
+      const occupiedPort =
+        typeof address === 'object' && address ? address.port : 0;
 
-      expect(captured.updatedContext?.port).not.toBe(occupiedPort);
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        occupiedServer.close(error => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve();
-          }
+      try {
+        const captured = setupPlugin({}, { appDirectory: '/tmp/app', command });
+        await captured.modifyCb?.({
+          dev: {},
+          output: {},
+          server: { port: occupiedPort },
+          source: {},
         });
-      });
-      if (previousNodeEnv === undefined) {
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = previousNodeEnv;
+
+        expect(captured.updatedContext?.port).not.toBe(occupiedPort);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          occupiedServer.close(error => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
+        if (previousNodeEnv === undefined) {
+          delete process.env.NODE_ENV;
+        } else {
+          process.env.NODE_ENV = previousNodeEnv;
+        }
       }
-    }
-  });
+    },
+  );
 });

@@ -11,6 +11,7 @@ import {
 } from '../src/ultramodern-workspace';
 import { createWorkspaceRootPackageScripts } from '../src/ultramodern-workspace/workspace-script-plan';
 import { linkBuiltCodeTools } from './helpers/built-code-tools';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const createBinPath = path.join(packageRoot, 'bin/run.js');
@@ -104,42 +105,47 @@ function appById(apps: any[], id: string): any {
 
 /**
  * Resolves the native TypeScript 7 executable installed for this platform by
- * `@typescript/native-preview`. The native binary (rather than a package bin
+ * `typescript`. The native binary (rather than a package bin
  * shim) keeps `EFFECT_TSGO_BIN` spawnable without a shell on every OS.
  */
 function resolveInstalledTsgoExecutable() {
-  const nativePreviewManifest = createRequire(
+  const typescriptManifest = createRequire(
     path.join(packageRoot, 'package.json'),
-  ).resolve('@typescript/native-preview/package.json');
-  const platformManifest = createRequire(nativePreviewManifest).resolve(
-    `@typescript/native-preview-${process.platform}-${process.arch}/package.json`,
+  ).resolve('typescript/package.json');
+  assert.equal(
+    JSON.parse(fs.readFileSync(typescriptManifest, 'utf8')).version,
+    '7.0.2',
+  );
+  const platformManifest = createRequire(typescriptManifest).resolve(
+    `@typescript/typescript-${process.platform}-${process.arch}/package.json`,
   );
 
   return path.join(
     path.dirname(platformManifest),
     'lib',
-    process.platform === 'win32' ? 'tsgo.exe' : 'tsgo',
+    process.platform === 'win32' ? 'tsc.exe' : 'tsc',
   );
 }
 
-test('referenced remote declaration prebuild emits declarations from a clean cache before the dependent shell build', () => {
+test('referenced remote declaration prebuild emits declarations from a clean cache before the dependent shell build', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-declaration-'));
   const workspaceDir = path.join(tempRoot, 'integration-workspace');
 
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'integration-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    linkInstalledEffectCompiler(workspaceDir);
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'checkout',
       modernVersion: '3.2.1',
@@ -285,70 +291,70 @@ if (!existsSync(process.argv[2])) {
   }
 });
 
-test('generated MicroVertical validation rejects missing API and identity drift', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
-
-  const scenarios = [
-    {
-      workspaceName: 'vertical-file-missing',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
-      },
-      expectedContract:
-        /catalog shared API contract \.\/shared\/api\.ts is missing/,
+const validationDriftScenarios = [
+  {
+    workspaceName: 'vertical-file-missing',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
     },
-    {
-      workspaceName: 'delivery-unit-drift',
-      mutate: (workspaceDir: string) => {
-        const topology = readJson(
+    expectedContract:
+      /catalog shared API contract \.\/shared\/api\.ts is missing/,
+  },
+  {
+    workspaceName: 'delivery-unit-drift',
+    mutate: (workspaceDir: string) => {
+      const topology = readJson(
+        workspaceDir,
+        'topology/reference-topology.json',
+      );
+      appById(topology.verticals, 'catalog').deliveryUnit.buildMarker =
+        'deadbeefdeadbeef';
+      writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    },
+    expectedContract:
+      /catalog renderer identity disagrees with its delivery build/,
+  },
+  {
+    workspaceName: 'missing-build-stamp',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(
+        path.join(
           workspaceDir,
-          'topology/reference-topology.json',
-        );
-        appById(topology.verticals, 'catalog').deliveryUnit.buildMarker =
-          'deadbeefdeadbeef';
-        writeJson(workspaceDir, 'topology/reference-topology.json', topology);
-      },
-      expectedContract:
-        /catalog (?:backend federation delivery|build) identity contradicts topology/,
+          'verticals/catalog/shared/ultramodern-build.json',
+        ),
+      );
     },
-    {
-      workspaceName: 'missing-build-stamp',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(
-          path.join(
-            workspaceDir,
-            'verticals/catalog/shared/ultramodern-build.json',
-          ),
-        );
-      },
-      expectedContract: /catalog build stamp is missing/,
+    expectedContract: /catalog build stamp is missing/,
+  },
+  {
+    workspaceName: 'missing-backend-config',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(
+        path.join(
+          workspaceDir,
+          'verticals/catalog/backend-federation.config.ts',
+        ),
+      );
     },
-    {
-      workspaceName: 'missing-backend-config',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(
-          path.join(
-            workspaceDir,
-            'verticals/catalog/backend-federation.config.ts',
-          ),
-        );
-      },
-      expectedContract:
-        /catalog API surface is missing: verticals\/catalog\/backend-federation\.config\.ts/,
-    },
-  ] as const;
+    expectedContract:
+      /catalog API surface is missing: verticals\/catalog\/backend-federation\.config\.ts/,
+  },
+] as const;
 
-  try {
-    for (const scenario of scenarios) {
+for (const scenario of validationDriftScenarios) {
+  test(`generated MicroVertical validation rejects missing API and identity drift for ${scenario.workspaceName}`, async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
+    try {
       const workspaceDir = path.join(tempRoot, scenario.workspaceName);
-      generateUltramodernWorkspace({
+      await generateUltramodernWorkspace({
         targetDir: workspaceDir,
         packageName: scenario.workspaceName,
         modernVersion: '3.2.1',
         enableTailwind: true,
         packageSource: { strategy: 'workspace' },
       });
-      addUltramodernVertical({
+      linkInstalledEffectCompiler(workspaceDir);
+      await addUltramodernVertical({
         workspaceRoot: workspaceDir,
         name: 'catalog',
         modernVersion: '3.2.1',
@@ -362,26 +368,27 @@ test('generated MicroVertical validation rejects missing API and identity drift'
       const output = commandOutput(failingResult);
       assert.notEqual(failingResult.status, 0, output);
       assert.match(output, scenario.expectedContract);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
     }
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
+  });
+}
 
-test('generated validator accepts authored remote development URLs', () => {
+test('generated validator accepts authored remote development URLs', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-custom-endpoints-'),
   );
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'custom-endpoints',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    linkInstalledEffectCompiler(workspaceDir);
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -418,20 +425,21 @@ test('generated validator accepts authored remote development URLs', () => {
   }
 });
 
-test('UI-only vertical rejects a planted backend federation surface', () => {
+test('UI-only vertical rejects a planted backend federation surface', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-ui-only-boundary-'),
   );
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'ui-only-boundary',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    linkInstalledEffectCompiler(workspaceDir);
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       preset: 'ui-only',
@@ -454,19 +462,20 @@ test('UI-only vertical rejects a planted backend federation surface', () => {
   }
 });
 
-test('generated API boundary check structurally rejects raw handler drift', () => {
+test('generated API boundary check structurally rejects raw handler drift', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-api-check-'));
   const workspaceDir = path.join(tempRoot, 'api-check-workspace');
 
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'api-check-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    linkInstalledEffectCompiler(workspaceDir);
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -527,18 +536,19 @@ export const handler = async (request: Request) => Response.json(await request.j
   }
 });
 
-test('generated validator accepts an api-only (headless) workspace and rejects planted UI/MF artifacts', () => {
+test('generated validator accepts an api-only (headless) workspace and rejects planted UI/MF artifacts', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-profile-api-'));
   const workspaceDir = path.join(tempRoot, 'api-only-workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: path.basename(workspaceDir),
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    linkInstalledEffectCompiler(workspaceDir);
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       modernVersion: '3.2.1',
       name: 'headless',
@@ -566,7 +576,7 @@ test('generated validator accepts an api-only (headless) workspace and rejects p
     assert.notEqual(failingUiBoundary.status, 0, uiBoundaryOutput);
     assert.match(
       uiBoundaryOutput,
-      /topology\/reference-topology\.json verticals\.headless\.backendFederation/,
+      /headless headless unit must omit UI federation declarations/,
     );
     delete backendFederation.versionBoundary.ui;
     writeJson(workspaceDir, 'topology/reference-topology.json', topology);

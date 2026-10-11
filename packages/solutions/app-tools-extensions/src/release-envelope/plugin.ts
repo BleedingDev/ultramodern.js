@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { RendererProfile } from '@modern-js/backend-federation-contracts';
 import type { NodePublicAssetConfig } from '../config';
 import {
   NODE_PUBLIC_ASSET_SCOPE,
@@ -17,7 +18,10 @@ import {
 } from './framework-output';
 
 export interface ReleaseEnvelopeConfig {
-  deploy?: { node?: { publicAssets?: NodePublicAssetConfig[] } };
+  deploy?: {
+    releaseEnvelopeRole?: 'microvertical' | 'shell';
+    node?: { publicAssets?: NodePublicAssetConfig[] };
+  };
 }
 
 export interface ReleaseEnvelopeAppContext {
@@ -49,7 +53,11 @@ export interface ReleaseEnvelopePlugin<
 
 export const createUltramodernReleaseEnvelopePlugin = <
   Config extends ReleaseEnvelopeConfig,
->(): ReleaseEnvelopePlugin<Config> => {
+>({
+  resolveRendererProfile,
+}: {
+  resolveRendererProfile?: (config: Config) => RendererProfile;
+} = {}): ReleaseEnvelopePlugin<Config> => {
   return {
     name: '@modern-js/ultramodern-release-envelope',
     pre: [
@@ -64,12 +72,21 @@ export const createUltramodernReleaseEnvelopePlugin = <
         target: 'node' | 'cloudflare',
         requirePromotable = true,
       ) => {
-        const { apiOnly, distDirectory } = api.getAppContext();
+        const { apiOnly, appDirectory, distDirectory } = api.getAppContext();
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
+          appDirectory,
           distDirectory,
+          role: api.getNormalizedConfig().deploy?.releaseEnvelopeRole,
           requirePromotable,
           target,
+          ...(!apiOnly && resolveRendererProfile
+            ? {
+                expectedRendererProfile: resolveRendererProfile(
+                  api.getNormalizedConfig(),
+                ),
+              }
+            : {}),
         });
       };
 

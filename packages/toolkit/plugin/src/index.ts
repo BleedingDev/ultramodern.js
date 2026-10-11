@@ -12,6 +12,7 @@ export type {
   CLIPlugin,
   CLIPluginAPI,
   CLIPluginExtends,
+  CliProgram,
   Entrypoint,
   InternalContext,
   RuntimePluginConfig,

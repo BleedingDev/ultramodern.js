@@ -1,5 +1,5 @@
 import type { BuilderInstance } from '@modern-js/builder';
-import type { ServerRoute } from '@modern-js/types';
+import type { ServerRoute } from '@modern-js/types/server';
 import type { Hooks } from '../../cli/hooks';
 import type { CLIPluginAPI } from './api';
 import type { CLIPlugin, CLIPluginExtends } from './plugin';

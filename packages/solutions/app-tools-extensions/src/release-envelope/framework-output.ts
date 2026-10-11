@@ -1,25 +1,36 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
+  assertRendererProfileCompatibility,
   BACKEND_FEDERATION_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
   isUltramodernBuildArtifact,
+  type RendererProfile,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
+  ULTRAMODERN_BUILD_ARTIFACT_PATH,
   type UltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
+import { readBuildIdentity } from '../backend-federation-build/config';
+import {
+  resolveTopologyDeliveryUnit,
+  resolveWorkerDeliveryUnitStamp,
+} from '../cloudflare/delivery-unit';
 import {
   canonicalSerializeMicroVerticalReleaseEnvelope,
   createMicroVerticalReleaseEnvelope,
   verifyMicroVerticalReleaseEnvelope,
 } from './index';
-import type {
-  MicroVerticalReleaseArtifact,
-  MicroVerticalReleaseArtifactInput,
-  MicroVerticalReleaseEnvelope,
-  MicroVerticalReleaseIdentity,
-  MicroVerticalReleaseSurfaces,
-  MicroVerticalReleaseTarget,
+import {
+  type MicroVerticalReleaseArtifact,
+  type MicroVerticalReleaseArtifactInput,
+  type MicroVerticalReleaseIdentity,
+  type MicroVerticalReleaseSurfaces,
+  type MicroVerticalReleaseTarget,
+  type MicroVerticalReleaseUi,
+  type ReleaseEnvelope,
+  SHELL_RELEASE_ENVELOPE_KIND,
 } from './types';
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_PATH =
@@ -38,6 +49,10 @@ const EFFECT_BFF_WORKER_SUPPORT_PATTERN =
 const isEffectBffWorkerArtifact = (logicalPath: string) =>
   EFFECT_BFF_WORKER_PATTERN.test(logicalPath) ||
   EFFECT_BFF_WORKER_SUPPORT_PATTERN.test(logicalPath);
+const effectBffWorkerArtifacts = (files: string[]) =>
+  files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))
+    ? files.filter(isEffectBffWorkerArtifact)
+    : [];
 const CRAWLER_POLICY_PATH = 'public/robots.txt';
 const isPublicMetadataPath = (logicalPath: string) =>
   logicalPath === 'public/_headers' ||
@@ -89,8 +104,8 @@ const collectNestedStrings = (value: unknown, key: string): string[] => {
   ]);
 };
 
-// Empty native MF producers emit no remote entry or exposed execution assets.
-// Only their routeAssets declarations may supply the missing browser evidence.
+// Native MF consumers can import remotes without emitting their own remote entry.
+// Only local routeAssets declarations may supply their browser evidence.
 const emptyProducerRouteModules = async (
   distDirectory: string,
   files: string[],
@@ -102,7 +117,14 @@ const emptyProducerRouteModules = async (
     !Array.isArray(manifest.exposes) ||
     manifest.exposes.length !== 0 ||
     !Array.isArray(manifest.remotes) ||
-    manifest.remotes.length !== 0 ||
+    manifest.remotes.some(
+      remote =>
+        !isRecord(remote) ||
+        ['federationContainerName', 'moduleName', 'alias', 'entry'].some(
+          key =>
+            typeof remote[key] !== 'string' || remote[key].trim().length === 0,
+        ),
+    ) ||
     !isRecord(manifest.metaData) ||
     !isRecord(manifest.metaData.remoteEntry) ||
     manifest.metaData.remoteEntry.name !== '' ||
@@ -335,7 +357,7 @@ const resolveSafeReleaseEnvelopePath = async ({
 
 const writeReleaseEnvelope = async (
   artifactRoot: string,
-  envelope: MicroVerticalReleaseEnvelope,
+  envelope: ReleaseEnvelope,
 ) => {
   const envelopePath = await resolveSafeReleaseEnvelopePath({
     artifactRoot,
@@ -533,9 +555,8 @@ type ReleaseIdentityCarrierSurface =
   | 'ssr'
   | 'uiClient';
 
-type ReleaseIdentityCarrierPaths = Record<
-  ReleaseIdentityCarrierSurface,
-  string[]
+type ReleaseIdentityCarrierPaths = Partial<
+  Record<ReleaseIdentityCarrierSurface, string[]>
 >;
 
 const writeReleaseIdentityCarrierMetadata = async (
@@ -628,8 +649,16 @@ const createReleaseArtifactInputs = async (
   identity: MicroVerticalReleaseIdentity,
   target: MicroVerticalReleaseTarget,
   apiOnly: boolean,
+  uiOnly: boolean,
+  shellConsumer: boolean,
 ) => {
+  // A Shell consumes remotes and a UI-only unit has no backend; neither
+  // publishes a backend federation pair.
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(distDirectory);
+  // Rspack emits these runtime/shared chunks for UI SSR too. Only an actual
+  // Effect BFF entry makes the shared worker support part of that API surface.
+  const effectWorkerPaths = effectBffWorkerArtifacts(files);
   if (target === 'node' && files.some(isEffectBffWorkerArtifact)) {
     throw new Error(
       '[ultramodern-release-envelope] Node target conflicts with a Cloudflare Effect API/BFF worker artifact; resolve the canonical deploy target instead of emitting a Node envelope for Cloudflare output.',
@@ -642,6 +671,7 @@ const createReleaseArtifactInputs = async (
       topLevel === 'html' ||
       (topLevel === 'public' &&
         logicalPath !== CRAWLER_POLICY_PATH &&
+        logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
         !isPublicMetadataPath(logicalPath)) ||
       [
         'index.html',
@@ -664,7 +694,7 @@ const createReleaseArtifactInputs = async (
           logicalPath =>
             logicalPath.startsWith('worker/') &&
             COMPILED_MODULE_PATTERN.test(logicalPath) &&
-            !isEffectBffWorkerArtifact(logicalPath),
+            !effectWorkerPaths.includes(logicalPath),
         );
   const nodeApiEntryPaths = files.filter(
     logicalPath =>
@@ -679,7 +709,13 @@ const createReleaseArtifactInputs = async (
               logicalPath.startsWith('shared/')) &&
             COMPILED_MODULE_PATTERN.test(logicalPath),
         )
-      : files.filter(isEffectBffWorkerArtifact);
+      : effectWorkerPaths;
+
+  if (!uiOnly && target === 'cloudflare' && effectWorkerPaths.length === 0) {
+    throw new Error(
+      '[ultramodern-release-envelope] cloudflare MicroVertical has no actual Effect API/BFF worker artifact.',
+    );
+  }
 
   if (apiOnly && (uiClientPaths.length > 0 || ssrPaths.length > 0)) {
     throw new Error(
@@ -696,13 +732,14 @@ const createReleaseArtifactInputs = async (
       `[ultramodern-release-envelope] ${target} full-stack MicroVertical has no ${target === 'node' ? 'Node' : 'workerd'} SSR artifacts.`,
     );
   }
+  if (uiOnly && (apiBackendPaths.length > 0 || nodeApiEntryPaths.length > 0))
+    throw new Error(
+      '[ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.',
+    );
   if (
-    (target === 'node' && nodeApiEntryPaths.length === 0) ||
-    (target === 'cloudflare' &&
-      !files.some(logicalPath =>
-        EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
-      )) ||
-    apiBackendPaths.length === 0
+    !uiOnly &&
+    ((target === 'node' && nodeApiEntryPaths.length === 0) ||
+      apiBackendPaths.length === 0)
   ) {
     throw new Error(
       `[ultramodern-release-envelope] ${target} MicroVertical has no actual ${target === 'node' ? 'compiled Node Effect API artifact' : 'Effect API/BFF worker artifact'}.`,
@@ -746,11 +783,27 @@ const createReleaseArtifactInputs = async (
   add(files.filter(isPublicMetadataPath), 'public-metadata');
   add(ssrPaths, target === 'node' ? 'nodejs' : 'workerd');
   add(apiBackendPaths, target === 'node' ? 'nodejs' : 'workerd-effect');
-  add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
+  add([ULTRAMODERN_BUILD_ARTIFACT_FILE], 'release-identity-metadata');
   add(
-    [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
-    target === 'node' ? 'nodejs' : 'commonjs-module',
+    files.filter(logicalPath => logicalPath === PUBLIC_BUILD_ARTIFACT_PATH),
+    'release-identity-metadata',
   );
+  if (backendProducer) {
+    add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
+    add(
+      [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
+      target === 'node' ? 'nodejs' : 'commonjs-module',
+    );
+  }
+  if (shellConsumer) {
+    // The Shell is the deployed entry point: every remaining build file is
+    // part of its deployment and must be bound.
+    for (const logicalPath of files) {
+      if (!runtimeByPath.has(logicalPath)) {
+        runtimeByPath.set(logicalPath, `${target}-deployment`);
+      }
+    }
+  }
 
   const surfaces: MicroVerticalReleaseSurfaces = {
     uiClient: [...uiClientPaths].sort((left, right) =>
@@ -760,10 +813,14 @@ const createReleaseArtifactInputs = async (
     apiBackend: [...apiBackendPaths].sort((left, right) =>
       left.localeCompare(right),
     ),
-    backendFederation: {
-      manifest: BACKEND_FEDERATION_MANIFEST_FILE,
-      container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-    },
+    ...(backendProducer
+      ? {
+          backendFederation: {
+            manifest: BACKEND_FEDERATION_MANIFEST_FILE,
+            container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+          },
+        }
+      : {}),
   };
   const artifacts = [...runtimeByPath]
     .map(([logicalPath, runtime]) => releaseArtifact(logicalPath, runtime))
@@ -772,11 +829,15 @@ const createReleaseArtifactInputs = async (
     distDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: [
-        BACKEND_FEDERATION_MANIFEST_FILE,
-        BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-      ],
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
+        ? {
+            backendFederation: [
+              BACKEND_FEDERATION_MANIFEST_FILE,
+              BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+            ],
+          }
+        : {}),
       ssr: [...new Set([...ssrExecutionPaths, ...ssrPaths])],
       uiClient: uiClientPaths.filter(logicalPath =>
         COMPILED_MODULE_PATTERN.test(logicalPath),
@@ -791,6 +852,43 @@ const createReleaseArtifactInputs = async (
   };
 };
 
+const releaseEnvelopeSurfaces = (
+  surfaces: MicroVerticalReleaseSurfaces,
+  shellConsumer: boolean,
+) => {
+  if (!shellConsumer) {
+    return { surfaces };
+  }
+  const { uiClient, ssr, apiBackend } = surfaces;
+  return {
+    kind: SHELL_RELEASE_ENVELOPE_KIND,
+    surfaces: { uiClient, ssr, apiBackend },
+  };
+};
+
+/**
+ * A Shell publishes no backend federation pair, so no producer restamps its
+ * identity. Its finalized build artifact (stamped by the renderer build from the
+ * declared delivery unit) must belong to this app; the build-artifact contract
+ * requires every identity record to carry that one stamped identity.
+ */
+const assertShellBuildIdentity = async (
+  appDirectory: string,
+  distDirectory: string,
+) => {
+  const source = await readBuildIdentity(appDirectory);
+  const finalized = (await pathExists(
+    path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE),
+  ))
+    ? await resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory)
+    : undefined;
+  if (!source.artifact || !finalized || finalized.unitId !== source.unitId) {
+    throw new Error(
+      '[ultramodern-release-envelope] Shell is missing its native compiled delivery-unit identity.',
+    );
+  }
+};
+
 const pathExists = async (filePath: string) => {
   try {
     await fs.access(filePath);
@@ -802,15 +900,22 @@ const pathExists = async (filePath: string) => {
 
 export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   apiOnly,
+  appDirectory,
   distDirectory,
   requirePromotable = true,
+  expectedRendererProfile,
+  role = 'microvertical',
   target,
 }: {
   apiOnly: boolean;
+  appDirectory?: string;
   distDirectory: string;
   requirePromotable?: boolean;
+  expectedRendererProfile?: RendererProfile;
+  role?: 'microvertical' | 'shell';
   target: MicroVerticalReleaseTarget;
-}): Promise<MicroVerticalReleaseEnvelope | undefined> => {
+}): Promise<ReleaseEnvelope | undefined> => {
+  const shellConsumer = role === 'shell';
   const backendManifestPath = path.join(
     distDirectory,
     BACKEND_FEDERATION_MANIFEST_FILE,
@@ -823,42 +928,115 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     pathExists(backendManifestPath),
     pathExists(backendContainerPath),
   ]);
-  if (!hasBackendManifest && !hasBackendContainer && !apiOnly) {
-    return undefined;
+  if (shellConsumer) {
+    if (apiOnly || hasBackendManifest || hasBackendContainer || !appDirectory) {
+      throw new Error(
+        '[ultramodern-release-envelope] Shell requires a full-stack application source and cannot declare a backend federation producer.',
+      );
+    }
+    await assertShellBuildIdentity(appDirectory, distDirectory);
+  } else if (!apiOnly && !hasBackendManifest && !hasBackendContainer) {
+    const source = appDirectory
+      ? path.join(appDirectory, ULTRAMODERN_BUILD_ARTIFACT_PATH)
+      : undefined;
+    const participationPaths = [
+      path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE),
+      backendManifestPath,
+      backendContainerPath,
+      ...(source ? [source, source.replace(/\.json$/u, '.ts')] : []),
+    ];
+    const hasParticipationEntry = (
+      await Promise.all(
+        participationPaths.map(async filePath => {
+          try {
+            await fs.lstat(filePath);
+            return true;
+          } catch (error) {
+            if (isMissingPathError(error)) return false;
+            throw error;
+          }
+        }),
+      )
+    ).some(Boolean);
+    if (
+      !hasParticipationEntry &&
+      (!appDirectory || !(await resolveTopologyDeliveryUnit(appDirectory)))
+    )
+      return undefined;
   }
-  if (!hasBackendManifest || !hasBackendContainer) {
+  const buildArtifact = await readBuildArtifact(
+    distDirectory,
+    requirePromotable,
+  );
+  const declared =
+    appDirectory && buildArtifact
+      ? await resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory)
+      : undefined;
+  const uiOnly = Boolean(declared?.surfaces.ui && !declared.surfaces.api);
+  if (uiOnly && (apiOnly || hasBackendManifest || hasBackendContainer))
+    throw new Error(
+      '[ultramodern-release-envelope] UI-only application cannot declare API-only configuration or backend federation output.',
+    );
+  if (!hasBackendManifest && !hasBackendContainer && !apiOnly && !buildArtifact)
+    return undefined;
+  if (
+    !shellConsumer &&
+    !uiOnly &&
+    (!hasBackendManifest || !hasBackendContainer)
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] MicroVertical backend federation manifest and container must be emitted together.',
     );
   }
 
-  const buildArtifact = await readBuildArtifact(
-    distDirectory,
-    requirePromotable,
-  );
   if (!buildArtifact) {
     return undefined;
   }
+  const builtUi = buildArtifact.surfaces.ui;
+  if (Boolean(builtUi) === apiOnly) {
+    throw new Error(
+      '[ultramodern-release-envelope] build artifact UI surface must match the configured application surface.',
+    );
+  }
+  if (expectedRendererProfile !== undefined) {
+    assertRendererProfileCompatibility(
+      expectedRendererProfile,
+      builtUi?.rendererProfile,
+    );
+  }
+  const ui: MicroVerticalReleaseUi | undefined = builtUi
+    ? {
+        rendererIdentity: builtUi.rendererIdentity,
+        rendererProfile: builtUi.rendererProfile,
+        routerBindings: builtUi.routerBindings,
+      }
+    : undefined;
   const identity = {
     unitId: buildArtifact.deliveryUnit.unitId,
     buildMarker: buildArtifact.deliveryUnit.buildMarker,
     sourceRevision: buildArtifact.deliveryUnit.sourceRevision,
     releaseVersion: buildArtifact.deliveryUnit.version,
   };
-  await readBackendManifest(distDirectory, identity);
+  if (!shellConsumer && !uiOnly) {
+    await readBackendManifest(distDirectory, identity);
+  }
   const { artifacts, surfaces } = await createReleaseArtifactInputs(
     distDirectory,
     identity,
     target,
     apiOnly,
+    uiOnly,
+    shellConsumer,
   );
   const envelope = await createMicroVerticalReleaseEnvelope({
     artifactRoot: distDirectory,
     target,
     identity,
+    ...(ui ? { ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
+  await verifyBuildArtifactCarriers(distDirectory, envelope);
   await writeReleaseEnvelope(distDirectory, envelope);
   return envelope;
 };
@@ -867,13 +1045,15 @@ export const readFrameworkMicroVerticalReleaseEnvelope = async ({
   artifactRoot,
   expectedTarget,
   logicalPathForArtifact,
+  expectedRendererProfile,
   required = false,
 }: {
   artifactRoot: string;
   expectedTarget?: MicroVerticalReleaseTarget;
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string;
+  expectedRendererProfile?: RendererProfile;
   required?: boolean;
-}): Promise<MicroVerticalReleaseEnvelope | undefined> => {
+}): Promise<ReleaseEnvelope | undefined> => {
   const envelopePath = await resolveSafeReleaseEnvelopePath({
     artifactRoot,
     createDirectory: false,
@@ -886,11 +1066,99 @@ export const readFrameworkMicroVerticalReleaseEnvelope = async ({
     }
     return undefined;
   }
-  return verifyMicroVerticalReleaseEnvelope(await readJson(envelopePath), {
+  const envelope = await verifyMicroVerticalReleaseEnvelope(
+    await readJson(envelopePath),
+    {
+      artifactRoot,
+      ...(expectedTarget ? { expectedTarget } : {}),
+      ...(logicalPathForArtifact ? { logicalPathForArtifact } : {}),
+      ...(expectedRendererProfile ? { expectedRendererProfile } : {}),
+    },
+  );
+  await verifyBuildArtifactCarriers(
     artifactRoot,
-    ...(expectedTarget ? { expectedTarget } : {}),
-    ...(logicalPathForArtifact ? { logicalPathForArtifact } : {}),
-  });
+    envelope,
+    logicalPathForArtifact,
+  );
+  return envelope;
+};
+
+const verifyBuildArtifactCarriers = async (
+  artifactRoot: string,
+  envelope: ReleaseEnvelope,
+  logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string,
+) => {
+  const carriers = envelope.artifacts.filter(
+    artifact =>
+      artifact.logicalPath === ULTRAMODERN_BUILD_ARTIFACT_FILE ||
+      artifact.logicalPath === PUBLIC_BUILD_ARTIFACT_PATH,
+  );
+  if (carriers.length === 0) {
+    throw new Error(
+      '[ultramodern-release-envelope] immutable build artifact must be bound to the release envelope.',
+    );
+  }
+  for (const artifact of carriers) {
+    if (
+      artifact.kind !== 'file' ||
+      artifact.runtime !== 'release-identity-metadata'
+    ) {
+      throw new Error(
+        '[ultramodern-release-envelope] immutable build artifact must be a real file with runtime "release-identity-metadata".',
+      );
+    }
+    const logicalPath =
+      logicalPathForArtifact?.(artifact) ?? artifact.logicalPath;
+    const built = await readJson(path.join(artifactRoot, logicalPath));
+    if (!isUltramodernBuildArtifact(built)) {
+      throw new Error(
+        '[ultramodern-release-envelope] bound build artifact is invalid.',
+      );
+    }
+    assertIdentityBlock(
+      built.deliveryUnit,
+      envelope.identity,
+      'buildArtifact.deliveryUnit',
+      true,
+    );
+    if (Boolean(built.surfaces.ui) !== Boolean(envelope.ui)) {
+      throw new Error(
+        '[ultramodern-release-envelope] bound build artifact UI surface differs from the release envelope.',
+      );
+    }
+    if (envelope.ui && built.surfaces.ui) {
+      if (
+        !isDeepStrictEqual(
+          envelope.ui.routerBindings,
+          built.surfaces.ui.routerBindings,
+        )
+      ) {
+        throw new Error(
+          '[ultramodern-release-envelope] buildArtifact.ui.routerBindings differ from the release envelope.',
+        );
+      }
+      assertRendererProfileCompatibility(
+        envelope.ui.rendererProfile,
+        built.surfaces.ui.rendererProfile,
+      );
+      for (const field of [
+        'renderer',
+        'protocolVersion',
+        'appId',
+        'entryName',
+        'buildId',
+      ] as const) {
+        if (
+          envelope.ui.rendererIdentity[field] !==
+          built.surfaces.ui.rendererIdentity[field]
+        ) {
+          throw new Error(
+            `[ultramodern-release-envelope] buildArtifact.ui.rendererIdentity.${field} differs from the release envelope.`,
+          );
+        }
+      }
+    }
+  }
 };
 
 export const verifyBuildOutputReleaseEnvelope = async (
@@ -924,8 +1192,11 @@ const createNodeStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
+  uiOnly: boolean,
   declaredPublicAssets: readonly string[],
+  shellConsumer: boolean,
 ) => {
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(outputDirectory);
   const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
     files,
@@ -935,8 +1206,9 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const requiredPath of [
     'index.js',
     'package.json',
-    BACKEND_FEDERATION_MANIFEST_FILE,
-    BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+    ...(backendProducer
+      ? [BACKEND_FEDERATION_MANIFEST_FILE, BACKEND_FEDERATION_REMOTE_ENTRY_FILE]
+      : []),
   ]) {
     if (!files.includes(requiredPath)) {
       throw new Error(
@@ -949,6 +1221,14 @@ const createNodeStagedReleaseArtifactInputs = async (
     BACKEND_FEDERATION_MANIFEST_FILE,
     BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
   ]);
+  if (
+    shellConsumer &&
+    files.some(logicalPath => backendFederationPaths.has(logicalPath))
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Shell Node staging cannot contain a backend federation producer artifact.',
+    );
+  }
   const uiClientPaths = files.filter(logicalPath => {
     const topLevel = logicalPath.split('/')[0];
     return (
@@ -956,6 +1236,7 @@ const createNodeStagedReleaseArtifactInputs = async (
       topLevel === 'html' ||
       (topLevel === 'public' &&
         logicalPath !== CRAWLER_POLICY_PATH &&
+        logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
         !isPublicMetadataPath(logicalPath) &&
         !declaredPublicAssetPaths.has(logicalPath)) ||
       [
@@ -980,6 +1261,14 @@ const createNodeStagedReleaseArtifactInputs = async (
       COMPILED_MODULE_PATTERN.test(logicalPath),
   );
   if (
+    uiOnly &&
+    (apiBackendPaths.length > 0 ||
+      files.some(logicalPath => backendFederationPaths.has(logicalPath)))
+  )
+    throw new Error(
+      '[ultramodern-release-envelope] final UI-only Node staging contains an undeclared API/backend or backend federation artifact.',
+    );
+  if (
     apiOnly &&
     (uiClientPaths.length > 0 || ssrPaths.some(path => path !== 'index.js'))
   ) {
@@ -992,7 +1281,10 @@ const createNodeStagedReleaseArtifactInputs = async (
     ['Node SSR', apiOnly ? [] : ssrPaths],
     ['Node API/backend', apiBackendPaths],
   ] as const) {
-    if (paths.length === 0 && (!apiOnly || surface === 'Node API/backend')) {
+    if (
+      paths.length === 0 &&
+      (surface === 'Node API/backend' ? !uiOnly : !apiOnly)
+    ) {
       throw new Error(
         `[ultramodern-release-envelope] final Node staging has no ${surface} artifacts.`,
       );
@@ -1036,21 +1328,34 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const logicalPath of apiBackendPaths) {
     runtimeByPath.set(logicalPath, 'nodejs');
   }
-  runtimeByPath.set(
-    BACKEND_FEDERATION_MANIFEST_FILE,
-    'module-federation-manifest',
-  );
-  runtimeByPath.set(BACKEND_FEDERATION_REMOTE_ENTRY_FILE, 'nodejs');
+  if (backendProducer) {
+    runtimeByPath.set(
+      BACKEND_FEDERATION_MANIFEST_FILE,
+      'module-federation-manifest',
+    );
+    runtimeByPath.set(BACKEND_FEDERATION_REMOTE_ENTRY_FILE, 'nodejs');
+  }
+  for (const logicalPath of [
+    ULTRAMODERN_BUILD_ARTIFACT_FILE,
+    PUBLIC_BUILD_ARTIFACT_PATH,
+  ]) {
+    if (files.includes(logicalPath))
+      runtimeByPath.set(logicalPath, 'release-identity-metadata');
+  }
 
   const identityCarrierMetadata = await writeReleaseIdentityCarrierMetadata(
     outputDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: [
-        BACKEND_FEDERATION_MANIFEST_FILE,
-        BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-      ],
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
+        ? {
+            backendFederation: [
+              BACKEND_FEDERATION_MANIFEST_FILE,
+              BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+            ],
+          }
+        : {}),
       ssr: apiOnly
         ? []
         : [
@@ -1081,10 +1386,14 @@ const createNodeStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      backendFederation: {
-        manifest: BACKEND_FEDERATION_MANIFEST_FILE,
-        container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-      },
+      ...(backendProducer
+        ? {
+            backendFederation: {
+              manifest: BACKEND_FEDERATION_MANIFEST_FILE,
+              container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+            },
+          }
+        : {}),
     },
   };
 };
@@ -1103,19 +1412,24 @@ export const emitNodeStagedReleaseEnvelope = async ({
   if (!source) {
     return undefined;
   }
+  const shellConsumer = source.kind === SHELL_RELEASE_ENVELOPE_KIND;
   const { artifacts, surfaces } = await createNodeStagedReleaseArtifactInputs(
     outputDirectory,
     source.identity,
     source.surfaces.uiClient.length === 0,
+    source.surfaces.apiBackend.length === 0,
     declaredPublicAssets,
+    shellConsumer,
   );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
     target: 'node',
     identity: source.identity,
+    ...(source.ui ? { ui: source.ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
+  await verifyBuildArtifactCarriers(outputDirectory, staged);
   await writeReleaseEnvelope(outputDirectory, staged);
   return staged;
 };
@@ -1150,8 +1464,11 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
+  uiOnly: boolean,
   declaredPublicAssets: readonly string[],
+  shellConsumer: boolean,
 ) => {
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(outputDirectory);
   const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
     files,
@@ -1184,8 +1501,11 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   }
   const backendManifestPath = `public/${BACKEND_FEDERATION_MANIFEST_FILE}`;
   const backendContainerPath = `public/${BACKEND_FEDERATION_REMOTE_ENTRY_FILE}`;
-  const apiBackendPaths = files.filter(isEffectBffWorkerArtifact);
-  if (!files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))) {
+  const apiBackendPaths = effectBffWorkerArtifacts(files);
+  if (
+    !uiOnly &&
+    !files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] final Cloudflare staging has no actual Effect API/BFF worker artifact.',
     );
@@ -1195,7 +1515,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       (logicalPath.startsWith('server/') ||
         logicalPath.startsWith('worker/')) &&
       COMPILED_MODULE_PATTERN.test(logicalPath) &&
-      !isEffectBffWorkerArtifact(logicalPath),
+      !apiBackendPaths.includes(logicalPath),
   );
   const uiClientPaths = files.filter(
     logicalPath =>
@@ -1207,6 +1527,32 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
   );
+  if (
+    shellConsumer &&
+    files.some(
+      logicalPath =>
+        logicalPath === backendManifestPath ||
+        logicalPath === backendContainerPath,
+    )
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Shell Cloudflare staging cannot contain a backend federation producer artifact.',
+    );
+  }
+  if (
+    uiOnly &&
+    (apiBackendPaths.length > 0 ||
+      files.some(
+        logicalPath =>
+          logicalPath === backendManifestPath ||
+          logicalPath === backendContainerPath ||
+          (logicalPath.startsWith('api/') &&
+            COMPILED_MODULE_PATTERN.test(logicalPath)),
+      ))
+  )
+    throw new Error(
+      '[ultramodern-release-envelope] final UI-only Cloudflare staging contains an undeclared API/backend or backend federation artifact.',
+    );
   if (
     apiOnly &&
     (uiClientPaths.length > 0 ||
@@ -1223,14 +1569,16 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   ] as const) {
     if (
       paths.length === 0 &&
-      (!apiOnly || surface === 'Cloudflare API/backend')
+      (surface === 'Cloudflare API/backend' ? !uiOnly : !apiOnly)
     ) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging has no ${surface} artifacts.`,
       );
     }
   }
-  for (const logicalPath of [backendManifestPath, backendContainerPath]) {
+  for (const logicalPath of backendProducer
+    ? [backendManifestPath, backendContainerPath]
+    : []) {
     if (!files.includes(logicalPath)) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging is missing ${logicalPath}.`,
@@ -1279,15 +1627,27 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   add(files.filter(isPublicMetadataPath), 'public-metadata');
   add(apiOnly ? [] : ssrPaths, 'workerd');
   add(apiBackendPaths, 'workerd-effect');
-  add([backendManifestPath], 'module-federation-manifest');
-  add([backendContainerPath], 'commonjs-module');
+  if (backendProducer) {
+    add([backendManifestPath], 'module-federation-manifest');
+    add([backendContainerPath], 'commonjs-module');
+  }
+  add(
+    files.filter(
+      logicalPath =>
+        logicalPath === ULTRAMODERN_BUILD_ARTIFACT_FILE ||
+        logicalPath === PUBLIC_BUILD_ARTIFACT_PATH,
+    ),
+    'release-identity-metadata',
+  );
 
   const identityCarrierMetadata = await writeReleaseIdentityCarrierMetadata(
     outputDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: [backendManifestPath, backendContainerPath],
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
+        ? { backendFederation: [backendManifestPath, backendContainerPath] }
+        : {}),
       ssr: apiOnly
         ? []
         : [
@@ -1320,10 +1680,14 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      backendFederation: {
-        manifest: backendManifestPath,
-        container: backendContainerPath,
-      },
+      ...(backendProducer
+        ? {
+            backendFederation: {
+              manifest: backendManifestPath,
+              container: backendContainerPath,
+            },
+          }
+        : {}),
     },
   };
 };
@@ -1345,20 +1709,25 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
   if (!source) {
     return undefined;
   }
+  const shellConsumer = source.kind === SHELL_RELEASE_ENVELOPE_KIND;
   const { artifacts, surfaces } =
     await createCloudflareStagedReleaseArtifactInputs(
       outputDirectory,
       source.identity,
       source.surfaces.uiClient.length === 0,
+      source.surfaces.apiBackend.length === 0,
       declaredPublicAssets,
+      shellConsumer,
     );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
     target: 'cloudflare',
     identity: source.identity,
+    ...(source.ui ? { ui: source.ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
+  await verifyBuildArtifactCarriers(outputDirectory, staged);
   await writeReleaseEnvelope(outputDirectory, staged);
   return staged;
 };

@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { readUltramodernWorkspaceInputs } from '../ultramodern-tooling/config';
-import { createBuildMarker } from './delivery-unit';
+import {
+  readResolvedUltramodernWorkspaceInputs,
+  readUltramodernWorkspaceInputs,
+} from '../ultramodern-tooling/config';
+import { runWorkspaceTransaction } from './add-vertical/transaction';
+import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from './delivery-unit';
 import {
   isPlainObject,
   stampDeliveryUnitIdentity,
@@ -11,8 +18,7 @@ import {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
 } from './module-federation';
-
-const REFERENCE_TOPOLOGY_PATH = 'topology/reference-topology.json';
+import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
 
 type SyncContext = {
   workspaceRoot: string;
@@ -22,174 +28,156 @@ type SyncContext = {
 function writeTextIfChanged(absolutePath: string, content: string): boolean {
   if (
     fs.existsSync(absolutePath) &&
-    fs.readFileSync(absolutePath, 'utf-8') === content
-  ) {
+    fs.readFileSync(absolutePath, 'utf8') === content
+  )
     return false;
-  }
   fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-  fs.writeFileSync(absolutePath, content, 'utf-8');
+  fs.writeFileSync(absolutePath, content, 'utf8');
   return true;
 }
 
-function writeJsonIfChanged(absolutePath: string, value: unknown): boolean {
-  return writeTextIfChanged(
-    absolutePath,
-    `${JSON.stringify(value, null, 2)}\n`,
-  );
-}
-
-export function runSyncDeliveryUnit(
+/** Rebuild owned local identity projections from authoritative app configs. */
+export async function runSyncDeliveryUnit(
   args: string[],
   context: SyncContext,
-): number {
+): Promise<number> {
   const parsed = parseArgs({
     args,
     options: {
-      help: {
-        type: 'boolean',
-        short: 'h',
-      },
-      workspace: {
-        type: 'string',
-      },
+      help: { type: 'boolean', short: 'h' },
+      workspace: { type: 'string' },
     },
     strict: true,
     allowPositionals: false,
   });
-
   if (parsed.values.help) {
     process.stdout.write(`Usage:
   ultramodern-create ultramodern sync-delivery-unit [--workspace <dir>]
 
-Backfills the per-delivery-unit identity blocks required by
-\`ultramodern validate\` onto an existing generated workspace, in place and
-through framework tooling only. For each delivery unit it writes the
-delivery-unit block into topology/reference-topology.json shell/verticals/shells
-(plus backendFederation.deliveryUnit
-and backendFederation.versionBoundary.identityRoot) and regenerates
-<app>/shared/ultramodern-build.{json,ts}. Idempotent: a second run writes
-nothing.
+Resolve each application's modern.config, then atomically regenerate local
+renderer and delivery-unit identities in topology and shared build artifacts.
+Headless units have no UI identity. Authored source configs are preserved.
 `);
     return 0;
   }
-
-  const workspaceOverride = parsed.values.workspace;
-  const workspaceRoot = workspaceOverride
-    ? path.resolve(context.invocationCwd, workspaceOverride)
+  const workspaceRoot = parsed.values.workspace
+    ? path.resolve(context.invocationCwd, parsed.values.workspace)
     : context.workspaceRoot;
-
-  const workspace = readUltramodernWorkspaceInputs(workspaceRoot);
-  const scope = workspace.config.workspace.packageScope;
-  // Delivery-unit identity applies to ALL unit kinds (G29): shell, UI-only
-  // verticals, and API-bearing verticals each carry a record.
-  const packageVersions = new Map<string, string>();
-  const workspaceApps = workspace.apps.map(app => {
-    const manifestPath = path.join(
-      workspaceRoot,
-      app.directory,
-      'package.json',
-    );
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    if (typeof manifest.version !== 'string' || !manifest.version) {
-      throw new Error(
-        `${manifestPath} requires a package version for delivery-unit sync.`,
+  const { written, unchanged } = await runWorkspaceTransaction(
+    workspaceRoot,
+    async stagingRoot => {
+      const topologyRelativePath = 'topology/reference-topology.json';
+      const topologyPath = path.join(stagingRoot, topologyRelativePath);
+      const originalTopologyContent = fs.readFileSync(topologyPath, 'utf8');
+      const membership = readUltramodernWorkspaceInputs(stagingRoot);
+      const scope = membership.config.workspace.packageScope;
+      const entries = [
+        membership.raw.topology.shell,
+        ...membership.raw.topology.verticals,
+        ...(membership.raw.topology.shells ?? []),
+      ];
+      const packageNames = new Map<string, string>();
+      // Config presets require these delivery projections to match the authored
+      // manifests. Repair them only in staging before normal config validation.
+      for (const [index, app] of membership.apps.entries()) {
+        const manifestPath = path.join(
+          stagingRoot,
+          app.directory,
+          'package.json',
+        );
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        packageNames.set(app.id, manifest.name);
+        if (typeof manifest.version !== 'string' || !manifest.version.trim()) {
+          throw new Error(
+            `${manifestPath} requires a package version for delivery-unit sync.`,
+          );
+        }
+        const entry = entries[index];
+        const deliveryUnit = isPlainObject(entry.deliveryUnit)
+          ? entry.deliveryUnit
+          : {};
+        const needsBootstrap = [
+          deliveryUnit.buildMarker,
+          deliveryUnit.unitId,
+        ].some(value => typeof value !== 'string' || !value.trim());
+        entry.deliveryUnit = {
+          ...deliveryUnit,
+          ...(needsBootstrap && app.renderer
+            ? deliveryUnitContractBlock(
+                createDeliveryUnitRecord(scope, app, manifest.version),
+              )
+            : {}),
+          packageName: manifest.name,
+          version: manifest.version,
+        };
+      }
+      writeTextIfChanged(
+        topologyPath,
+        `${JSON.stringify(membership.raw.topology, null, 2)}\n`,
       );
-    }
-    packageVersions.set(app.id, manifest.version);
-    return {
-      ...app,
-      deliveryUnit: {
-        ...app.deliveryUnit,
-        version: manifest.version,
-        buildMarker: createBuildMarker(scope, app, manifest.version),
-      },
-    };
-  });
-
-  const written: string[] = [];
-  const unchanged: string[] = [];
-  const track = (relativePath: string, changed: boolean) => {
-    (changed ? written : unchanged).push(relativePath);
-  };
-
-  const appById = new Map(workspaceApps.map(app => [app.id, app]));
-
-  // Topology contains the canonical delivery-unit declarations.
-  const topologyPath = path.join(workspaceRoot, REFERENCE_TOPOLOGY_PATH);
-  if (fs.existsSync(topologyPath)) {
-    const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
-    if (isPlainObject(topology) && Array.isArray(topology.verticals)) {
-      for (const entry of topology.verticals) {
-        if (!isPlainObject(entry)) {
-          continue;
-        }
-        const app = appById.get(String(entry.id));
-        if (app) {
-          stampDeliveryUnitIdentity(
-            entry,
-            scope,
-            app,
-            packageVersions.get(app.id)!,
+      const evaluations = await captureWorkspaceRendererEvaluations(
+        stagingRoot,
+        membership.apps,
+        { originalWorkspaceRoot: workspaceRoot },
+      );
+      const workspace = await readResolvedUltramodernWorkspaceInputs(
+        stagingRoot,
+        {},
+        { evaluations },
+      );
+      const appById = new Map(workspace.apps.map(app => [app.id, app]));
+      const written: string[] = [];
+      const unchanged: string[] = [];
+      const track = (relativePath: string, content: string) => {
+        const changed = writeTextIfChanged(
+          path.join(stagingRoot, relativePath),
+          content,
+        );
+        const changedFromOriginal =
+          relativePath === topologyRelativePath
+            ? content !== originalTopologyContent
+            : changed;
+        (changedFromOriginal ? written : unchanged).push(relativePath);
+      };
+      const topology = workspace.raw.topology;
+      for (const entry of [
+        topology.shell,
+        ...topology.verticals,
+        ...(topology.shells ?? []),
+      ]) {
+        if (!isPlainObject(entry))
+          throw new Error('Invalid topology application record.');
+        const app = appById.get(entry.id);
+        if (!app)
+          throw new Error(`Unknown topology application: ${String(entry.id)}.`);
+        if (app.deliveryUnit?.packageName !== packageNames.get(app.id)) {
+          throw new Error(
+            `Application ${app.id} delivery-unit package identity disagrees with package.json.`,
           );
         }
-      }
-    }
-    if (isPlainObject(topology) && Array.isArray(topology.shells)) {
-      for (const entry of topology.shells) {
-        if (!isPlainObject(entry)) continue;
-        const app = appById.get(String(entry.id));
-        if (app)
-          stampDeliveryUnitIdentity(
-            entry,
-            scope,
-            app,
-            packageVersions.get(app.id)!,
-          );
-      }
-    }
-    // The shell is its own delivery unit (G29): stamp its identity block too.
-    if (isPlainObject(topology) && isPlainObject(topology.shell)) {
-      const shell = appById.get(String(topology.shell.id));
-      if (shell) {
         stampDeliveryUnitIdentity(
-          topology.shell,
+          entry,
           scope,
-          shell,
-          packageVersions.get(shell.id)!,
+          app,
+          app.deliveryUnit!.version!,
         );
       }
-    }
-    track(REFERENCE_TOPOLOGY_PATH, writeJsonIfChanged(topologyPath, topology));
-  }
+      track(topologyRelativePath, `${JSON.stringify(topology, null, 2)}\n`);
+      for (const app of workspace.apps) {
+        track(
+          path.join(app.directory, 'shared/ultramodern-build.ts'),
+          createUltramodernBuildModule(scope, app),
+        );
+        track(
+          path.join(app.directory, 'shared/ultramodern-build.json'),
+          createUltramodernBuildArtifactJson(scope, app),
+        );
+      }
+      return { written, unchanged };
+    },
+  );
 
-  // <app>/shared/ultramodern-build.{json,ts} for every unit kind
-  // (framework-owned; regenerate from canonical descriptors)
-  for (const app of workspaceApps) {
-    const buildModulePath = path.join(
-      app.directory,
-      'shared/ultramodern-build.ts',
-    );
-    const buildArtifactPath = path.join(
-      app.directory,
-      'shared/ultramodern-build.json',
-    );
-    track(
-      buildModulePath,
-      writeTextIfChanged(
-        path.join(workspaceRoot, buildModulePath),
-        createUltramodernBuildModule(scope, app),
-      ),
-    );
-    track(
-      buildArtifactPath,
-      writeTextIfChanged(
-        path.join(workspaceRoot, buildArtifactPath),
-        createUltramodernBuildArtifactJson(scope, app),
-      ),
-    );
-  }
-
-  if (written.length === 0) {
+  if (!written.length) {
     process.stdout.write(
       '[ultramodern] sync-delivery-unit: already in sync; no files written.\n',
     );
@@ -197,13 +185,10 @@ nothing.
     process.stdout.write(
       `[ultramodern] sync-delivery-unit: wrote ${written.length} file(s):\n`,
     );
-    for (const relativePath of written) {
+    for (const relativePath of written)
       process.stdout.write(`  wrote    ${relativePath}\n`);
-    }
-    for (const relativePath of unchanged) {
+    for (const relativePath of unchanged)
       process.stdout.write(`  in-sync  ${relativePath}\n`);
-    }
   }
-
   return 0;
 }

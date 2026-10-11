@@ -11,99 +11,50 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, findPackageJSON } from 'node:module';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
-import type { URL } from 'node:url';
+import { basename, join } from 'node:path';
+import { pathToFileURL, type URL } from 'node:url';
 
-const EFFECT_TSGO_PACKAGE = '@effect/tsgo';
-/** Native TypeScript packages, in the order Effect TS-Go discovers them. */
-const NATIVE_TYPESCRIPT_PACKAGES = ['typescript', '@typescript/native'];
+// CJS and ESM consumers share the selected-cohort validator in one owning
+// module, including packages whose public name changes during publication.
+const owningModuleUrl =
+  process.env.MODERN_LIB_FORMAT === 'esm'
+    ? import.meta.url
+    : pathToFileURL(__filename).href;
+const owningManifest = findPackageJSON(owningModuleUrl, owningModuleUrl);
+if (!owningManifest)
+  throw new Error('Cannot find owning build-config package manifest');
+const owningName: unknown = JSON.parse(
+  readFileSync(owningManifest, 'utf8'),
+).name;
+if (typeof owningName !== 'string' || owningName.length === 0) {
+  throw new Error(
+    `Invalid owning build-config package name: ${owningManifest}`,
+  );
+}
+const {
+  effectCompilerDiscoveryFailureStage,
+  resolveInstalledEffectCompiler,
+}: typeof import('./internal-effect-discovery') = createRequire(
+  owningModuleUrl,
+)(`${owningName}/internal-effect-discovery`);
+
 const EFFECT_TSGO_RESOLUTION_ERROR =
   'Unable to resolve the Effect TS-Go compiler. Install "@effect/tsgo" and a native TypeScript backend for this build config, or set EFFECT_TSGO_BIN.';
 const executableEffectTsgoCompilers = new Map<string, string>();
 
-type PackageJson = {
-  version?: unknown;
-};
-
-type EffectTsgoUpstreamManifest = {
-  components?: {
-    typescript?: Record<string, unknown>;
-  };
-};
-
-function readJson<T>(fileName: string): T {
-  return JSON.parse(readFileSync(fileName, 'utf-8')) as T;
-}
-
-function resolvePackageVersion(
-  packageRequire: NodeJS.Require,
-  packageName: string,
-): { packageJsonPath: string; version: string } | undefined {
-  let packageJsonPath: string;
-  try {
-    packageJsonPath = packageRequire.resolve(`${packageName}/package.json`);
-  } catch {
-    return undefined;
-  }
-  const { version } = readJson<PackageJson>(packageJsonPath);
-  return typeof version === 'string' ? { packageJsonPath, version } : undefined;
-}
-
-/**
- * Resolves only the TypeScript component packaged by Effect TS-Go.
- *
- * `effect-tsgo get-exe-path` discovers every integration before selecting the
- * TypeScript one, so an installed Oxlint makes it fail on Linux musl. The
- * TypeScript artifact itself is platform-neutral across libc: the
- * `@effect/tsgo-<platform>-<arch>` package lists it in `lib/upstream.json`
- * under `components.typescript` and ships it at
- * `artifacts/typescript/<version>/tsc`, keyed by the installed
- * `@typescript/typescript-<platform>-<arch>` version.
- */
-function resolveEffectTsgoTypeScriptArtifact(from: string | URL): string {
-  const projectRequire = createRequire(from);
-  const effectTsgoPackageJsonPath = projectRequire.resolve(
-    `${EFFECT_TSGO_PACKAGE}/package.json`,
+function effectTsgoResolutionError(
+  cause: unknown,
+  stage: string,
+  from: string | URL,
+): Error {
+  const detail =
+    cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+  return new Error(
+    `${EFFECT_TSGO_RESOLUTION_ERROR}\n${stage} failed for ${String(from)}: ${detail}`,
+    { cause },
   );
-  const platformTarget = `${process.platform}-${process.arch}`;
-  const effectTsgoPlatformPackageJsonPath = createRequire(
-    effectTsgoPackageJsonPath,
-  ).resolve(`${EFFECT_TSGO_PACKAGE}-${platformTarget}/package.json`);
-  const upstream = readJson<EffectTsgoUpstreamManifest>(
-    join(dirname(effectTsgoPlatformPackageJsonPath), 'lib', 'upstream.json'),
-  );
-  const packagedTypeScriptVersions = upstream.components?.typescript ?? {};
-
-  for (const packageName of NATIVE_TYPESCRIPT_PACKAGES) {
-    const typescript = resolvePackageVersion(projectRequire, packageName);
-    const major = typescript && /^\s*(\d+)/u.exec(typescript.version);
-    if (!typescript || !major || Number(major[1]) < 7) {
-      continue;
-    }
-
-    const typescriptPlatform = resolvePackageVersion(
-      createRequire(typescript.packageJsonPath),
-      `@typescript/typescript-${platformTarget}`,
-    );
-    if (
-      !typescriptPlatform ||
-      !Object.hasOwn(packagedTypeScriptVersions, typescriptPlatform.version)
-    ) {
-      break;
-    }
-
-    return join(
-      dirname(effectTsgoPlatformPackageJsonPath),
-      'artifacts',
-      'typescript',
-      typescriptPlatform.version,
-      process.platform === 'win32' ? 'tsc.exe' : 'tsc',
-    );
-  }
-
-  throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
 }
 
 function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
@@ -114,7 +65,9 @@ function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
   const sourcePath = realpathSync(compilerPath);
   const source = lstatSync(sourcePath);
   if (!source.isFile()) {
-    throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+    throw new Error(
+      `Effect TS-Go compiler path is not a regular file: ${sourcePath}`,
+    );
   }
 
   try {
@@ -196,18 +149,30 @@ export function resolveEffectTsgoCompiler(
   if (configuredCompiler) {
     try {
       return resolveExecutableEffectTsgoCompiler(configuredCompiler);
-    } catch {
-      throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+    } catch (cause) {
+      throw effectTsgoResolutionError(
+        cause,
+        'Configured compiler validation',
+        options.from,
+      );
     }
   }
 
+  let stage = 'Package CLI resolution';
   try {
-    return resolveExecutableEffectTsgoCompiler(
-      resolveEffectTsgoTypeScriptArtifact(options.from),
-    );
-  } catch {
-    // Use one stable error for package, platform-package, and artifact failures.
-  }
+    const compiler = resolveInstalledEffectCompiler(options.from).trim();
+    stage = 'Compiler backend lookup';
 
-  throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+    if (!compiler) {
+      throw new Error('Effect TS-Go discovery returned an empty compiler path');
+    }
+    stage = 'Compiler executable validation';
+    return resolveExecutableEffectTsgoCompiler(compiler);
+  } catch (cause) {
+    throw effectTsgoResolutionError(
+      cause,
+      effectCompilerDiscoveryFailureStage(cause) ?? stage,
+      options.from,
+    );
+  }
 }

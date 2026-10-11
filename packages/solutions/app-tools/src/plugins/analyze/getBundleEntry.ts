@@ -1,4 +1,5 @@
-import type { Entrypoint } from '@modern-js/types';
+import type { AppContext, CLIPluginExtends } from '@modern-js/plugin/cli';
+import type { Entrypoint } from '@modern-js/types/cli/base';
 import {
   ensureAbsolutePath,
   findExists,
@@ -7,8 +8,8 @@ import {
   MAIN_ENTRY_NAME,
 } from '@modern-js/utils';
 import path from 'path';
-import type { AppNormalizedConfig } from '../../types';
-import type { AppToolsContext, AppToolsHooks } from '../../types/plugin';
+import type { AppToolsNormalizedConfig } from '../../types/config/base';
+import type { AppToolsExtendHooksBase } from '../../types/plugin-base';
 import {
   getFileSystemEntry,
   hasEntry,
@@ -55,9 +56,12 @@ const ifAlreadyExists = (
   });
 
 export const getBundleEntry = async (
-  hooks: AppToolsHooks,
-  appContext: AppToolsContext,
-  config: AppNormalizedConfig,
+  hooks: Pick<AppToolsExtendHooksBase<never>, 'checkEntryPoint'>,
+  appContext: Pick<
+    AppContext<CLIPluginExtends>,
+    'appDirectory' | 'packageName'
+  >,
+  config: Pick<AppToolsNormalizedConfig, 'source'>,
 ) => {
   const { appDirectory, packageName } = appContext;
   const { disableDefaultEntries, entries, entriesDir, mainEntryName } =

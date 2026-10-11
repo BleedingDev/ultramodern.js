@@ -4,6 +4,7 @@ import {
 } from '../ultramodern-package-source';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
+  appEmitsBrowserUi,
   appHasApi,
   remoteDependencyAlias,
   resolveApiProtocol,
@@ -15,8 +16,14 @@ import {
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
 import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
+import { hasNativeAppGeneration } from './renderer-generations';
+import {
+  appSupportsFederation,
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
-import { ULTRAMODERN_PACKAGE_PINS } from './versions';
+import { NODE_VERSION, ULTRAMODERN_PACKAGE_PINS } from './versions';
 import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,
@@ -34,20 +41,43 @@ export function appDependencies(
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
 ): Record<string, string> {
+  const renderer = resolveWorkspaceRenderer(app);
+  const generationProfile = resolveAppGenerationProfile(app);
   const dependencies: Record<string, string> = {
-    '@modern-js/plugin-tanstack': frameworkRequest(packageSource),
-    '@modern-js/i18n-integration': frameworkRequest(packageSource),
-    '@modern-js/plugin-i18n': frameworkRequest(packageSource),
-    '@modern-js/federation-runtime': frameworkRequest(packageSource),
-    '@modern-js/runtime-renderer-extensions': frameworkRequest(packageSource),
-    '@modern-js/runtime-extensions': frameworkRequest(packageSource),
-    '@modern-js/runtime': frameworkRequest(packageSource),
-    ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
+    ...(renderer === 'react'
+      ? {
+          '@modern-js/plugin-tanstack': frameworkRequest(packageSource),
+          '@modern-js/i18n-integration': frameworkRequest(packageSource),
+          '@modern-js/plugin-i18n': frameworkRequest(packageSource),
+          '@modern-js/federation-runtime': frameworkRequest(packageSource),
+          '@modern-js/runtime-renderer-extensions':
+            frameworkRequest(packageSource),
+          '@modern-js/runtime-extensions': frameworkRequest(packageSource),
+          '@modern-js/runtime': frameworkRequest(packageSource),
+          ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
+        }
+      : renderer === 'none'
+        ? {}
+        : {
+            ...Object.fromEntries(
+              generationProfile!.frameworkDependencies.map(name => [
+                name,
+                frameworkRequest(packageSource),
+              ]),
+            ),
+            ...generationProfile!.dependencies,
+          }),
+    '@modern-js/backend-federation-contracts': frameworkRequest(packageSource),
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
-    [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
+    ...(appEmitsBrowserUi(app)
+      ? {
+          [packageName(scope, 'shared-design-tokens')]:
+            WORKSPACE_PACKAGE_VERSION,
+        }
+      : {}),
   };
 
-  if (appHasApi(app) || app.kind === 'shell') {
+  if (appHasApi(app) || (app.kind === 'shell' && renderer === 'react')) {
     dependencies['@modern-js/plugin-bff-extensions'] =
       frameworkRequest(packageSource);
   }
@@ -64,11 +94,13 @@ export function appDependencies(
     dependencies[dependency] = WORKSPACE_PACKAGE_VERSION;
   }
 
-  if (app.kind === 'shell') {
+  if (app.kind === 'shell' && renderer === 'react') {
     dependencies['@modern-js/boundary-debugger'] =
       frameworkRequest(packageSource);
     dependencies['@modern-js/plugin-bff'] = frameworkRequest(packageSource);
     Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
+  }
+  if (app.kind === 'shell') {
     for (const remote of verticalApiApps(remotes)) {
       dependencies[packageName(scope, remote.packageSuffix)] =
         WORKSPACE_PACKAGE_VERSION;
@@ -84,6 +116,10 @@ export function appDependencies(
     dependencies['@modern-js/plugin-bff'] = frameworkRequest(packageSource);
     dependencies['@modern-js/bff-effect'] = frameworkRequest(packageSource);
     Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
+    if (renderer === 'none') {
+      dependencies['@module-federation/runtime'] =
+        ULTRAMODERN_PACKAGE_PINS.appDependencies['@module-federation/runtime'];
+    }
   }
 
   return dependencies;
@@ -99,9 +135,23 @@ function appDevDependencies(
     tailwindcss: tailwindVersion,
     ...always
   } = ULTRAMODERN_PACKAGE_PINS.appDevDependencies;
+  const renderer = resolveWorkspaceRenderer(app);
+  const generationProfile = resolveAppGenerationProfile(app);
+  const selectedAlways =
+    renderer === 'react'
+      ? always
+      : Object.fromEntries(
+          Object.entries(always).filter(
+            ([name]) =>
+              name !== '@types/react' &&
+              name !== '@types/react-dom' &&
+              name !== 'zephyr-rspack-plugin' &&
+              name !== 'wrangler',
+          ),
+        );
 
   return {
-    ...(appHasApi(app) || app.kind === 'shell'
+    ...(appHasApi(app) || (app.kind === 'shell' && renderer === 'react')
       ? {
           '@modern-js/plugin-bff-build-extensions':
             frameworkRequest(packageSource),
@@ -109,8 +159,11 @@ function appDevDependencies(
       : {}),
     '@modern-js/ultramodern-app-tools': frameworkRequest(packageSource),
     '@modern-js/app-tools-extensions': frameworkRequest(packageSource),
-    '@modern-js/app-tools': frameworkRequest(packageSource),
-    ...always,
+    ...(renderer === 'react' || renderer === 'none'
+      ? { '@modern-js/app-tools': frameworkRequest(packageSource) }
+      : {}),
+    ...selectedAlways,
+    ...generationProfile?.devDependencies,
     ...(enableTailwind
       ? {
           '@rsbuild/plugin-tailwindcss': tailwindPluginVersion,
@@ -126,7 +179,65 @@ export function createRootPackageJson(
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
   additionalShells: WorkspaceApp[] = [],
+  primaryShell: WorkspaceApp = shellApp,
 ): JsonValue {
+  const renderer = resolveWorkspaceRenderer(primaryShell);
+  if (hasNativeAppGeneration(renderer)) {
+    const apps = [primaryShell, ...additionalShells, ...remotes];
+    if (bridge)
+      throw new Error(
+        `Renderer ${renderer} does not support React bridge configuration.`,
+      );
+    const rootDevDependencies = Object.fromEntries(
+      Object.entries(ULTRAMODERN_PACKAGE_PINS.rootDevDependencies).filter(
+        ([name]) =>
+          name !== 'wrangler' &&
+          name !== 'zephyr-agent' &&
+          name !== 'miniflare',
+      ),
+    );
+    return {
+      private: true,
+      name: scope,
+      version: '0.1.0',
+      type: 'module',
+      packageManager: `pnpm@${ULTRAMODERN_WORKSPACE_POLICY.toolchain.packageManager.version}`,
+      engines: {
+        node: `>=${resolveAppGenerationProfile(primaryShell)!.nodeVersion}`,
+        pnpm: '>=11',
+      },
+      scripts: {
+        dev: `pnpm --parallel ${apps.map(app => `--filter ${packageName(scope, app.packageSuffix)}`).join(' ')} dev`,
+        'dev:shell': `pnpm --filter ${packageName(scope, primaryShell.packageSuffix)} dev`,
+        build: 'pnpm -r --filter "./apps/*" --filter "./verticals/*" run build',
+        typecheck:
+          'pnpm -r --filter "./packages/*" run typecheck && pnpm -r --filter "./apps/*" --filter "./verticals/*" run typecheck',
+        'contract:check': 'ultramodern-create ultramodern validate',
+        check:
+          'pnpm format:check && pnpm lint && pnpm typecheck && pnpm contract:check',
+        format: 'oxfmt .',
+        'format:check': 'oxfmt --check .',
+        lint: 'oxlint apps verticals packages',
+        'lint:fix': 'oxlint apps verticals packages --fix',
+        'skills:install': 'ultramodern-create ultramodern skills install',
+        'skills:check': 'ultramodern-create ultramodern skills check',
+        postinstall: GENERATED_POSTINSTALL_SCRIPT,
+      },
+      workspaces: ['apps/*', 'verticals/*', 'packages/*'],
+      modernjs: {
+        preset: 'presetUltramodern',
+        workspace: 'ultramodern-superapp',
+        topology: './topology/reference-topology.json',
+        ownership: './topology/ownership.json',
+      },
+      devDependencies: {
+        ...rootDevDependencies,
+        typescript: ULTRAMODERN_PACKAGE_PINS.appDevDependencies.typescript,
+        [ULTRAMODERN_CREATE_PACKAGE]: frameworkRequest(packageSource),
+        '@modern-js/ultramodern-app-tools': frameworkRequest(packageSource),
+      },
+    };
+  }
   const shellFilter = `--filter ${packageName(scope, shellApp.packageSuffix)}`;
   const additionalShellFilters = additionalShells.map(
     shell => `--filter ${packageName(scope, shell.packageSuffix)}`,
@@ -213,7 +324,11 @@ export function createRootPackageJson(
     },
     devDependencies: {
       ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
+      typescript: ULTRAMODERN_PACKAGE_PINS.appDevDependencies.typescript,
+      react: ULTRAMODERN_PACKAGE_PINS.appDependencies.react,
+      'react-dom': ULTRAMODERN_PACKAGE_PINS.appDependencies['react-dom'],
       '@modern-js/app-tools': frameworkRequest(packageSource),
+      '@modern-js/runtime': frameworkRequest(packageSource),
       '@modern-js/plugin-bff-extensions': frameworkRequest(packageSource),
       '@modern-js/plugin-bff-build-extensions': frameworkRequest(packageSource),
       '@modern-js/runtime-renderer-extensions': frameworkRequest(packageSource),
@@ -271,15 +386,27 @@ export function createAppPackage(
     private: true,
     name: packageName(scope, app.packageSuffix),
     version: '0.1.0',
+    engines: {
+      node: `>=${resolveAppGenerationProfile(app)?.nodeVersion ?? NODE_VERSION}`,
+    },
     scripts: createWorkspaceAppPackageScripts(app),
     modernjs: {
       preset: 'presetUltramodern',
-      role: app.kind === 'shell' ? 'shell' : 'module-federation-remote',
+      role:
+        app.kind === 'shell'
+          ? 'shell'
+          : appSupportsFederation(app)
+            ? 'module-federation-remote'
+            : appEmitsBrowserUi(app)
+              ? 'application'
+              : 'api-only',
       appId: app.id,
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
       ...(appHasApi(app) ? { apiRuntime: 'effect' } : {}),
     },
-    'zephyr:dependencies': createZephyrDependencies(scope, app, remotes),
+    ...(resolveWorkspaceRenderer(app) === 'react' && appSupportsFederation(app)
+      ? { 'zephyr:dependencies': createZephyrDependencies(scope, app, remotes) }
+      : {}),
     dependencies: appDependencies(scope, packageSource, app, remotes, bridge),
     devDependencies: appDevDependencies(packageSource, enableTailwind, app),
   };
@@ -298,7 +425,11 @@ export function createAppPackage(
         './api/client': `./${clientDirectory}/${app.api.stem}-client.ts`,
       });
     }
-  } else if (app.kind === 'shell') {
+  } else if (
+    app.kind === 'shell' &&
+    (resolveWorkspaceRenderer(app) === 'react' ||
+      verticalApiApps(remotes).length > 0)
+  ) {
     Object.assign(packageExports, {
       './api/clients': './src/api/vertical-clients.ts',
     });
@@ -316,6 +447,7 @@ export function createSharedPackage(
   id: string,
   description: string,
   packageSource?: ResolvedPackageSource,
+  renderer: WorkspaceApp['renderer'] = 'react',
 ): JsonValue {
   const packageJson: Record<string, JsonValue> = {
     private: true,
@@ -336,18 +468,24 @@ export function createSharedPackage(
   };
 
   if (id === 'shared-contracts') {
-    packageJson.dependencies = {
-      ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
-      '@modern-js/bff-effect': packageSource
-        ? frameworkRequest(packageSource)
-        : WORKSPACE_PACKAGE_VERSION,
-      '@modern-js/runtime-extensions': packageSource
-        ? frameworkRequest(packageSource)
-        : WORKSPACE_PACKAGE_VERSION,
-      '@modern-js/plugin-bff': packageSource
-        ? frameworkRequest(packageSource)
-        : WORKSPACE_PACKAGE_VERSION,
-    };
+    packageJson.dependencies = hasNativeAppGeneration(renderer)
+      ? {
+          '@modern-js/renderer-core': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+        }
+      : {
+          ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
+          '@modern-js/bff-effect': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+          '@modern-js/runtime-extensions': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+          '@modern-js/plugin-bff': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+        };
   }
 
   if (id === 'shared-design-tokens') {
@@ -360,6 +498,11 @@ export function createSharedPackage(
   return packageJson;
 }
 
-export function createSharedContractsIndex(): string {
+export function createSharedContractsIndex(
+  renderer: WorkspaceApp['renderer'] = 'react',
+): string {
+  if (hasNativeAppGeneration(renderer)) {
+    return `export const ultramodernWorkspaceContract = {\n  preset: 'presetUltramodern',\n  topology: 'topology/reference-topology.json',\n  ownership: 'topology/ownership.json',\n} as const;\n`;
+  }
   return readFileTemplate('packages/shared-contracts-index.ts');
 }

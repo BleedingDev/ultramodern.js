@@ -48,37 +48,40 @@ describe('data-platform public codec boundaries', () => {
   test.each([
     ['a path-relative', 'rpc/batch', 'https://service.test/rpc/batch'],
     ['an absolute', 'https://batch.test/collect', 'https://batch.test/collect'],
-  ])('resolves %s batch endpoint through the public transport', async (_scenario, endpoint, expectedEndpoint) => {
-    const batchCalls: string[] = [];
-    const transport = createDataBatchTransport({
-      endpoint,
-      maxBatchSize: 2,
-      fetch: async (input, init) => {
-        batchCalls.push(String(input));
-        const payload = JSON.parse(
-          String(init?.body),
-        ) as DataBatchRequestPayload;
-        return Response.json({
-          protocolVersion: 2,
-          batchId: payload.batchId,
-          receivedAt: 1_700_000_000_000,
-          items: payload.items.map(item => ({
-            id: item.id,
-            status: 204,
-            headers: [],
-          })),
-        });
-      },
-    });
+  ])(
+    'resolves %s batch endpoint through the public transport',
+    async (_scenario, endpoint, expectedEndpoint) => {
+      const batchCalls: string[] = [];
+      const transport = createDataBatchTransport({
+        endpoint,
+        maxBatchSize: 2,
+        fetch: async (input, init) => {
+          batchCalls.push(String(input));
+          const payload = JSON.parse(
+            String(init?.body),
+          ) as DataBatchRequestPayload;
+          return Response.json({
+            protocolVersion: 2,
+            batchId: payload.batchId,
+            receivedAt: 1_700_000_000_000,
+            items: payload.items.map(item => ({
+              id: item.id,
+              status: 204,
+              headers: [],
+            })),
+          });
+        },
+      });
 
-    await expect(
-      Promise.all([
-        transport('https://service.test/first'),
-        transport('https://service.test/second'),
-      ]),
-    ).resolves.toEqual(['', '']);
-    expect(batchCalls).toEqual([expectedEndpoint]);
-  });
+      await expect(
+        Promise.all([
+          transport('https://service.test/first'),
+          transport('https://service.test/second'),
+        ]),
+      ).resolves.toEqual(['', '']);
+      expect(batchCalls).toEqual([expectedEndpoint]);
+    },
+  );
 
   test.each([
     [
@@ -92,19 +95,22 @@ describe('data-platform public codec boundaries', () => {
       { ok: 'text-json' },
     ],
     ['Text/Plain; Charset=UTF-8', 'plain body', 'plain body'],
-  ])('parses case-insensitive %s responses through the public transport', async (contentType, body, expected) => {
-    const transport = createDataBatchTransport({
-      maxBatchSize: 1,
-      fetch: async () =>
-        new Response(body, {
-          headers: { 'content-type': contentType },
-        }),
-    });
+  ])(
+    'parses case-insensitive %s responses through the public transport',
+    async (contentType, body, expected) => {
+      const transport = createDataBatchTransport({
+        maxBatchSize: 1,
+        fetch: async () =>
+          new Response(body, {
+            headers: { 'content-type': contentType },
+          }),
+      });
 
-    await expect(transport('https://service.test/value')).resolves.toEqual(
-      expected,
-    );
-  });
+      await expect(transport('https://service.test/value')).resolves.toEqual(
+        expected,
+      );
+    },
+  );
 
   test.each([
     ['missing id', (itemId: string) => ({ status: 204, originalId: itemId })],
@@ -134,42 +140,45 @@ describe('data-platform public codec boundaries', () => {
         body: { encoding: 'base64', data: 'dW5leHBlY3RlZA==' },
       }),
     ],
-  ])('rejects a protocol-v2 response item with %s and safely replays reads', async (_scenario, createInvalidItem) => {
-    const calls: string[] = [];
-    const transport = createDataBatchTransport({
-      maxBatchSize: 2,
-      fetch: async (input, init) => {
-        const url = String(input);
-        calls.push(url);
-        if (url === 'https://service.test/_data/batch') {
-          const payload = JSON.parse(
-            String(init?.body),
-          ) as DataBatchRequestPayload;
-          const firstItem = payload.items[0];
-          if (!firstItem) {
-            throw new Error('Expected a batched request item');
+  ])(
+    'rejects a protocol-v2 response item with %s and safely replays reads',
+    async (_scenario, createInvalidItem) => {
+      const calls: string[] = [];
+      const transport = createDataBatchTransport({
+        maxBatchSize: 2,
+        fetch: async (input, init) => {
+          const url = String(input);
+          calls.push(url);
+          if (url === 'https://service.test/_data/batch') {
+            const payload = JSON.parse(
+              String(init?.body),
+            ) as DataBatchRequestPayload;
+            const firstItem = payload.items[0];
+            if (!firstItem) {
+              throw new Error('Expected a batched request item');
+            }
+            return Response.json({
+              protocolVersion: 2,
+              batchId: payload.batchId,
+              receivedAt: 1_700_000_000_000,
+              items: [createInvalidItem(firstItem.id)],
+            });
           }
-          return Response.json({
-            protocolVersion: 2,
-            batchId: payload.batchId,
-            receivedAt: 1_700_000_000_000,
-            items: [createInvalidItem(firstItem.id)],
-          });
-        }
-        return Response.json({ replayed: new URL(url).pathname });
-      },
-    });
+          return Response.json({ replayed: new URL(url).pathname });
+        },
+      });
 
-    await expect(
-      Promise.all([
-        transport('https://service.test/first'),
-        transport('https://service.test/second'),
-      ]),
-    ).resolves.toEqual([{ replayed: '/first' }, { replayed: '/second' }]);
-    expect(calls).toEqual([
-      'https://service.test/_data/batch',
-      'https://service.test/first',
-      'https://service.test/second',
-    ]);
-  });
+      await expect(
+        Promise.all([
+          transport('https://service.test/first'),
+          transport('https://service.test/second'),
+        ]),
+      ).resolves.toEqual([{ replayed: '/first' }, { replayed: '/second' }]);
+      expect(calls).toEqual([
+        'https://service.test/_data/batch',
+        'https://service.test/first',
+        'https://service.test/second',
+      ]);
+    },
+  );
 });

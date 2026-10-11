@@ -186,7 +186,26 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 13);
+  const recipes = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../ultramodern-supply/sidecars.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(
+    new Set(recipes.map(recipe => recipe.fork.name)).size,
+    recipes.length,
+    'recipes must have unique publication identities',
+  );
+  assert.equal(byName.size, sidecars.length);
+  assert.deepEqual(
+    sidecars.map(({ name, version }) => [name, version]).sort(),
+    recipes.map(({ fork }) => [fork.name, fork.version]).sort(),
+  );
+  assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
+  assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
+  assert.equal(byName.has('@bleedingdev/jiti'), false);
+  assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
   assert.equal(byName.has('@bleedingdev/ipx'), false);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
@@ -206,12 +225,70 @@ test('recipe-only sidecar closure records exact publication identities and alias
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
 
+  const parserClosure = [
+    ['braces', '3.0.4', {}],
+    ['micromatch', '4.0.8', { braces: 'npm:@bleedingdev/braces@3.0.4' }],
+    ['fast-glob', '3.3.3', { micromatch: 'npm:@bleedingdev/micromatch@4.0.8' }],
+    ['chokidar', '3.6.0', { braces: 'npm:@bleedingdev/braces@3.0.4' }],
+    [
+      'ts-checker-rspack-plugin',
+      '1.6.1',
+      { chokidar: 'npm:@bleedingdev/chokidar@3.6.0' },
+    ],
+    [
+      'rsbuild-plugin-type-check',
+      '1.6.0',
+      {
+        'ts-checker-rspack-plugin':
+          'npm:@bleedingdev/ts-checker-rspack-plugin@1.6.1',
+      },
+    ],
+    [
+      'rsbuild-plugin-source-build',
+      '1.0.7',
+      { 'fast-glob': 'npm:@bleedingdev/fast-glob@3.3.3' },
+    ],
+    [
+      'find-workspaces',
+      '0.3.1',
+      { 'fast-glob': 'npm:@bleedingdev/fast-glob@3.3.3' },
+    ],
+    [
+      'ultracite',
+      '7.12.2',
+      {
+        'fast-glob': 'npm:@bleedingdev/fast-glob@3.3.3',
+        'find-workspaces': 'npm:@bleedingdev/find-workspaces@0.3.1',
+      },
+    ],
+  ];
+  for (const [name, version, dependencies] of parserClosure) {
+    const sidecar = byName.get(`@bleedingdev/${name}`);
+    assert.equal(sidecar.version, version);
+    assert.equal(sidecar.recipeOnly, true);
+    assert.deepEqual(sidecar.packageJson.dependencies ?? {}, dependencies);
+  }
   const ordered = sidecarsModule.sidecarPublishOrder(sidecars);
   sidecarsModule.validateAliasConsistency([], ordered);
   publication.assertSidecarPublishOrder(ordered);
   for (const sidecar of ordered) {
     publication.sidecarContentProjection(sidecar.packageJson, sidecar.name);
   }
+  const closure = parserClosure.map(([name]) =>
+    byName.get(`@bleedingdev/${name}`),
+  );
+  const closureOrder = sidecarsModule.sidecarPublishOrder(closure);
+  assert.equal(closureOrder.length, 9);
+  sidecarsModule.validateAliasConsistency([], closureOrder);
+  publication.assertSidecarPublishOrder(closureOrder);
+  assert.throws(
+    () =>
+      sidecarsModule.validateAliasConsistency(
+        [],
+        closure.filter(item => item.name !== '@bleedingdev/braces'),
+      ),
+    /neither a staged sidecar nor a cohort package/u,
+  );
 });
 
 test('prerelease sidecar versions are rejected', async () => {
@@ -305,7 +382,7 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
-test('every repository recipe has a runtime consumer in the published cohort', async () => {
+test('every repository recipe has a cohort or independently qualified SDK consumer', async () => {
   const { collectModernPackages, targetPackageName } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );
@@ -331,7 +408,7 @@ test('every repository recipe has a runtime consumer in the published cohort', a
           dependencies: { '@module-federation/enhanced': '2.9.2' },
         },
       ]),
-    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.2 in source/,
+    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.3 in source/,
   );
 });
 

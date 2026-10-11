@@ -1,5 +1,9 @@
 import { isDeepStrictEqual } from 'node:util';
-import type { JsonValue, UltramodernJsonMutation } from '../types';
+import {
+  isRecord,
+  type JsonValue,
+  type UltramodernJsonMutation,
+} from '../types';
 import type { WorkspaceChange } from './transaction';
 
 /** Describe the prepared bytes, so preview cannot invent writes that apply omits. */
@@ -42,14 +46,7 @@ export function describeJsonChanges(
           visit(undefined, value, `${pointer}/-`);
         return;
       }
-      if (
-        previous &&
-        next &&
-        typeof previous === 'object' &&
-        typeof next === 'object' &&
-        !Array.isArray(previous) &&
-        !Array.isArray(next)
-      ) {
+      if (isRecord(previous) && isRecord(next)) {
         for (const key of new Set([
           ...Object.keys(previous),
           ...Object.keys(next),

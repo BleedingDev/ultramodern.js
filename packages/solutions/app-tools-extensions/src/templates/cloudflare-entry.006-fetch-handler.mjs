@@ -1,5 +1,12 @@
 export default {
   async fetch(request, env, ctx) {
+    const rendererRejection = createWorkerRendererGuardResponse(request);
+    if (rendererRejection) {
+      return finalizeResponseForRequest(
+        withAppCorsHeaders(rendererRejection, request),
+        request,
+      );
+    }
     const corsPreflightResponse = await createCorsPreflightResponse(
       request,
       env,
@@ -49,10 +56,12 @@ export default {
       );
     }
 
-    const localeRedirectResponse = createLocaleRedirectResponseForRequest(
-      route,
-      request,
-    );
+    // Native entries resolve the request language in their own handler, with
+    // the same resolver the Node host uses; the legacy detector would differ.
+    const localeRedirectResponse =
+      route?.worker && getNativeRouteIdentity(route)
+        ? null
+        : createLocaleRedirectResponseForRequest(route, request);
 
     if (localeRedirectResponse) {
       return finalizeResponseForRequest(
@@ -70,7 +79,10 @@ export default {
           routeDataResponse ??
             (await dispatchRouteWorker(
               route,
-              createRenderableRequest(request),
+              // The native dispatcher handles HEAD itself, as on Node.
+              getNativeRouteIdentity(route)
+                ? request
+                : createRenderableRequest(request),
               env,
               ctx,
             )),

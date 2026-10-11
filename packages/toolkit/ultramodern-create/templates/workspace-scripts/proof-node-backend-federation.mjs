@@ -6,6 +6,10 @@ import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+  verifyMicroVerticalReleaseEnvelope,
+} from '@modern-js/app-tools-extensions/release-envelope';
 
 const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
 const workspaceRequire = createRequire(path.join(workspaceRoot, 'package.json'));
@@ -230,6 +234,7 @@ export function topologyApps(topology, localOverlay, appFilter, env = process.en
       rpcPath: app.api.rpcPath,
       rpcSerialization: app.api.rpcSerialization,
       apiOnly: app.surfaceProfile === 'api-only',
+      ...(app.rendererProfile ? { rendererProfile: app.rendererProfile } : {}),
       smokeChecks: collectJsonSmokeChecks(apps, declared),
       topologyDeliveryUnit:
         app.deliveryUnit && typeof app.deliveryUnit === 'object'
@@ -480,14 +485,14 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export function readBoundReleaseEnvelope(app, target) {
+export async function readBoundReleaseEnvelope(app, target) {
   const targetDirectory = path.join(workspaceRoot, app.directory, target);
   const envelopePath = path.join(targetDirectory, releaseEnvelopePath);
   assertFile(envelopePath, app.id, 'Node release envelope');
   const envelope = readJson(envelopePath);
   assertEqual(
     envelope.schemaVersion,
-    3,
+    MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
     `${app.id} release-envelope schema`,
   );
   assertEqual(envelope.target, 'node', `${app.id} release-envelope target`);
@@ -502,6 +507,9 @@ export function readBoundReleaseEnvelope(app, target) {
     }
   } else if (!envelope.surfaces?.uiClient?.length || !envelope.surfaces?.ssr?.length) {
     throw new Error(`${app.id} full-stack release envelope must bind UI/client and SSR surfaces`);
+  }
+  if (!app.apiOnly && !app.rendererProfile) {
+    throw new Error(`${app.id} full-stack Node proof requires its resolved renderer profile`);
   }
 
   const manifestLogicalPath = envelope.surfaces?.backendFederation?.manifest;
@@ -567,9 +575,21 @@ export function readBoundReleaseEnvelope(app, target) {
     );
     return artifact;
   });
+  const verifiedEnvelope = await verifyMicroVerticalReleaseEnvelope(envelope, {
+    artifactRoot: targetDirectory,
+    expectedTarget: 'node',
+    ...(app.apiOnly ? {} : { expectedRendererProfile: app.rendererProfile }),
+  });
+  if (!app.apiOnly) {
+    assertEqual(
+      verifiedEnvelope.ui.rendererIdentity.appId,
+      app.id,
+      `${app.id} release-envelope renderer app identity`,
+    );
+  }
 
   return {
-    envelope,
+    envelope: verifiedEnvelope,
     envelopePath,
     manifestArtifact: artifactByPath.get(manifestLogicalPath),
     containerArtifact: artifactByPath.get(containerLogicalPath),
@@ -1160,7 +1180,7 @@ async function proveBackend(app, backendRuntime, target) {
   assertTopologyStableIdentityMatchesBuild(app, buildIdentity);
   const manifest = readJson(manifestPath);
   validateManifest(app, manifest, buildIdentity);
-  const releaseBinding = readBoundReleaseEnvelope(app, target);
+  const releaseBinding = await readBoundReleaseEnvelope(app, target);
   assertEqual(
     releaseBinding.envelope.identity?.unitId,
     buildIdentity.unitId,

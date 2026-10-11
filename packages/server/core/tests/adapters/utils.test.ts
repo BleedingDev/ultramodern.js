@@ -42,9 +42,12 @@ describe('isResFinalized', () => {
       },
       true,
     ],
-  ])('classifies a %s response by lifecycle state', (_, response, finalized) => {
-    expect(isResFinalized(response as any)).toBe(finalized);
-  });
+  ])(
+    'classifies a %s response by lifecycle state',
+    (_, response, finalized) => {
+      expect(isResFinalized(response as any)).toBe(finalized);
+    },
+  );
 });
 
 const createContext = (res: any) => ({

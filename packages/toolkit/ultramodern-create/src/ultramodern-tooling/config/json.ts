@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 
 export function readJsonObject(filePath: string): Record<string, any> {
-  const value = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  const source = fs.readFileSync(filePath, 'utf-8');
+  const value = JSON.parse(source);
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(
       `UltraModern config must contain a JSON object: ${filePath}`,
@@ -11,5 +12,6 @@ export function readJsonObject(filePath: string): Record<string, any> {
 }
 
 export function readOptionalJsonObject(filePath: string): Record<string, any> {
-  return fs.existsSync(filePath) ? readJsonObject(filePath) : {};
+  const existed = fs.existsSync(filePath);
+  return existed ? readJsonObject(filePath) : {};
 }

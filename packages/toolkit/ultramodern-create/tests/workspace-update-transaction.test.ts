@@ -365,7 +365,17 @@ test('fresh recovery preserves foreign bytes, replaced directories, and live-own
 test('fresh recovery leaves committed output and ignores updater receipts', () => {
   const f = fixture();
   try {
-    crashDuringPublication(f.root);
+    const crashed = crashDuringPublication(f.root);
+    assert.equal(
+      crashed.status,
+      process.platform === 'win32' ? 1 : null,
+      crashed.stderr,
+    );
+    assert.equal(
+      crashed.signal,
+      process.platform === 'win32' ? null : 'SIGKILL',
+      crashed.stderr,
+    );
     recoverFreshWorkspaceTransactions(f.root);
     assert.equal(
       fs.readFileSync(path.join(f.root, 'owned.json'), 'utf8'),

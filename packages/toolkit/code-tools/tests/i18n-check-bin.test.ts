@@ -84,16 +84,19 @@ test.each([
     { pluralCategories: { en: ['one'] } },
     '.pluralCategories" must be an object',
   ],
-])('modern-i18n-check names the invalid package.json field %#', (i18nCheck, message) => {
-  const root = workspace({
-    'package.json': JSON.stringify({ modernjs: { i18nCheck } }),
-  });
+])(
+  'modern-i18n-check names the invalid package.json field %#',
+  (i18nCheck, message) => {
+    const root = workspace({
+      'package.json': JSON.stringify({ modernjs: { i18nCheck } }),
+    });
 
-  const result = run(root);
+    const result = run(root);
 
-  expect(result.status).toBe(2);
-  expect(result.stderr).toContain(`"modernjs.i18nCheck${message}`);
-});
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(`"modernjs.i18nCheck${message}`);
+  },
+);
 
 test('modern-i18n-check defaults sourceRoots to the conventional directories that exist', () => {
   const root = workspace({

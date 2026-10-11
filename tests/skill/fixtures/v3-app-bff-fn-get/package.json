@@ -6,7 +6,9 @@
     "build": "modern build",
     "serve": "modern serve"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@modern-js/runtime": "3.0.0",
     "react": "^19.3.0",

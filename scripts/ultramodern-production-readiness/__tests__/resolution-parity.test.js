@@ -243,3 +243,26 @@ test('a scaffold the generator wrote differently fails and names the files', asy
     /Accepted source scaffold files do not match its workspaceSha256/u,
   );
 });
+
+test('release-age closure includes pnpm 12 toolchain and configuration dependencies', async () => {
+  const { buildDependencyClosure } = await api();
+  const fixture = lock([
+    { name: 'pnpm', version: '12.8.1' },
+    { name: 'config-plugin', version: '1.0.0' },
+    { name: 'effect', version: '4.0.0' },
+  ]);
+  const importer = fixture.importers['.'];
+  importer.packageManagerDependencies = { pnpm: importer.dependencies.pnpm };
+  importer.configDependencies = {
+    'config-plugin': importer.dependencies['config-plugin'],
+  };
+  delete importer.dependencies.pnpm;
+  delete importer.dependencies['config-plugin'];
+  const result = buildDependencyClosure(fixture);
+  assert.deepEqual(result.unresolved, []);
+  assert.deepEqual(result.closure.map(item => item.name).sort(), [
+    'config-plugin',
+    'effect',
+    'pnpm',
+  ]);
+});

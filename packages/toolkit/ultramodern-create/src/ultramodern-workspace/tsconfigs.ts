@@ -5,9 +5,10 @@ import {
   resolveRemoteRefs,
   sharedPackages,
 } from './descriptors';
-import { effectDiagnostics } from './effect-diagnostics';
+import { effectDiagnosticSeverity } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
-import type { JsonValue, WorkspaceApp } from './types';
+import { resolveAppGenerationProfile } from './renderer-profile';
+import type { JsonObject, JsonValue, WorkspaceApp } from './types';
 export function createTsConfigBase(): JsonValue {
   return {
     compilerOptions: {
@@ -37,13 +38,11 @@ export function createTsConfigBase(): JsonValue {
           name: '@effect/language-service',
           diagnostics: true,
           includeSuggestionsInTsc: true,
-          ignoreEffectSuggestionsInTscExitCode: false,
+          ignoreEffectSuggestionsInTscExitCode: true,
           ignoreEffectWarningsInTscExitCode: false,
           ignoreEffectErrorsInTscExitCode: false,
           skipDisabledOptimization: true,
-          diagnosticSeverity: Object.fromEntries(
-            effectDiagnostics.map(name => [name, 'error']),
-          ),
+          diagnosticSeverity: effectDiagnosticSeverity,
         },
       ],
     },
@@ -79,10 +78,12 @@ type CreatePackageTsConfigOptions = {
   skipLibCheck?: boolean;
 };
 
+type PackageTsConfig = JsonObject & { compilerOptions: JsonObject };
+
 export function createPackageTsConfig(
   packageDir: string,
   options: CreatePackageTsConfigOptions | boolean = {},
-): JsonValue {
+): PackageTsConfig {
   const resolvedOptions =
     typeof options === 'boolean' ? { includeApi: options } : options;
   const include = resolvedOptions.include ?? [
@@ -102,7 +103,7 @@ export function createPackageTsConfig(
     packageDir,
     resolvedOptions.references ?? [],
   );
-  const tsconfig: Record<string, JsonValue> = {
+  const tsconfig: PackageTsConfig = {
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
     compilerOptions: {
       composite: true,
@@ -135,7 +136,7 @@ export function createAppTsConfig(
     // Project references would require declaration output before host builds.
     ...remoteRefs.map(remote => remote.directory),
   ];
-  return createPackageTsConfig(app.directory, {
+  const config = createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),
     includeServer: true,
     references,
@@ -143,6 +144,15 @@ export function createAppTsConfig(
     // checker traverses framework declaration dependencies outside app source.
     skipLibCheck: remoteRefs.length > 0,
   });
+  const profile = resolveAppGenerationProfile(app);
+  if (profile) {
+    const compilerOptions = config.compilerOptions;
+    compilerOptions.jsx = 'preserve';
+    compilerOptions.jsxImportSource = profile.jsxImportSource;
+    if (profile.renderer !== 'react') compilerOptions.types = [];
+    Object.assign(config, profile.tsconfig);
+  }
+  return config;
 }
 
 export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {

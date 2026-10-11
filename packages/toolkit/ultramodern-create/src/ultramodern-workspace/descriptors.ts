@@ -6,6 +6,7 @@ import {
   toPascalCase,
 } from './naming';
 import type {
+  ApplicationRenderer,
   Ownership,
   VerticalApiProtocol,
   VerticalPreset,
@@ -19,24 +20,19 @@ export function distributedSsrExposes(app: WorkspaceApp) {
     .toSorted();
 }
 
-export function distributedSsrFragmentSlug(expose: string) {
-  const slug = toKebabCase(expose.replace(/^\.\//u, ''));
-  if (!slug) {
-    throw new Error(`Invalid distributed SSR expose ${expose}.`);
-  }
-  return slug;
-}
-
-export function distributedSsrFragmentRoute(expose: string) {
-  return `/{locale}/_mf/fragment/${distributedSsrFragmentSlug(expose)}`;
-}
+export {
+  distributedSsrFragmentRoute,
+  distributedSsrFragmentSlug,
+} from '@modern-js/app-tools-extensions/workspace-topology';
 
 export const shellApp: WorkspaceApp = {
+  renderer: 'react',
   id: 'shell-super-app',
   directory: 'apps/shell-super-app',
   packageSuffix: 'shell-super-app',
   displayName: 'Shell Super App',
   kind: 'shell',
+  surfaceProfile: 'ui-only',
   portEnv: 'SHELL_SUPER_APP_PORT',
   port: 3020,
   mfName: 'shellSuperApp',
@@ -101,6 +97,7 @@ export function createNeutralOwnership(
 }
 
 export type CreateVerticalDescriptorOptions = {
+  renderer?: ApplicationRenderer;
   /** Generation preset (G2a). Defaults to `full-stack`. */
   preset?: VerticalPreset;
   /** API protocol (G7a). Defaults to `rest`. */
@@ -132,6 +129,7 @@ export function createVerticalDescriptor(
   );
   return {
     id,
+    renderer: emitsUi ? (options.renderer ?? 'react') : 'none',
     directory: `verticals/${domain}`,
     packageSuffix: domain,
     displayName: `${displayPrefix} Vertical`,

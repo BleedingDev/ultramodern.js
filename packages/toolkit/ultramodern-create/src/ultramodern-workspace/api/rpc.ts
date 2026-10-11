@@ -54,7 +54,7 @@ export function createRpcContractFile(service: ApiService): string {
   const stem = resolveApiStem(service);
   const pascalStem = toPascalCase(stem);
 
-  return `import { Rpc, RpcGroup } from 'effect/unstable/rpc';
+  return `import { Rpc, RpcGroup } from 'effect/rpc';
 import { Schema } from '@modern-js/bff-effect/effect-client';
 
 export interface ${pascalStem}RpcItem {

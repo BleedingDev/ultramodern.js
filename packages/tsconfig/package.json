@@ -23,5 +23,8 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "main": "./base.json"
+  "main": "./base.json",
+  "files": [
+    "*.json"
+  ]
 }

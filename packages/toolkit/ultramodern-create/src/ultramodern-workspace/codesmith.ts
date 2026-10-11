@@ -29,6 +29,7 @@ type UltramodernCodeSmithConfig = {
   logResult?: boolean;
   bridge?: UltramodernWorkspaceOptions['bridge'];
   overlays?: UltramodernWorkspaceOptions['overlays'];
+  renderer?: UltramodernWorkspaceOptions['renderer'];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
   /** Vertical generation preset (G2a). Vertical mode only. */
   preset?: VerticalPreset;
@@ -104,33 +105,38 @@ export default async function ultramodernCodeSmithAdapter(
       'UltraModern CodeSmith dry-run is supported only in vertical mode.',
     );
   }
+  if (mode === 'vertical' && config.renderer !== undefined) {
+    throw new Error(
+      'UltraModern CodeSmith renderer selection is supported only when creating a workspace. Existing applications select their renderer in modern.config.',
+    );
+  }
 
   const name = await resolveName(context, config, mode);
-  const result =
-    mode === 'workspace'
-      ? generateUltramodernWorkspace({
-          targetDir: resolveTargetDir(basePath, config.targetDir, name),
-          packageName: name,
+  const result = await (mode === 'workspace'
+    ? generateUltramodernWorkspace({
+        targetDir: resolveTargetDir(basePath, config.targetDir, name),
+        packageName: name,
+        modernVersion,
+        enableTailwind,
+        bridge: config.bridge,
+        overlays: config.overlays,
+        packageSource,
+        renderer: config.renderer,
+      })
+    : runVerticalMode(
+        {
+          workspaceRoot: resolveWorkspaceRoot(basePath, config.workspaceRoot),
+          name,
           modernVersion,
           enableTailwind,
-          bridge: config.bridge,
           overlays: config.overlays,
           packageSource,
-        })
-      : runVerticalMode(
-          {
-            workspaceRoot: resolveWorkspaceRoot(basePath, config.workspaceRoot),
-            name,
-            modernVersion,
-            enableTailwind,
-            overlays: config.overlays,
-            packageSource,
-            ...(config.preset ? { preset: config.preset } : {}),
-            ...(config.apiProtocol ? { apiProtocol: config.apiProtocol } : {}),
-            ...(config.horizontalRemote ? { horizontalRemote: true } : {}),
-          },
-          Boolean(config.dryRun),
-        );
+          ...(config.preset ? { preset: config.preset } : {}),
+          ...(config.apiProtocol ? { apiProtocol: config.apiProtocol } : {}),
+          ...(config.horizontalRemote ? { horizontalRemote: true } : {}),
+        },
+        Boolean(config.dryRun),
+      ));
 
   context.data ??= {};
   context.data.ultramodernResult = result;

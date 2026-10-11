@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
-import execa from '@modern-js/utils/execa';
+import { execaSync } from '@modern-js/utils/execa';
 
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { formatGeneratedWorkspaceFiles } from '../src/ultramodern-workspace/fs-io';
-import { createWorkspace } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkInstalledEffectCompiler,
+} from './helpers/workspace-kit';
 
 interface OxlintReport {
   diagnostics: unknown[];
@@ -57,17 +61,15 @@ function provisionGeneratedLintDependencies(workspaceDir: string) {
   const nodeModulesDir = path.join(workspaceDir, 'node_modules');
   fs.mkdirSync(nodeModulesDir, { recursive: true });
   for (const packageName of ['oxfmt', 'oxlint', 'ultracite']) {
+    const destination = path.join(nodeModulesDir, packageName);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.symlinkSync(
       path.join(lintDependencyNodeModules, packageName),
-      path.join(nodeModulesDir, packageName),
+      destination,
       process.platform === 'win32' ? 'junction' : 'dir',
     );
   }
-  fs.symlinkSync(
-    fs.realpathSync(path.join(packageRoot, 'node_modules/typescript')),
-    path.join(nodeModulesDir, 'typescript'),
-    process.platform === 'win32' ? 'junction' : 'dir',
-  );
+  linkInstalledEffectCompiler(workspaceDir);
   provisionPackageBinary(nodeModulesDir, 'oxlint', 'oxlint');
 }
 
@@ -138,12 +140,12 @@ function assertGeneratedWorkspaceLintClean(
   if (process.platform === 'win32') {
     env.Path = externalPath;
   }
-  const result = execa.sync(
+  const result = execaSync(
     'pnpm',
     ['--config.verify-deps-before-run=false', 'lint', '--format', 'json'],
     {
       cwd: workspaceDir,
-      encoding: 'utf-8',
+      encoding: 'utf8',
       env,
       reject: false,
     },
@@ -183,60 +185,55 @@ function assertGeneratedWorkspaceContractClean(
   );
 }
 
-test('generated shell, checkout, and generic verticals are lint-clean', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('generated-lint', {
-    tempPrefix: 'um-generated-lint-',
+describe.each([
+  { state: 'shell-only workspace', verticals: [] },
+  { state: 'workspace with checkout', verticals: ['checkout'] },
+  {
+    state: 'workspace with checkout, catalog, and records',
+    verticals: ['checkout', 'catalog', 'records'],
+  },
+])('generated workspace lint and contracts: $state', ({ state, verticals }) => {
+  let tempRoot: string;
+  let workspaceDir: string;
+  let setup: Promise<void> | undefined;
+
+  beforeAll(() => {
+    setup = (async () => {
+      tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-generated-lint-'));
+      workspaceDir = path.join(tempRoot, 'generated-lint');
+      await createWorkspace('generated-lint', { workspaceDir });
+      provisionGeneratedLintDependencies(workspaceDir);
+      for (const name of verticals) {
+        await addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name,
+          modernVersion: '3.2.1',
+        });
+      }
+    })();
+    return setup;
   });
 
-  try {
-    provisionGeneratedLintDependencies(workspaceDir);
-    assertGeneratedWorkspaceLintClean(workspaceDir, 'shell-only workspace');
-    assertGeneratedWorkspaceContractClean(workspaceDir, 'shell-only workspace');
+  afterAll(async () => {
+    // A hook timeout leaves setup running; drain it before removing the fixture.
+    if (setup) await Promise.allSettled([setup]);
+    if (tempRoot) fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
 
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
-      name: 'checkout',
-      modernVersion: '3.2.1',
-    });
-    assertGeneratedWorkspaceLintClean(workspaceDir, 'workspace with checkout');
-    assertGeneratedWorkspaceContractClean(
-      workspaceDir,
-      'workspace with checkout',
-    );
-
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
-      name: 'catalog',
-      modernVersion: '3.2.1',
-    });
-    // One named and one generic vertical exercise the distinct generated
-    // branches; the complete template does not need five more lint passes.
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
-      name: 'records',
-      modernVersion: '3.2.1',
-    });
-    assertGeneratedWorkspaceLintClean(
-      workspaceDir,
-      'workspace with checkout, catalog, and records',
-    );
-    assertGeneratedWorkspaceContractClean(
-      workspaceDir,
-      'workspace with checkout, catalog, and records',
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
+  test('generated files are lint-clean and validate', () => {
+    assertGeneratedWorkspaceLintClean(workspaceDir, state);
+    assertGeneratedWorkspaceContractClean(workspaceDir, state);
+  });
 });
 
-test('generated APIs pass real Oxlint after Oxfmt with the current preset and native boundaries', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('erp-api-lint');
+test('generated APIs pass real Oxlint after Oxfmt with the current preset and native boundaries', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace('erp-api-lint');
   try {
     provisionGeneratedLintDependencies(workspaceDir);
     provisionApiDependencies(workspaceDir, 'erp-api-lint');
     const names = ['inventory', 'orders'];
     for (const name of names) {
-      addUltramodernVertical({
+      await addUltramodernVertical({
         workspaceRoot: workspaceDir,
         name,
         modernVersion: '3.9.0',

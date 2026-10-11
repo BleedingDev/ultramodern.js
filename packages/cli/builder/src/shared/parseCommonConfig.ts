@@ -7,7 +7,6 @@ import {
 } from '@rsbuild/core';
 import { pluginCssMinimizer } from '@rsbuild/plugin-css-minimizer';
 import { pluginLess } from '@rsbuild/plugin-less';
-import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginDevtool } from '../plugins/devtools';
 import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
@@ -293,7 +292,13 @@ export async function parseCommonConfig(
     );
   }
 
-  rsbuildPlugins.push(pluginReact());
+  rsbuildPlugins.push({
+    name: 'rsbuild:react',
+    async setup(api) {
+      const { pluginReact } = await import('@rsbuild/plugin-react');
+      return pluginReact().setup(api);
+    },
+  });
 
   if (!options?.disableReactCompiler && reactCompiler !== undefined) {
     // Browser code only: server graphs (node, workerSSR, BFF) render once per
@@ -323,8 +328,14 @@ export async function parseCommonConfig(
     svgDefaultExport,
   });
   if (svgrOptions !== false) {
-    const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
-    rsbuildPlugins.push(pluginSvgr(svgrOptions));
+    rsbuildPlugins.push({
+      name: 'rsbuild:svgr',
+      pre: ['rsbuild:react'],
+      async setup(api) {
+        const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
+        await pluginSvgr(svgrOptions).setup(api);
+      },
+    });
   }
 
   // assetsRetry inject should be later

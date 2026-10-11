@@ -42,7 +42,7 @@ export const isUseSSRBundle = (config: any): boolean => {
 };
 
 export const isUseRsc = (config: any): boolean => {
-  return config?.server?.rsc;
+  return Boolean(config?.server?.rsc);
 };
 
 /**

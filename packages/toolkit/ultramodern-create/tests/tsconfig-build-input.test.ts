@@ -19,23 +19,28 @@ import {
   createTsConfigBase,
 } from '../src/ultramodern-workspace/tsconfigs';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
-import { linkBuiltRuntimeExtensions } from './helpers/build-module';
+import {
+  createReactBuildFixtureApp,
+  linkBuiltBackendFederationContracts,
+} from './helpers/build-module';
 import { runStableTypeScript } from './helpers/stable-typescript';
 
 const require = createRequire(import.meta.url);
 const buildInput = 'shared/ultramodern-build.json';
-const apps: WorkspaceApp[] = [
-  shellApp,
-  createVerticalDescriptor('catalog', 3101),
-  {
-    ...createVerticalDescriptor('orders', 3102),
-    surfaceProfile: 'api-only',
-  },
-  {
-    ...createVerticalDescriptor('nested', 3103),
-    directory: 'domains/commerce/apps/nested',
-  },
-];
+const apps: WorkspaceApp[] = (
+  [
+    shellApp,
+    createVerticalDescriptor('catalog', 3101),
+    {
+      ...createVerticalDescriptor('orders', 3102),
+      surfaceProfile: 'api-only',
+    },
+    {
+      ...createVerticalDescriptor('nested', 3103),
+      directory: 'domains/commerce/apps/nested',
+    },
+  ] satisfies WorkspaceApp[]
+).map(app => createReactBuildFixtureApp('build-input', app));
 
 test('generated composite projects compile their actual build modules and JSON artifacts', () => {
   const root = fs.mkdtempSync(
@@ -58,10 +63,7 @@ test('generated composite projects compile their actual build modules and JSON a
       );
       write(`${shared.directory}/src/index.ts`, 'export {};\n');
     }
-    linkBuiltRuntimeExtensions(
-      path.join(root, 'node_modules'),
-      'build-identity',
-    );
+    linkBuiltBackendFederationContracts(path.join(root, 'node_modules'));
     const nodeTypesLink = path.join(root, 'node_modules/@types/node');
     fs.mkdirSync(path.dirname(nodeTypesLink), { recursive: true });
     fs.symlinkSync(

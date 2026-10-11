@@ -168,12 +168,12 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
-    "lru-cache": "^11.5.3",
-    "react-router": "7.18.4"
+    "lru-cache": "^11.5.3"
   },
   "peerDependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router": "^7.18.4"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -181,21 +181,24 @@
     },
     "react-dom": {
       "optional": true
+    },
+    "react-router": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.8",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
+    "happy-dom": "^20.14.5",
+    "ioredis": "^5.11.1",
     "ioredis-mock": "^8.13.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "^7.0.2",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "happy-dom": "^20.14.5",
-    "ioredis": "^5.11.1"
+    "typescript": "7.0.2",
+    "react-router": "7.18.4"
   },
   "sideEffects": false
 }

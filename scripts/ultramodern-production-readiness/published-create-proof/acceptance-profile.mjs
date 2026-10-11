@@ -27,6 +27,7 @@ import {
   assertReleaseAcceptanceProfile,
   assertRuntimeAcceptanceDimension,
   createOperationalIndependenceResultDetails,
+  createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
   resolutionParityResultId,
@@ -55,7 +56,8 @@ import {
   resolveCreatePackage,
 } from './package-cohort.mjs';
 import {
-  createCleanPnpmDlxEnv,
+  acceptancePackageManagerRoot,
+  createAcceptancePackageManagerEnv,
   roundDurationMs,
   run,
   runAsync,
@@ -95,6 +97,21 @@ const requiredPnpmCommands = Object.freeze({
   build: Object.freeze(['build']),
   cloudflareBuild: Object.freeze(['cloudflare:build']),
 });
+
+function createRuntimeArtifactBinding(release) {
+  const artifactBinding = createReleaseArtifactBinding(release);
+  // The receipt audits every packed SDK dependency. Executed app surfaces
+  // attest the exact runtime package declared by that application.
+  const moduleFederation = artifactBinding.moduleFederation.filter(
+    item => item.packageName === '@module-federation/runtime',
+  );
+  if (moduleFederation.length !== 1) {
+    throw new Error(
+      'Release acceptance requires one exact Module Federation runtime in its verified artifact cohort',
+    );
+  }
+  return { ...artifactBinding, moduleFederation };
+}
 
 function createAcceptanceReleaseAgeEnv(
   runtimeEnv,
@@ -233,10 +250,6 @@ const acceptancePlaywrightInstallArgs = Object.freeze([
 ]);
 const acceptanceBrowserIsolations = Object.freeze(['inherited', 'isolated']);
 
-function acceptancePackageManagerRoot(workDir) {
-  return path.join(workDir, 'package-manager');
-}
-
 function acceptancePlaywrightBrowsersPath(workDir) {
   return path.join(
     acceptancePackageManagerRoot(workDir),
@@ -300,44 +313,6 @@ function inheritedPlaywrightBrowsersPath(
   throw new Error(
     `Inherited acceptance browsers require an absolute PLAYWRIGHT_BROWSERS_PATH in the injected environment, found ${String(browsersPath)}. ${reason} Provision the browsers with PLAYWRIGHT_BROWSERS_PATH set (as the acceptance jobs do) or ask for browsers: 'isolated'.`,
   );
-}
-
-function createAcceptancePackageManagerEnv(
-  workDir,
-  registryEnv = {},
-  pnpmExecutable,
-  environment = process.env,
-) {
-  const env = {
-    ...createCleanPnpmDlxEnv(acceptancePackageManagerRoot(workDir)),
-    ...registryEnv,
-    CI: 'true',
-    npm_config_fetch_retries: '5',
-    npm_config_fetch_timeout: '600000',
-    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
-    pnpm_config_fetch_retries: '5',
-    pnpm_config_fetch_timeout: '600000',
-    pnpm_config_network_concurrency: '8',
-    ULTRAMODERN_CREATE_BIN: undefined,
-    ZE_CI_TOKEN: undefined,
-  };
-  if (pnpmExecutable !== undefined) {
-    if (!path.isAbsolute(pnpmExecutable)) {
-      throw new Error(
-        `Acceptance pnpm executable must be absolute: ${pnpmExecutable}`,
-      );
-    }
-    // The PATH the caller injected, never the ambient parent PATH: a runtime
-    // context is only hermetic if its own environment decides what the child
-    // can execute.
-    env.PATH = [path.dirname(pnpmExecutable), environment.PATH]
-      .filter(Boolean)
-      .join(path.delimiter);
-  }
-  // The clean room performs no Zephyr Cloud deploy, so ZE_CI_TOKEN is absent
-  // and the generated build never engages Zephyr (it stays a registered but
-  // inactive plugin). This tests "builds without a Zephyr Cloud account".
-  return env;
 }
 
 // Opt-in build parallelism for larger self-hosted runners. Unset (the
@@ -588,6 +563,7 @@ function createAcceptanceRuntimeContext({
   environment = process.env,
   expectedPnpmVersion,
   registryEnv = {},
+  storeDir,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
   verificationCwd,
@@ -623,6 +599,7 @@ function createAcceptanceRuntimeContext({
     registryEnv,
     pnpmExecutable,
     environment,
+    { storeDir },
   );
   env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
   // Only what a clean room actually consumes: the child environment and the
@@ -1142,6 +1119,7 @@ async function acceptBuiltWorkspace({
   registryUrl,
   release,
   runImpl,
+  runtimeArtifactBinding,
 }) {
   let applicationSourceRevision;
   let artifacts;
@@ -1311,7 +1289,7 @@ async function acceptBuiltWorkspace({
           }
           return assertRuntimeAcceptanceDimension(report, {
             applicationSourceRevision,
-            artifactBinding: receipt.binding.artifacts,
+            artifactBinding: runtimeArtifactBinding,
             dimension,
             mode: 'source',
             platform,
@@ -1362,6 +1340,7 @@ async function runAcceptanceProfile({
   proveOperationalTargetImpl = proveOperationalTarget,
   now = Date,
   workDir: suppliedWorkDir,
+  storeDir,
 }) {
   if (!['source', 'published'].includes(mode)) {
     throw new Error(
@@ -1397,6 +1376,7 @@ async function runAcceptanceProfile({
       browsers: mode === 'source' ? 'inherited' : 'isolated',
       expectedPnpmVersion: release.tools?.pnpm ?? runtime.pnpm,
       registryEnv,
+      storeDir,
       runImpl,
       workDir,
     });
@@ -1416,6 +1396,7 @@ async function runAcceptanceProfile({
       runIdentity,
       now,
     });
+    const runtimeArtifactBinding = createRuntimeArtifactBinding(release);
 
     let failure;
     let audit;
@@ -1512,7 +1493,8 @@ async function runAcceptanceProfile({
             now: currentTime(now),
           });
           bindSupplyChainEvidence(receipt, audit.digests);
-          const advisories = assertNoHighAdvisoriesImpl({
+          const advisories = await assertNoHighAdvisoriesImpl({
+            allowRepositoryCorrections: false,
             cwd: projectDir,
             env: packageManagerEnv,
             now: currentTime(now),
@@ -1569,6 +1551,7 @@ async function runAcceptanceProfile({
           registryUrl,
           release,
           runImpl,
+          runtimeArtifactBinding,
         });
       }
     } catch (error) {
@@ -1611,7 +1594,10 @@ export {
   createAcceptancePackageManagerEnv,
   createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
+  createOperationalIndependenceCommit,
+  createRuntimeArtifactBinding,
   inheritedPlaywrightBrowsersPath,
+  operationalIndependenceIds,
   requiredPnpmCommands,
   reserveAcceptanceSmokePorts,
   resolveExactPnpmExecutable,

@@ -4,6 +4,24 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import type { DeliveryUnitRecord } from '@modern-js/backend-federation-contracts';
+import { linkBuiltBackendFederationContracts } from './helpers/build-module';
+
+// The shipped Node script validates the stamped artifact with the built
+// contracts package, so the fixture writes it through the same package.
+const contracts: typeof import('@modern-js/backend-federation-contracts') =
+  createRequire(__filename)('@modern-js/backend-federation-contracts');
+const record: DeliveryUnitRecord = {
+  schemaVersion: contracts.DELIVERY_UNIT_SCHEMA_VERSION,
+  kind: contracts.DELIVERY_UNIT_KIND,
+  appId: 'catalog',
+  unitId: 'catalog-unit',
+  packageName: '@test/catalog',
+  version: '1.0.0',
+  buildMarker: 'catalog-build',
+  sourceRevision: 'abc123',
+  deployProfile: contracts.DELIVERY_UNIT_DEPLOY_PROFILE,
+};
 
 const writeJson = (filePath: string, value: unknown) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -23,6 +41,9 @@ test('generated Node backend container adopts the host registry before evaluatin
       path.join(scope, 'bff-effect'),
       'dir',
     );
+    linkBuiltBackendFederationContracts(
+      path.join(workspaceRoot, 'node_modules'),
+    );
     writeJson(path.join(workspaceRoot, 'topology/reference-topology.json'), {
       schemaVersion: 1,
       verticals: [
@@ -31,7 +52,11 @@ test('generated Node backend container adopts the host registry before evaluatin
           kind: 'vertical',
           path: 'verticals/catalog',
           package: '@test/catalog',
-          deliveryUnit: { unitId: 'catalog-unit' },
+          deliveryUnit: {
+            unitId: record.unitId,
+            buildMarker: record.buildMarker,
+            sourceRevision: record.sourceRevision,
+          },
           backendFederation: {
             name: 'catalogBackend',
             exposes: ['./effect-api'],
@@ -58,15 +83,10 @@ test('generated Node backend container adopts the host registry before evaluatin
       name: '@test/catalog',
       version: '1.0.0',
     });
-    writeJson(path.join(appDirectory, 'shared/ultramodern-build.json'), {
-      deliveryUnit: {
-        unitId: 'catalog-unit',
-        packageName: '@test/catalog',
-        version: '1.0.0',
-        buildMarker: 'catalog-build',
-        sourceRevision: 'abc123',
-      },
-    });
+    writeJson(
+      path.join(appDirectory, 'shared/ultramodern-build.json'),
+      contracts.createUltramodernBuildArtifact(record),
+    );
     fs.mkdirSync(path.join(appDirectory, 'api'), { recursive: true });
     fs.writeFileSync(
       path.join(appDirectory, 'api/effect-api.ts'),

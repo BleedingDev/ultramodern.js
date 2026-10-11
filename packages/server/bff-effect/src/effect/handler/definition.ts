@@ -1,6 +1,6 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
-import type { HttpApi } from 'effect/unstable/httpapi';
-import type { Rpc } from 'effect/unstable/rpc';
+import type { HttpApi } from 'effect/http-api';
+import type { Rpc } from 'effect/rpc';
 
 import { registerValidatorAwareHandlerFactory } from '../entry-shape';
 import { mergeDataPlatformOptions } from './envelope';

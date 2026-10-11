@@ -1,0 +1,129 @@
+{
+  "name": "@modern-js/renderer-solid",
+  "version": "3.8.3",
+  "description": "UltraModern native Solid 2 application runtime.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BleedingDev/ultramodern.js",
+    "directory": "packages/runtime/renderer-solid"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "./dist/esm-node/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "modern:source": "./src/index.ts",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/esm-node/index.js"
+    },
+    "./client": {
+      "modern:source": "./src/client.ts",
+      "types": "./dist/types/client.d.ts",
+      "default": "./dist/esm/client.js"
+    },
+    "./router": {
+      "modern:source": "./src/router.ts",
+      "types": "./dist/types/router.d.ts",
+      "worker": "./dist/esm-node/router.js",
+      "node": "./dist/esm-node/router.js",
+      "default": "./dist/esm/router.js"
+    },
+    "./server": {
+      "modern:source": "./src/server.ts",
+      "types": "./dist/types/server.d.ts",
+      "default": "./dist/esm-node/server.js"
+    },
+    "./federation": {
+      "modern:source": "./src/federation.tsx",
+      "types": "./dist/types/federation.d.ts",
+      "node": "./dist/esm-node/federation.js",
+      "default": "./dist/esm/federation.js"
+    },
+    "./manifest": {
+      "modern:source": "./src/manifest.ts",
+      "types": "./dist/types/manifest.d.ts",
+      "default": "./dist/esm-node/manifest.js"
+    },
+    "./i18n": {
+      "modern:source": "./src/i18n/index.ts",
+      "types": "./dist/types/i18n/index.d.ts",
+      "node": "./dist/esm-node/i18n/index.js",
+      "default": "./dist/esm/i18n/index.js"
+    },
+    "./entry-client": {
+      "modern:source": "./src/entry-client.tsx",
+      "types": "./dist/types/entry-client.d.ts",
+      "default": "./dist/esm/entry-client.js"
+    },
+    "./entry-server": {
+      "modern:source": "./src/entry-server.tsx",
+      "types": "./dist/types/entry-server.d.ts",
+      "default": "./dist/esm-node/entry-server.js"
+    },
+    "./plugin": {
+      "modern:source": "./src/plugin/index.ts",
+      "types": "./dist/types/plugin/index.d.ts",
+      "default": "./dist/esm-node/plugin/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "rslib build",
+    "test": "rstest"
+  },
+  "engines": {
+    "node": ">=26.10.0"
+  },
+  "dependencies": {
+    "@babel/core": "7.29.7",
+    "@jridgewell/remapping": "2.3.5",
+    "@modern-js/renderer-core": "workspace:*",
+    "@solidjs/signals": "2.0.0-rc.13",
+    "@solidjs/web": "2.0.0-rc.13",
+    "@tanstack/history": "1.162.4",
+    "@tanstack/router-core": "1.171.34",
+    "isbot": "5.2.2",
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8",
+    "solid-js": "2.0.0-rc.13"
+  },
+  "peerDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:^3.8.3",
+    "@rsbuild/core": "2.2.11",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "i18next": ">=25.7.4"
+  },
+  "peerDependenciesMeta": {
+    "@modern-js/i18n-runtime-extensions": {
+      "optional": true
+    },
+    "@rsbuild/core": {
+      "optional": true
+    },
+    "@solidjs/compiler": {
+      "optional": true
+    },
+    "i18next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
+    "@modern-js/tsconfig": "workspace:*",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
+    "@scripts/rstest-config": "workspace:*",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@types/node": "^26.6.3"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

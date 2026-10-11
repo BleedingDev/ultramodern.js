@@ -30,27 +30,30 @@ describe('buildShellBeforeTemplate', () => {
       'the exact stylesheet link',
       '<link href="/assets/async-index.css" rel="stylesheet" />',
     ],
-  ])('should preserve exactly one worker stylesheet when the template contains %s', async (_description, existingMarkup) => {
-    const stylesheet =
-      '<link href="/assets/async-index.css" rel="stylesheet" />';
-    const html = await buildWorkerShellBeforeTemplate(
-      `<html><head>${existingMarkup}${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
-      {
-        entryName: 'index',
-        runtimeContext: {
-          routeManifest: {
-            routeAssets: {
-              'async-index': {
-                referenceCssAssets: ['/assets/async-index.css'],
+  ])(
+    'should preserve exactly one worker stylesheet when the template contains %s',
+    async (_description, existingMarkup) => {
+      const stylesheet =
+        '<link href="/assets/async-index.css" rel="stylesheet" />';
+      const html = await buildWorkerShellBeforeTemplate(
+        `<html><head>${existingMarkup}${CHUNK_CSS_PLACEHOLDER}</head><body></body></html>`,
+        {
+          entryName: 'index',
+          runtimeContext: {
+            routeManifest: {
+              routeAssets: {
+                'async-index': {
+                  referenceCssAssets: ['/assets/async-index.css'],
+                },
               },
             },
-          },
-        } as any,
-        config: {} as any,
-      },
-    );
+          } as any,
+          config: {} as any,
+        },
+      );
 
-    expect(html).toContain(stylesheet);
-    expect(html.indexOf(stylesheet)).toBe(html.lastIndexOf(stylesheet));
-  });
+      expect(html).toContain(stylesheet);
+      expect(html.indexOf(stylesheet)).toBe(html.lastIndexOf(stylesheet));
+    },
+  );
 });

@@ -1,34 +1,42 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  normalizeWorkspaceInputs,
-  preserveUnknownProjectionFields,
-  reconcileGeneratedOverlayUrls,
-} from '../../ultramodern-tooling/config';
-import { rpcPath } from '../api/rpc';
-import { createServerExecutionOverlay } from '../backend-federation';
-import { createDevelopmentOverlay } from '../contracts';
+import { assertUltramodernBuildArtifact } from '@modern-js/backend-federation-contracts';
+import { yaml } from '@modern-js/utils';
+import { preserveUnknownProjectionFields } from '../../ultramodern-tooling/config';
 import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
 } from '../delivery-unit';
+import { stampDeliveryUnitIdentity } from '../delivery-unit-stamp';
 import {
   appEmitsBrowserUi,
-  appHasApi,
   createModuleFederationRemoteContracts,
-  resolveApiPrefix,
-  resolveApiProtocol,
-  resolveRemoteRefs,
 } from '../descriptors';
-import { formatGeneratedWorkspaceFiles, writeJsonFile } from '../fs-io';
 import {
+  projectAddedVerticalDevelopmentOverlay,
+  projectResolvedDevelopmentOverlay,
+} from '../development-overlay-projection';
+import {
+  formatGeneratedWorkspaceFiles,
+  writeFile,
+  writeFileReplacing,
+  writeJsonFile,
+} from '../fs-io';
+import {
+  assertOverlayKeptExistingSource,
   createFileSnapshot,
   createGenerationResult,
   diffFileSnapshots,
 } from '../generation-result';
-import { createAppModernConfig } from '../module-federation';
+import { createUltramodernBuildArtifactJson } from '../module-federation';
 import { runCodeSmithOverlays } from '../overlays';
 import { createRootTsConfig } from '../package-json';
+import { captureWorkspaceRendererEvaluations } from '../renderer-config-evaluation';
+import {
+  assertWorkspaceRendererArtifact,
+  reconcileWorkspaceRendererIdentities,
+} from '../renderer-identity';
+import { appSupportsFederation } from '../renderer-profile';
 import type {
   AddUltramodernVerticalOptions,
   JsonValue,
@@ -36,20 +44,37 @@ import type {
   WorkspaceApp,
 } from '../types';
 import {
+  assertRendererDependencies,
+  assertRendererProjection,
+  validateApiOnlySourceSurface,
+} from '../validation/renderer';
+import {
+  createCanonicalWorkspaceArtifactFormatter,
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
-  workspaceDevelopmentPorts,
 } from '../workspace-artifact-ownership';
 import { writeGeneratedWorkspaceScripts } from '../workspace-scripts';
 import { writeApp } from '../write-workspace';
 import { createZeropsYaml } from '../zerops';
-import { prepareAddUltramodernVertical } from './preflight';
+import { DEVELOPMENT_OVERLAY_PATH, TOPOLOGY_PATH } from './constants';
+import {
+  type AddUltramodernVerticalPreflight,
+  assertSupportedRendererComposition,
+  prepareAddUltramodernVertical,
+  readRequiredJsonObject,
+  resolveAddedVerticalComposition,
+  stageAddUltramodernVerticalPreflight,
+} from './preflight';
 import {
   rewriteShellAppFiles,
+  shellAppArtifacts,
   updateRootWorkspaceScripts,
 } from './shell-files';
 import { ownershipEntry, verticalTopologyEntry } from './topology';
-import { runWorkspaceTransaction } from './transaction';
+import {
+  recoverWorkspaceTransactions,
+  runWorkspaceTransaction,
+} from './transaction';
 
 /**
  * Add a MicroVertical to an existing workspace. Transactional (G1c): the
@@ -58,9 +83,11 @@ import { runWorkspaceTransaction } from './transaction';
  * formatting failure) the workspace is restored byte-identical to its
  * pre-call state and the error is rethrown.
  */
-export function addUltramodernVertical(
+export async function addUltramodernVertical(
   options: AddUltramodernVerticalOptions,
-): UltramodernGenerationResult {
+): Promise<UltramodernGenerationResult> {
+  recoverWorkspaceTransactions(path.resolve(options.workspaceRoot));
+  const preflight = await prepareAddUltramodernVertical(options);
   return runWorkspaceTransaction(options.workspaceRoot, stagingRoot =>
     executeAddUltramodernVertical(
       {
@@ -68,14 +95,17 @@ export function addUltramodernVertical(
         workspaceRoot: stagingRoot,
       },
       options.workspaceRoot,
+      stageAddUltramodernVerticalPreflight(preflight, stagingRoot),
     ),
   );
 }
 
-export function executeAddUltramodernVertical(
+export async function executeAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
   logicalWorkspaceRoot = options.workspaceRoot,
-): UltramodernGenerationResult {
+  prepared?: AddUltramodernVerticalPreflight,
+): Promise<UltramodernGenerationResult> {
+  const preflight = prepared ?? (await prepareAddUltramodernVertical(options));
   const beforeFiles = createFileSnapshot(options.workspaceRoot);
   const {
     scope,
@@ -95,7 +125,7 @@ export function executeAddUltramodernVertical(
     targetVerticals,
     vertical,
     updatedVerticals,
-  } = prepareAddUltramodernVertical(options);
+  } = preflight;
 
   const previousTailwind = config.features?.tailwind !== false;
   const existingVerticals = updatedVerticals.filter(
@@ -113,23 +143,14 @@ export function executeAddUltramodernVertical(
           }
         : app,
     );
-  const previousApps = normalizeWorkspaceInputs(options.workspaceRoot, {
-    topology,
-    overlay,
-  }).apps;
-  const previousDevPorts = workspaceDevelopmentPorts(previousApps);
-  const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
-    options.workspaceRoot,
-    workspaceArtifactCandidates(
-      scope,
-      previousProjection(previousApps),
-      previousTailwind,
-      previousProjection([
-        primaryShell,
-        ...existingVerticals,
-        ...additionalShells,
-      ]),
-    ),
+  const previousApps = [
+    primaryShell,
+    ...existingVerticals,
+    ...additionalShells,
+  ];
+  const previousRootCandidates = workspaceArtifactCandidates(
+    scope,
+    previousProjection(previousApps),
   );
 
   const nextTargetShell = {
@@ -147,9 +168,43 @@ export function executeAddUltramodernVertical(
   const nextAdditionalShells = additionalShells.map(shell =>
     shell.id === nextTargetShell.id ? nextTargetShell : shell,
   );
-  const configuredDevPorts = workspaceDevelopmentPorts(
-    [nextPrimaryShell, ...updatedVerticals, ...nextAdditionalShells],
-    overlay.ports,
+  const canonicalFormatter = createCanonicalWorkspaceArtifactFormatter([
+    ...previousRootCandidates,
+    ...workspaceArtifactCandidates(scope, [
+      nextPrimaryShell,
+      ...updatedVerticals,
+      ...nextAdditionalShells,
+    ]),
+    ...[nextPrimaryShell, ...nextAdditionalShells].flatMap(shellToRefresh => {
+      const previousShell = previousProjection(previousApps).find(
+        app => app.id === shellToRefresh.id,
+      )!;
+      return [
+        ...shellAppArtifacts(
+          scope,
+          packageSource,
+          previousTailwind,
+          existingVerticals,
+          bridge,
+          previousShell,
+        ).artifacts,
+        ...shellAppArtifacts(
+          scope,
+          packageSource,
+          enableTailwind,
+          updatedVerticals,
+          bridge,
+          shellToRefresh.id === nextTargetShell.id
+            ? nextTargetShell
+            : shellToRefresh,
+        ).artifacts,
+      ];
+    }),
+  ]);
+  const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
+    options.workspaceRoot,
+    previousRootCandidates,
+    canonicalFormatter,
   );
 
   writeApp(
@@ -160,8 +215,35 @@ export function executeAddUltramodernVertical(
     enableTailwind,
     updatedVerticals,
     bridge,
-    configuredDevPorts,
   );
+  for (const app of previousApps) {
+    const entry =
+      app.id === primaryShell.id
+        ? topology.shell
+        : (app.kind === 'shell' ? topology.shells : topology.verticals)?.find(
+            (candidate: Record<string, any>) => candidate.id === app.id,
+          );
+    if (entry) {
+      stampDeliveryUnitIdentity(
+        entry,
+        scope,
+        app,
+        app.deliveryUnit?.version ?? '0.1.0',
+      );
+      if (!appSupportsFederation(app)) delete entry.moduleFederation;
+      if (
+        app.rendererGenerationProfile &&
+        !app.rendererGenerationProfile.capabilities.workers
+      ) {
+        delete entry.cloudflare;
+      }
+    }
+    writeFileReplacing(
+      options.workspaceRoot,
+      `${app.directory}/shared/ultramodern-build.json`,
+      createUltramodernBuildArtifactJson(scope, app),
+    );
+  }
   const newPackagePath = path.join(
     options.workspaceRoot,
     vertical.directory,
@@ -184,24 +266,29 @@ export function executeAddUltramodernVertical(
       ...topology.shell.deliveryUnit,
     };
     topology.shell.verticalRefs = nextTargetShell.verticalRefs;
-    topology.shell.moduleFederation ??= {};
-    topology.shell.moduleFederation.remotes = preserveAuthoredRemoteUrls(
-      topology.shell.moduleFederation.remotes,
-      createModuleFederationRemoteContracts(
-        {
-          ...primaryShell,
-          verticalRefs: primaryShell.verticalRefs?.filter(id =>
-            existingIds.has(id),
-          ),
-        },
-        existingVerticals,
-      ),
-      createModuleFederationRemoteContracts(nextPrimaryShell, updatedVerticals),
-    ).map(remote => ({
-      id: remote.id,
-      name: remote.name,
-      manifestUrl: remote.manifestUrl,
-    }));
+    if (appSupportsFederation(nextPrimaryShell)) {
+      topology.shell.moduleFederation ??= {};
+      topology.shell.moduleFederation.remotes = preserveAuthoredRemoteUrls(
+        topology.shell.moduleFederation.remotes,
+        createModuleFederationRemoteContracts(
+          {
+            ...primaryShell,
+            verticalRefs: primaryShell.verticalRefs?.filter(id =>
+              existingIds.has(id),
+            ),
+          },
+          existingVerticals,
+        ),
+        createModuleFederationRemoteContracts(
+          nextPrimaryShell,
+          updatedVerticals,
+        ),
+      ).map(remote => ({
+        id: remote.id,
+        name: remote.name,
+        manifestUrl: remote.manifestUrl,
+      }));
+    }
   }
   topology.verticals ??= [];
   topology.verticals = topology.verticals.map((entry: Record<string, any>) => {
@@ -228,51 +315,20 @@ export function executeAddUltramodernVertical(
         : {}),
     };
   });
-  topology.verticals.push(verticalTopologyEntry(scope, vertical));
+  topology.verticals.push(
+    verticalTopologyEntry(scope, vertical, [], 'source-authoring'),
+  );
   ownership.owners ??= [];
   ownership.owners.push(ownershipEntry(scope, vertical));
-  const projectedOverlay = createDevelopmentOverlay(
-    scope,
-    existingVerticals,
-  ) as Record<string, any>;
   Object.assign(
     overlay,
-    reconcileGeneratedOverlayUrls(
+    projectAddedVerticalDevelopmentOverlay(
+      scope,
       overlay,
-      createDevelopmentOverlay(
-        scope,
-        previousApps.filter(app => app.kind !== 'shell'),
-      ) as Record<string, any>,
-      projectedOverlay,
+      existingVerticals,
+      vertical,
     ),
   );
-  overlay.serverExecution = preserveUnknownProjectionFields(
-    overlay.serverExecution,
-    projectedOverlay.serverExecution,
-  );
-  overlay.ports[vertical.id] = vertical.port;
-  overlay.manifests ??= {};
-  if (appEmitsBrowserUi(vertical)) {
-    overlay.manifests[vertical.id] =
-      `http://localhost:${vertical.port}/mf-manifest.json`;
-  } else {
-    delete overlay.manifests[vertical.id];
-  }
-  // API-scoped overlay entries only exist for units that ship an API surface
-  // (skipped for `ui-only` and horizontal-remote units — G2a/G2H).
-  if (appHasApi(vertical)) {
-    overlay.serverExecution ??= {};
-    overlay.serverExecution[vertical.id] = createServerExecutionOverlay(
-      scope,
-      vertical,
-    );
-    overlay.apis ??= {};
-    overlay.apis[vertical.id] = `http://localhost:${vertical.port}${
-      resolveApiProtocol(vertical) === 'rpc'
-        ? rpcPath(vertical)
-        : resolveApiPrefix(vertical)
-    }`;
-  }
   writeJsonFile(topologyPath, topology as JsonValue);
   writeJsonFile(ownershipPath, ownership as JsonValue);
   writeJsonFile(overlayPath, overlay as JsonValue);
@@ -282,25 +338,29 @@ export function executeAddUltramodernVertical(
         entry.id === nextTargetShell.id
           ? updateShellComposition(entry, {
               verticalRefs: nextTargetShell.verticalRefs,
-              moduleFederation: {
-                verticalRefs: nextTargetShell.verticalRefs,
-                remotes: preserveAuthoredRemoteUrls(
-                  entry.moduleFederation?.remotes,
-                  createModuleFederationRemoteContracts(
-                    {
-                      ...targetShell,
-                      verticalRefs: targetShell.verticalRefs?.filter(id =>
-                        existingIds.has(id),
+              ...(appSupportsFederation(nextTargetShell)
+                ? {
+                    moduleFederation: {
+                      verticalRefs: nextTargetShell.verticalRefs,
+                      remotes: preserveAuthoredRemoteUrls(
+                        entry.moduleFederation?.remotes,
+                        createModuleFederationRemoteContracts(
+                          {
+                            ...targetShell,
+                            verticalRefs: targetShell.verticalRefs?.filter(id =>
+                              existingIds.has(id),
+                            ),
+                          },
+                          existingVerticals,
+                        ),
+                        createModuleFederationRemoteContracts(
+                          nextTargetShell,
+                          updatedVerticals,
+                        ),
                       ),
                     },
-                    existingVerticals,
-                  ),
-                  createModuleFederationRemoteContracts(
-                    nextTargetShell,
-                    updatedVerticals,
-                  ),
-                ),
-              },
+                  }
+                : {}),
             })
           : entry,
     );
@@ -326,19 +386,19 @@ export function executeAddUltramodernVertical(
       shellToRefresh.id === nextTargetShell.id
         ? nextTargetShell
         : shellToRefresh,
-      configuredDevPorts,
       {
         shell: previousProjection(previousApps).find(
           app => app.id === shellToRefresh.id,
         )!,
         remotes: existingVerticals,
-        devPorts: previousDevPorts,
         enableTailwind: previousTailwind,
       },
+      canonicalFormatter,
     );
   }
   writeGeneratedWorkspaceScripts(options.workspaceRoot, {
     io: { writeGenerated: ownedIo.write },
+    renderer: nextPrimaryShell.rendererGenerationProfile!.renderer,
   });
   updateRootWorkspaceScripts(
     options.workspaceRoot,
@@ -349,6 +409,8 @@ export function executeAddUltramodernVertical(
     nextAdditionalShells,
     existingVerticals,
     nextPrimaryShell,
+    additionalShells,
+    primaryShell,
   );
   ownedIo.write(
     path.join(options.workspaceRoot, 'tsconfig.json'),
@@ -362,33 +424,11 @@ export function executeAddUltramodernVertical(
       2,
     )}\n`,
   );
-  if (configuredDevPorts) {
-    for (const app of [
-      nextPrimaryShell,
-      ...updatedVerticals,
-      ...nextAdditionalShells,
-    ]) {
-      if (app.id === vertical.id || app.id === nextTargetShell.id) {
-        continue;
-      }
-      ownedIo.write(
-        path.join(options.workspaceRoot, app.directory, 'modern.config.ts'),
-        createAppModernConfig(
-          scope,
-          app,
-          app.kind === 'shell'
-            ? resolveRemoteRefs(app, updatedVerticals)
-            : updatedVerticals,
-          enableTailwind,
-          configuredDevPorts,
-        ),
-      );
-    }
-  }
   const preliminaryAfterFiles = createFileSnapshot(options.workspaceRoot);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
 
   const preliminaryResult = createGenerationResult({
+    phase: 'source-authoring',
     operation: 'vertical',
     workspaceRoot: logicalWorkspaceRoot,
     packageScope: scope,
@@ -397,17 +437,166 @@ export function executeAddUltramodernVertical(
     createdPaths: preliminaryDiff.createdPaths,
     rewrittenPaths: preliminaryDiff.rewrittenPaths,
   });
+  const buildArtifactPath = `${vertical.directory}/shared/ultramodern-build.json`;
   runCodeSmithOverlays({
     workspaceRoot: options.workspaceRoot,
+    deferredUiArtifactPaths: new Set(
+      appEmitsBrowserUi(vertical) ? [buildArtifactPath] : [],
+    ),
     overlays: options.overlays,
     result: preliminaryResult,
   });
   const afterOverlaysFiles = createFileSnapshot(options.workspaceRoot);
+  if (options.overlays?.length)
+    assertOverlayKeptExistingSource(
+      preliminaryAfterFiles,
+      afterOverlaysFiles,
+      vertical.directory,
+    );
   const changedPaths = diffFileSnapshots(beforeFiles, afterOverlaysFiles);
   formatGeneratedWorkspaceFiles(options.workspaceRoot, [
     ...changedPaths.createdPaths,
     ...changedPaths.rewrittenPaths,
   ]);
+  if (appEmitsBrowserUi(vertical)) {
+    const evaluations = await captureWorkspaceRendererEvaluations(
+      options.workspaceRoot,
+      [vertical],
+      { command: 'generate', originalWorkspaceRoot: logicalWorkspaceRoot },
+    );
+    const selectedRenderer = vertical.renderer;
+    const finalRenderer = evaluations.get(vertical.id)?.renderer;
+    if (finalRenderer !== selectedRenderer) {
+      throw new Error(
+        `Generated application ${vertical.id} uses ${selectedRenderer} templates, but its final modern.config resolves ${finalRenderer}. Changing the renderer requires matching compiler and source templates.`,
+      );
+    }
+    const [resolvedVertical] = await reconcileWorkspaceRendererIdentities(
+      options.workspaceRoot,
+      scope,
+      [vertical],
+      { evaluations },
+    );
+    const version = resolvedVertical?.deliveryUnit?.version;
+    if (!resolvedVertical || typeof version !== 'string') {
+      throw new Error(
+        `Generated application ${vertical.id} has no resolved delivery-unit version.`,
+      );
+    }
+    assertSupportedRendererComposition(
+      targetShell,
+      resolveAddedVerticalComposition(
+        targetShell,
+        existingVerticals,
+        resolvedVertical,
+      ),
+    );
+    const finalTopology = readRequiredJsonObject(topologyPath);
+    const finalEntry = finalTopology.verticals?.find(
+      (entry: Record<string, any>) => entry.id === resolvedVertical.id,
+    );
+    if (!finalEntry) {
+      throw new Error(
+        `Generated application ${resolvedVertical.id} is missing from the final topology.`,
+      );
+    }
+    stampDeliveryUnitIdentity(finalEntry, scope, resolvedVertical, version);
+    const finalOverlay = projectResolvedDevelopmentOverlay(
+      scope,
+      readRequiredJsonObject(overlayPath),
+      [resolvedVertical],
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      TOPOLOGY_PATH,
+      `${JSON.stringify(finalTopology, null, 2)}\n`,
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      DEVELOPMENT_OVERLAY_PATH,
+      `${JSON.stringify(finalOverlay, null, 2)}\n`,
+    );
+    writeFile(
+      options.workspaceRoot,
+      buildArtifactPath,
+      createUltramodernBuildArtifactJson(scope, resolvedVertical),
+    );
+    Object.assign(vertical, resolvedVertical);
+  } else {
+    const authoredArtifact = readRequiredJsonObject(
+      path.join(
+        options.workspaceRoot,
+        vertical.directory,
+        'shared/ultramodern-build.json',
+      ),
+    );
+    assertUltramodernBuildArtifact(authoredArtifact);
+    if (Object.hasOwn(authoredArtifact.surfaces, 'ui'))
+      throw new Error(
+        `Headless application ${vertical.id} must omit its UI surface.`,
+      );
+    const [resolvedVertical] = await reconcileWorkspaceRendererIdentities(
+      options.workspaceRoot,
+      scope,
+      [vertical],
+      { evaluations: new Map() },
+    );
+    if (!resolvedVertical?.deliveryUnit?.version)
+      throw new Error(
+        `Headless application ${vertical.id} requires its package version.`,
+      );
+    const finalTopology = readRequiredJsonObject(topologyPath);
+    const entry = finalTopology.verticals?.find(
+      (entry: Record<string, any>) => entry.id === vertical.id,
+    );
+    if (!entry)
+      throw new Error(
+        `Headless application ${vertical.id} is missing from topology.`,
+      );
+    stampDeliveryUnitIdentity(
+      entry,
+      scope,
+      resolvedVertical,
+      resolvedVertical.deliveryUnit.version,
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      TOPOLOGY_PATH,
+      `${JSON.stringify(finalTopology, null, 2)}\n`,
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      buildArtifactPath,
+      createUltramodernBuildArtifactJson(scope, resolvedVertical),
+    );
+    Object.assign(vertical, resolvedVertical);
+    assertRendererProjection(entry);
+    const catalogs = yaml.load(
+      fs.readFileSync(
+        path.join(options.workspaceRoot, 'pnpm-workspace.yaml'),
+        'utf8',
+      ),
+    ) as {
+      catalog?: Record<string, string>;
+      catalogs?: Record<string, Record<string, string>>;
+    };
+    assertRendererDependencies(
+      readRequiredJsonObject(newPackagePath),
+      'none',
+      undefined,
+      catalogs,
+    );
+    validateApiOnlySourceSurface(options.workspaceRoot, entry);
+    const artifact = readRequiredJsonObject(
+      path.join(
+        options.workspaceRoot,
+        vertical.directory,
+        'shared/ultramodern-build.json',
+      ),
+    );
+    assertUltramodernBuildArtifact(artifact);
+    assertWorkspaceRendererArtifact(vertical, artifact);
+  }
   const afterFiles = createFileSnapshot(options.workspaceRoot);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(
     beforeFiles,
@@ -432,24 +621,30 @@ function updateShellComposition(
   const previousRemotes = Array.isArray(current.moduleFederation?.remotes)
     ? current.moduleFederation.remotes
     : [];
-  return {
+  const updated = {
     ...current,
     ...(Array.isArray(generated.verticalRefs)
       ? { verticalRefs: generated.verticalRefs }
       : {}),
-    moduleFederation: {
-      ...current.moduleFederation,
-      verticalRefs: generated.moduleFederation.verticalRefs,
-      remotes: generated.moduleFederation.remotes.map(
-        (remote: Record<string, any>) => ({
-          ...previousRemotes.find(
-            (previous: Record<string, any>) => previous.id === remote.id,
-          ),
-          ...remote,
-        }),
-      ),
-    },
+    ...(generated.moduleFederation
+      ? {
+          moduleFederation: {
+            ...current.moduleFederation,
+            verticalRefs: generated.moduleFederation.verticalRefs,
+            remotes: generated.moduleFederation.remotes.map(
+              (remote: Record<string, any>) => ({
+                ...previousRemotes.find(
+                  (previous: Record<string, any>) => previous.id === remote.id,
+                ),
+                ...remote,
+              }),
+            ),
+          },
+        }
+      : {}),
   };
+  if (!generated.moduleFederation) delete updated.moduleFederation;
+  return updated;
 }
 
 function preserveAuthoredRemoteUrls<

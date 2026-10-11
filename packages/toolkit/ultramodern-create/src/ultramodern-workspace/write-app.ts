@@ -1,11 +1,5 @@
-import {
-  createApiClient,
-  createApiServiceEntry,
-  createBackendEffectApiExpose,
-  createSharedApi,
-  createShellApiClient,
-} from './api';
-import { createRpcClientFile, createRpcContractFile } from './api/rpc';
+import { createShellApiClient } from './api';
+import { writeAppApiFiles } from './api/write-app-api';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
@@ -13,7 +7,6 @@ import {
   createShellFrameComponent,
   createTailwindConfig,
 } from './app-files';
-import { createBackendFederationContractFile } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createFederatedComponentsRegistry,
@@ -34,10 +27,9 @@ import {
   createShellHost,
   distributedSsrExposes,
   distributedSsrFragmentSlug,
-  resolveApiProtocol,
   resolveRemoteRefs,
 } from './descriptors';
-import { writeFile, writeFileReplacing, writeJson } from './fs-io';
+import { writeFile, writeJson } from './fs-io';
 import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
@@ -48,12 +40,15 @@ import {
   createUltramodernBuildModule,
   createUltramodernBuildReexportModule,
 } from './module-federation';
+import { writeNativeApp } from './native-app';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
   createAppTsConfig,
 } from './package-json';
 import { createPublicWebAppArtifacts } from './public-surface';
+import { hasNativeAppGeneration } from './renderer-generations';
+import { resolveWorkspaceRenderer } from './renderer-profile';
 import type { ResolvedPackageSource, WorkspaceApp } from './types';
 
 type WriteAppContext = {
@@ -68,7 +63,6 @@ type WriteAppContext = {
   /** Complete caller inventory for backend dependencies and API clients. */
   availableRemotes: WorkspaceApp[];
   bridge: UltramodernBridgeConfig | undefined;
-  devPorts: number[] | undefined;
   publicWeb: ReturnType<typeof createPublicWebAppArtifacts>;
   writeAppFile: (relativePath: string, content: string) => void;
 };
@@ -80,7 +74,6 @@ export function writeApp(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
-  devPorts?: number[],
 ) {
   // The primary shell derives its host identity (and merged verticalRefs) from
   // createShellHost. Additional shells (G28) keep their own descriptor identity
@@ -88,8 +81,29 @@ export function writeApp(
   // collapse onto the primary shell's identity.
   const resolvedApp =
     app.kind === 'shell' && app.id === createShellHost(remotes).id
-      ? createShellHost(remotes)
+      ? {
+          ...createShellHost(remotes),
+          ...app,
+          verticalRefs:
+            app.verticalRefs ?? createShellHost(remotes).verticalRefs,
+        }
       : app;
+  const renderer = resolveWorkspaceRenderer(resolvedApp);
+  if (hasNativeAppGeneration(renderer)) {
+    if (bridge)
+      throw new Error(
+        `Renderer ${renderer} does not support React bridge configuration.`,
+      );
+    writeNativeApp(
+      targetDir,
+      scope,
+      resolvedApp,
+      packageSource,
+      enableTailwind,
+      remotes,
+    );
+    return;
+  }
   const emitsUi = appEmitsBrowserUi(resolvedApp);
   // A headless (api-only) unit never emits Tailwind CSS (G2a).
   const appTailwind = enableTailwind && emitsUi;
@@ -113,7 +127,6 @@ export function writeApp(
     remotes: resolvedRemotes,
     availableRemotes: remotes,
     bridge,
-    devPorts,
     publicWeb,
     writeAppFile,
   };
@@ -122,23 +135,10 @@ export function writeApp(
   writeAppLocaleAndStyleFiles(context);
   writeAppFederationConfigFiles(context);
   writeAppRouteAndShellFiles(context);
-  writeAppApiAndRemoteExposeFiles(context);
+  writeAppApiFiles(context);
+  writeAppRemoteExposeFiles(context);
 }
 
-export function rewriteAppModernConfig(
-  targetDir: string,
-  scope: string,
-  app: WorkspaceApp,
-  remotes: WorkspaceApp[],
-  enableTailwind: boolean,
-  devPorts?: number[],
-) {
-  writeFileReplacing(
-    targetDir,
-    `${app.directory}/modern.config.ts`,
-    createAppModernConfig(scope, app, remotes, enableTailwind, devPorts),
-  );
-}
 function writeAppConfigFiles({
   targetDir,
   scope,
@@ -149,7 +149,6 @@ function writeAppConfigFiles({
   remotes,
   availableRemotes,
   bridge,
-  devPorts,
   publicWeb,
 }: WriteAppContext) {
   writeJson(
@@ -193,11 +192,15 @@ function writeAppConfigFiles({
     `${resolvedApp.directory}/shared/ultramodern-build.ts`,
     createUltramodernBuildModule(scope, resolvedApp),
   );
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/shared/ultramodern-build.json`,
-    createUltramodernBuildArtifactJson(scope, resolvedApp),
-  );
+  // New UI source is authored before its sole config evaluation. Its strict
+  // artifact is created only after the owning entry resolver supplies bindings.
+  if (!emitsUi || resolvedApp.routerBindings) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/shared/ultramodern-build.json`,
+      createUltramodernBuildArtifactJson(scope, resolvedApp),
+    );
+  }
   if (emitsUi) {
     writeFile(
       targetDir,
@@ -218,13 +221,7 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
-    createAppModernConfig(
-      scope,
-      resolvedApp,
-      remotes,
-      enableTailwind,
-      devPorts,
-    ),
+    createAppModernConfig(resolvedApp, enableTailwind),
   );
   if (emitsUi) {
     writeFile(
@@ -379,68 +376,11 @@ function writeAppRouteAndShellFiles({
   }
 }
 
-function writeAppApiAndRemoteExposeFiles({
-  targetDir,
-  scope,
+function writeAppRemoteExposeFiles({
   resolvedApp,
   emitsUi,
   writeAppFile,
 }: WriteAppContext) {
-  if (appHasApi(resolvedApp)) {
-    const rpcProtocol = resolveApiProtocol(resolvedApp) === 'rpc';
-    const clientDirectory = emitsUi ? 'src/api' : 'shared';
-    if (rpcProtocol) {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/shared/rpc.ts`,
-        createRpcContractFile(resolvedApp),
-      );
-    } else {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/shared/api.ts`,
-        createSharedApi(resolvedApp, { scope }),
-      );
-    }
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/index.ts`,
-      createApiServiceEntry(
-        resolvedApp,
-        rpcProtocol ? '../shared/rpc.ts' : '../shared/api.ts',
-        { scope },
-      ),
-    );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/backend-federation.ts`,
-      createBackendFederationContractFile(resolvedApp),
-    );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/effect-api.ts`,
-      createBackendEffectApiExpose(scope, resolvedApp),
-    );
-    if (rpcProtocol) {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-rpc-client.ts`,
-        createRpcClientFile(
-          resolvedApp,
-          emitsUi ? '../../shared/rpc.ts' : './rpc.ts',
-        ),
-      );
-    } else {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-client.ts`,
-        createApiClient(resolvedApp, emitsUi ? '../../shared/api' : './api', {
-          scope,
-        }),
-      );
-    }
-  }
-
   if (resolvedApp.kind === 'vertical' && emitsUi) {
     writeAppFile('src/federation-entry.tsx', createRemoteEntry(resolvedApp));
     for (const expose of Object.keys(resolvedApp.exposes ?? {})) {

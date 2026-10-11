@@ -37,16 +37,14 @@ const typecheck = (directory: string) => {
       include: ['src/routes/ultramodern-route-metadata.ts'],
     }),
   );
-  const compilerManifestPath = requireCjs.resolve(
-    '@typescript/native-preview/package.json',
-  );
+  const compilerManifestPath = requireCjs.resolve('typescript/package.json');
   const { bin } = JSON.parse(fs.readFileSync(compilerManifestPath, 'utf8')) as {
-    bin: { tsgo: string };
+    bin: { tsc: string };
   };
   return spawnSync(
     process.execPath,
     [
-      path.resolve(path.dirname(compilerManifestPath), bin.tsgo),
+      path.resolve(path.dirname(compilerManifestPath), bin.tsc),
       '--project',
       path.join(directory, 'tsconfig.json'),
     ],

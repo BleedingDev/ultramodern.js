@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
-import type {
-  MicroVerticalReleaseEnvelope,
-  MicroVerticalReleaseEnvelopePayload,
-} from './types';
+import type { ReleaseEnvelope, ReleaseEnvelopePayload } from './types';
+
+export { releaseEnvelopePayload } from './contract.mjs';
 
 type CanonicalValue =
   | null
@@ -31,27 +30,16 @@ const serializeCanonicalValue = (value: CanonicalValue): string => {
     .join(',')}}`;
 };
 
-export const releaseEnvelopePayload = (
-  envelope: MicroVerticalReleaseEnvelope,
-): MicroVerticalReleaseEnvelopePayload => ({
-  schemaVersion: envelope.schemaVersion,
-  kind: envelope.kind,
-  target: envelope.target,
-  identity: envelope.identity,
-  artifacts: envelope.artifacts,
-  surfaces: envelope.surfaces,
-});
-
 export const canonicalSerializeMicroVerticalReleaseEnvelopePayload = (
-  payload: MicroVerticalReleaseEnvelopePayload,
+  payload: ReleaseEnvelopePayload,
 ) => serializeCanonicalValue(payload as unknown as CanonicalValue);
 
 export const canonicalSerializeMicroVerticalReleaseEnvelope = (
-  envelope: MicroVerticalReleaseEnvelope,
+  envelope: ReleaseEnvelope,
 ) => serializeCanonicalValue(envelope as unknown as CanonicalValue);
 
 export const digestMicroVerticalReleaseEnvelopePayload = (
-  payload: MicroVerticalReleaseEnvelopePayload,
+  payload: ReleaseEnvelopePayload,
 ) =>
   createHash('sha256')
     .update(canonicalSerializeMicroVerticalReleaseEnvelopePayload(payload))

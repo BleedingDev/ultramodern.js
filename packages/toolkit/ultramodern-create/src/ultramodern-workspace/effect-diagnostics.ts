@@ -12,6 +12,12 @@ export const effectDiagnostics = [
   'missingStarInYieldEffectGen',
   'nonObjectEffectServiceType',
   'outdatedApi',
+  'experimentalApiUsage',
+  'obsoleteMatchImport',
+  'obsoleteSchemaImport',
+  'promiseInEffectSuccess',
+  'schemaLiteralNonFinite',
+  'schemaOpaqueInstanceMember',
   'overriddenSchemaConstructor',
   'catchUnfailableEffect',
   'effectFnIife',
@@ -73,3 +79,10 @@ export const effectDiagnostics = [
   'unnecessaryPipe',
   'unnecessaryPipeChain',
 ];
+
+// Supported Effect HTTP/RPC APIs carry `@stability unstable`. Keep their
+// notices visible; generated typechecks exclude messages from exit failures.
+export const effectDiagnosticSeverity = {
+  ...Object.fromEntries(effectDiagnostics.map(name => [name, 'error'])),
+  unstableApiUsage: 'message',
+};

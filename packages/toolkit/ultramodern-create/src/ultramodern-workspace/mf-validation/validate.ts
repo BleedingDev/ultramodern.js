@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  inspectModuleFederationConfigSource,
+  type ModuleFederationConfigInspection,
+} from '@modern-js/app-tools-extensions/module-federation-config';
 import { mfTypesArchives } from './constants';
 import { discoverModuleFederationConfigs } from './discovery';
-import { inspectModuleFederationConfigSource } from './inspect';
 import { relativePath } from './path-utils';
 import type {
-  ModuleFederationConfigInspection,
   ModuleFederationValidationOptions,
   ModuleFederationValidationResult,
   ModuleFederationValidationTarget,

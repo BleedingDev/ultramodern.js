@@ -1,6 +1,7 @@
 ---
-'@modern-js/runtime': patch
+'@modern-js/ultramodern-create': patch
 ---
 
-Keep Module Federation SSR server entries synchronously requireable under
-Rsbuild 2.2 while preserving its native split-chunk defaults for browser builds.
+Repair Module Federation Node chunk startup readiness and remove the server
+splitting restriction. Server bundles now use the normal Rsbuild splitting
+configuration with asyncStartup enabled.

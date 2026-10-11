@@ -144,7 +144,7 @@ export function createRouterPlugin<Hooks extends Record<string, unknown>>({
     name: '@modern-js/plugin-router',
     registryHooks,
     setup(api: {
-      getRuntimeConfig: () => { router?: Record<string, unknown> };
+      getRuntimeConfig: () => Record<string, unknown>;
       [key: string]: any;
     }) {
       const mergedConfig = merge(

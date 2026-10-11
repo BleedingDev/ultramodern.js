@@ -4,6 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  acceptanceContinuationSchema,
+  assertAcceptanceContinuation,
+  verifyAcceptanceContinuationOperationalEvidence,
+} from '../ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs';
 import { assertReleaseAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import {
   acceptedResolution,
@@ -24,17 +29,24 @@ const defaultReleaseAgePolicyPath = fileURLToPath(
 );
 
 const valueOptions = new Set([
+  '--cloudflare-run-log',
+  '--continue-from',
   '--expected-source-revision',
   '--expected-mode',
   '--expected-version',
   '--manifest',
   '--mode',
+  '--node-report',
+  '--prior-run-log',
   '--receipt',
   '--registry-url',
   '--release-age-policy',
   '--run-identity',
   '--scale-profile',
+  '--shell-finalization',
   '--source-receipt',
+  '--store-dir',
+  '--work-dir',
 ]);
 const booleanOptions = new Set(['--verify-receipt']);
 
@@ -112,12 +124,82 @@ function parseArgs(argv) {
   if (scaleProfile !== 'erp-10') {
     throw new Error('--scale-profile must be erp-10 for release acceptance');
   }
+  const storeValue = values.get('--store-dir');
+  if (
+    storeValue !== undefined &&
+    (!path.isAbsolute(storeValue) || storeValue.includes('\0'))
+  ) {
+    throw new Error('--store-dir must be an absolute path');
+  }
+  const workDirValue = values.get('--work-dir');
+  if (
+    workDirValue !== undefined &&
+    (!path.isAbsolute(workDirValue) || workDirValue.includes('\0'))
+  ) {
+    throw new Error('--work-dir must be an absolute path');
+  }
+  if (workDirValue !== undefined && mode !== 'prepublish') {
+    throw new Error('--work-dir is only valid with prepublish acceptance');
+  }
+  const continueFrom = values.get('--continue-from');
+  if (continueFrom !== undefined) {
+    if (!['source-node', 'source-workerd'].includes(continueFrom)) {
+      throw new Error('--continue-from must be source-node or source-workerd');
+    }
+    if (mode !== 'prepublish') {
+      throw new Error(
+        '--continue-from is only valid with prepublish acceptance',
+      );
+    }
+    if (workDirValue === undefined || !values.has('--prior-run-log')) {
+      throw new Error(
+        '--continue-from requires --work-dir and --prior-run-log',
+      );
+    }
+    if (
+      continueFrom === 'source-workerd' &&
+      (!values.has('--node-report') || !values.has('--cloudflare-run-log'))
+    ) {
+      throw new Error(
+        'source-workerd requires --node-report and --cloudflare-run-log',
+      );
+    }
+    if (
+      continueFrom === 'source-node' &&
+      (values.has('--cloudflare-run-log') || values.has('--shell-finalization'))
+    ) {
+      throw new Error(
+        '--cloudflare-run-log and --shell-finalization require source-workerd',
+      );
+    }
+  } else if (values.has('--prior-run-log') || values.has('--node-report')) {
+    throw new Error(
+      '--prior-run-log and --node-report require --continue-from',
+    );
+  } else if (
+    values.has('--cloudflare-run-log') ||
+    values.has('--shell-finalization')
+  ) {
+    throw new Error(
+      '--cloudflare-run-log and --shell-finalization require source-workerd',
+    );
+  }
   return {
+    continueFrom,
+    cloudflareRunLogPath: values.has('--cloudflare-run-log')
+      ? path.resolve(values.get('--cloudflare-run-log'))
+      : undefined,
     expectedSourceRevision: values.get('--expected-source-revision'),
     expectedMode,
     expectedVersion: values.get('--expected-version'),
     manifestPath,
     mode,
+    nodeReportPath: values.has('--node-report')
+      ? path.resolve(values.get('--node-report'))
+      : undefined,
+    priorRunLogPath: values.has('--prior-run-log')
+      ? path.resolve(values.get('--prior-run-log'))
+      : undefined,
     projectName: defaultProjectName,
     receiptPath: path.resolve(receipt),
     registryUrl: values.get('--registry-url') ?? 'https://registry.npmjs.org/',
@@ -127,8 +209,14 @@ function parseArgs(argv) {
     releaseDir,
     runIdentity: values.get('--run-identity'),
     scaleProfile,
+    shellFinalizationPath: values.has('--shell-finalization')
+      ? path.resolve(values.get('--shell-finalization'))
+      : undefined,
     sourceReceiptPath:
       sourceReceipt === undefined ? undefined : path.resolve(sourceReceipt),
+    storeDir: storeValue === undefined ? undefined : path.resolve(storeValue),
+    workDir:
+      workDirValue === undefined ? undefined : path.resolve(workDirValue),
   };
 }
 
@@ -197,6 +285,21 @@ function verifyReceipt({
   expectedMode = options.expectedMode,
 }) {
   const receipt = readAcceptanceReceipt(options.receiptPath);
+  if (receipt.schema === acceptanceContinuationSchema) {
+    if (expectedMode !== 'source') {
+      throw new Error('Acceptance continuation is only valid for source mode');
+    }
+    const verified = assertAcceptanceContinuation(receipt, {
+      release,
+      runIdentity,
+    });
+    verifyAcceptanceContinuationOperationalEvidence({
+      receipt,
+      receiptPath: options.receiptPath,
+      release,
+    });
+    return verified;
+  }
   const verified = assertAcceptanceReceipt(receipt, {
     release,
     profileId: options.scaleProfile,
@@ -227,6 +330,51 @@ async function executeAcceptanceProfile(options) {
 }
 
 async function runPrepublish({ release, options, runIdentity }) {
+  if (options.continueFrom) {
+    const { runAcceptanceContinuation } = await import(
+      '../ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs'
+    );
+    return runAcceptanceContinuation({
+      release,
+      options: profileOptions(options),
+      outPath: options.receiptPath,
+      runIdentity,
+      workDir: options.workDir,
+      storeDir: options.storeDir,
+      priorRunLogPath: options.priorRunLogPath,
+      nodeReportPath: options.nodeReportPath,
+      cursor: options.continueFrom,
+      cloudflareRunLogPath: options.cloudflareRunLogPath,
+      shellFinalizationPath: options.shellFinalizationPath,
+    });
+  }
+  if (options.workDir !== undefined) {
+    const stat = fs.lstatSync(options.workDir);
+    if (
+      !stat.isDirectory() ||
+      stat.isSymbolicLink() ||
+      fs.realpathSync(options.workDir) !== options.workDir ||
+      (typeof process.getuid === 'function' && stat.uid !== process.getuid())
+    ) {
+      throw new Error(
+        '--work-dir must be an existing physical caller-owned directory',
+      );
+    }
+    const entries = fs.readdirSync(options.workDir);
+    if (entries.some(entry => entry !== '.disk-guardian-owner')) {
+      throw new Error(
+        '--work-dir must be fresh; retained workspaces are rechecked with the browser-smoke CLI',
+      );
+    }
+    if (entries.length > 0) {
+      const marker = fs.lstatSync(
+        path.join(options.workDir, '.disk-guardian-owner'),
+      );
+      if (!marker.isFile() || marker.isSymbolicLink()) {
+        throw new Error('--work-dir ownership marker must be an ordinary file');
+      }
+    }
+  }
   const registryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-verdaccio-'),
   );
@@ -236,6 +384,7 @@ async function runPrepublish({ release, options, runIdentity }) {
       release,
       releaseDir: options.releaseDir,
       rootDir: registryRoot,
+      storeDir: options.storeDir,
     });
     return await executeAcceptanceProfile({
       mode: 'source',
@@ -247,6 +396,9 @@ async function runPrepublish({ release, options, runIdentity }) {
       outPath: options.receiptPath,
       runIdentity,
       releaseAgePolicyPath: options.releaseAgePolicyPath,
+      storeDir: options.storeDir,
+      // A supplied directory remains owned by the caller on success or failure.
+      workDir: options.workDir,
     });
   } finally {
     await registry?.stop();
@@ -262,6 +414,11 @@ async function runPublished({ release, options, runIdentity }) {
     runIdentity,
     expectedMode: 'source',
   });
+  if (sourceReceipt.schema === acceptanceContinuationSchema) {
+    throw new Error(
+      '--source-receipt must be a complete source acceptance receipt; a source continuation carries no accepted resolution',
+    );
+  }
   return executeAcceptanceProfile({
     mode: 'published',
     acceptedResolution: acceptedResolution(sourceReceipt),
@@ -276,6 +433,7 @@ async function runPublished({ release, options, runIdentity }) {
     outPath: options.receiptPath,
     runIdentity,
     releaseAgePolicyPath: options.releaseAgePolicyPath,
+    storeDir: options.storeDir,
   });
 }
 
@@ -290,9 +448,9 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   }
   const runIdentity = resolveRunIdentity(release, options.runIdentity, env);
   if (options.mode === 'verify') {
-    verifyReceipt({ release, options, runIdentity });
+    const verified = verifyReceipt({ release, options, runIdentity });
     process.stdout.write(
-      `Verified ERP-10 acceptance receipt for ${release.release.version}.\n`,
+      `Verified ERP-10 acceptance ${verified.schema === acceptanceContinuationSchema ? 'continuation' : 'receipt'} for ${release.release.version}.\n`,
     );
     return 0;
   }
@@ -303,7 +461,9 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   }
   verifyProducedReceipt({ release, options, runIdentity });
   process.stdout.write(
-    `ERP-10 exact-artifact acceptance passed for ${release.release.version}.\n`,
+    options.continueFrom
+      ? `ERP-10 ${options.continueFrom} continuation passed for ${release.release.version}.\n`
+      : `ERP-10 exact-artifact acceptance passed for ${release.release.version}.\n`,
   );
   return 0;
 }

@@ -1,6 +1,7 @@
-import type { CLIPluginExtends } from '../../types/cli';
-import type { Plugin } from '../../types/plugin';
-export interface CLIOptions<Extends extends CLIPluginExtends = { config: {} }> {
+import type { CLIPlugin, CLIPluginExtends } from '../../types/cli';
+export interface CLIOptions<
+  Extends extends CLIPluginExtends = CLIPluginExtends,
+> {
   cwd?: string;
   version?: string;
   metaName?: string;
@@ -13,7 +14,7 @@ export interface CLIOptions<Extends extends CLIPluginExtends = { config: {} }> {
    */
   config?: Extends['config'];
   configFile: string | false;
-  internalPlugins?: Plugin[];
+  internalPlugins?: CLIPlugin<Extends>[];
   handleSetupResult?: (
     params: any,
     api: Record<string, any>,
@@ -29,7 +30,7 @@ export type LoadedConfig<T> = {
 };
 
 export interface CLIRunOptions<
-  Extends extends CLIPluginExtends = { config: {} },
+  Extends extends CLIPluginExtends = CLIPluginExtends,
 > extends CLIOptions<Extends> {
   command: string;
 }

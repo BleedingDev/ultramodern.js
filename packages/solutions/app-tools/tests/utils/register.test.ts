@@ -102,7 +102,7 @@ describe('setupTsRuntime', () => {
     await expect(
       setupTsRuntime('/project', '/project/dist', []),
     ).rejects.toThrow(
-      /requires Node\.js >=26\.7\.0 with native TypeScript support/,
+      /requires Node\.js >=26\.10\.0 with native TypeScript support/,
     );
 
     expect(mockRegisterPathsLoader).not.toBeCalled();

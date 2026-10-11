@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { validateApp } from './ultramodern-cloudflare-proof.mjs';
 import {
   readGeneratedContractView as readPublicSurfaceView,
@@ -45,27 +46,36 @@ function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
-function buildMarkerFor(app) {
-  const buildMarker = app.deliveryUnit?.buildMarker;
-  if (typeof buildMarker !== 'string' || buildMarker.length === 0) {
+// Deployed workers carry the release identity their build derived from the
+// topology generation marker and the source revision, so the proof expects
+// that same identity for the revision it is proving.
+function releaseIdentityFor(app) {
+  const unitId = app.deliveryUnit?.unitId;
+  const generationBuildMarker = app.deliveryUnit?.buildMarker;
+  if (
+    typeof unitId !== 'string' ||
+    unitId.length === 0 ||
+    typeof generationBuildMarker !== 'string' ||
+    generationBuildMarker.length === 0
+  ) {
     throw new Error(
-      `${app.id} is missing its generated delivery-unit build marker`,
+      `${app.id} is missing its generated delivery-unit identity`,
     );
   }
-  return buildMarker;
+  return {
+    unitId,
+    ...resolveUltramodernReleaseIdentity({
+      generationBuildMarker,
+      unitId,
+      workspaceRoot,
+    }),
+  };
 }
 
-function createDeliveryUnit(app) {
-  const buildMarker = buildMarkerFor(app);
-  const unitId = app.deliveryUnit.unitId;
-  const identity = {
-    unitId,
-    buildMarker,
-    sourceRevision: 'workspace',
-  };
-
+function createDeliveryUnit(app, identity) {
   return {
     ...app.deliveryUnit,
+    ...identity,
     surfaces: {
       ...(app.emitsUi ? { ui: { ...identity, surface: 'ui' } } : {}),
       ...(app.api ? { api: { ...identity, surface: 'api' } } : {}),
@@ -116,7 +126,7 @@ function createProofTarget(app) {
   };
 }
 
-function createShellServiceBindingProof(app, apps) {
+function createShellServiceBindingProof(app, apps, identities) {
   if (app.kind !== 'shell') {
     return undefined;
   }
@@ -133,7 +143,7 @@ function createShellServiceBindingProof(app, apps) {
         interface: 'fetch',
         ...(rpc
           ? createRpcProbe(candidate)
-          : { expectedMarker: buildMarkerFor(candidate) }),
+          : { expectedMarker: identities.get(candidate.id).buildMarker }),
       };
     });
 
@@ -148,14 +158,15 @@ async function readGeneratedContractView() {
   }
   const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
   const publicApps = new Map((await readPublicSurfaceView()).apps.map(app => [app.id, app]));
+  const identities = new Map(apps.map(app => [app.id, releaseIdentityFor(app)]));
   return {
     sourcePath: topologyPath,
     apps: await Promise.all(apps.map(async app => {
       if (typeof app.path !== 'string' || !app.path || !app.cloudflare) {
         throw new Error(`${app.id} is missing its topology path or Cloudflare contract`);
       }
-      const buildMarker = buildMarkerFor(app);
-      const serviceBindings = createShellServiceBindingProof(app, apps);
+      const identity = identities.get(app.id);
+      const serviceBindings = createShellServiceBindingProof(app, apps, identities);
       return {
         id: app.id,
         deploy: {
@@ -165,11 +176,14 @@ async function readGeneratedContractView() {
           },
         },
         i18n: { namespace: appNamespace(app) },
-        marker: { appId: app.id, build: buildMarker },
-        deliveryUnit: createDeliveryUnit({
-          ...app,
-          emitsUi: app.kind === 'shell' || app.surfaceProfile !== 'api-only',
-        }),
+        marker: { appId: app.id, build: identity.buildMarker },
+        deliveryUnit: createDeliveryUnit(
+          {
+            ...app,
+            emitsUi: app.kind === 'shell' || app.surfaceProfile !== 'api-only',
+          },
+          identity,
+        ),
         ...(app.backendFederation ? { backendFederation: app.backendFederation } : {}),
         ...(localOverlay.serverExecution?.[app.id]
           ? { serverExecution: localOverlay.serverExecution[app.id] }

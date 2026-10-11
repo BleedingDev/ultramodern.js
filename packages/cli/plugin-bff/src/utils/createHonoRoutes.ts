@@ -9,9 +9,15 @@ import {
 } from '@modern-js/bff-core';
 import type { Context, Next } from '@modern-js/server-core';
 import { parse } from 'qs';
-import typeIs from 'type-is';
+import { TypeIs } from 'type-is';
 
 type Handler = APIHandlerInfo['handler'];
+
+const contentTypes = new TypeIs([
+  'application/json',
+  'multipart/form-data',
+  'application/x-www-form-urlencoded',
+]);
 
 const createHonoRoutes = (handlerInfos: APIHandlerInfo[] = []) =>
   handlerInfos.map(({ routePath, handler, httpMethod }) => {
@@ -113,13 +119,13 @@ const getHonoInput = async (c: Context) => {
   };
 
   try {
-    const contentType = c.req.header('content-type') || '';
+    const contentType = contentTypes.is(c.req.header('content-type') || '');
 
-    if (typeIs.is(contentType, ['application/json'])) {
+    if (contentType === 'application/json') {
       draft.data = await c.req.json();
-    } else if (typeIs.is(contentType, ['multipart/form-data'])) {
+    } else if (contentType === 'multipart/form-data') {
       draft.formData = await c.req.parseBody();
-    } else if (typeIs.is(contentType, ['application/x-www-form-urlencoded'])) {
+    } else if (contentType === 'application/x-www-form-urlencoded') {
       draft.formUrlencoded = await c.req.parseBody();
     } else {
       draft.body = await c.req.json();

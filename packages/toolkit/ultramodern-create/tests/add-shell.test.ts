@@ -4,10 +4,18 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveWorkerDeliveryUnitStamp } from '@modern-js/app-tools-extensions/cloudflare/delivery-unit';
+import { emitFrameworkMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope/framework-output';
+import { emitRendererBuildArtifact } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
+import {
+  assertUltramodernBuildArtifact,
+  stampUltramodernBuildArtifactIdentity,
+} from '@modern-js/backend-federation-contracts';
 import {
   addUltramodernShell,
   addUltramodernVertical,
   planUltramodernShell,
+  planUltramodernVertical,
 } from '../src/ultramodern-workspace';
 import { UnknownUltramodernShellError } from '../src/ultramodern-workspace/add-vertical/preflight';
 import { sharedPackages } from '../src/ultramodern-workspace/descriptors';
@@ -15,22 +23,29 @@ import {
   prependCommandFixturePath,
   writeNodeCommandFixture,
 } from './helpers/node-command-fixture';
-import { createWorkspace, runValidation } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkInstalledEffectCompiler,
+  runValidation,
+} from './helpers/workspace-kit';
 
 const createBinPath = path.resolve(__dirname, '../bin/run.js');
-const nativePreviewRequire = createRequire(
-  createRequire(import.meta.url).resolve(
-    '@typescript/native-preview/package.json',
-  ),
+const typescriptManifest = createRequire(import.meta.url).resolve(
+  'typescript/package.json',
 );
+assert.equal(
+  JSON.parse(fs.readFileSync(typescriptManifest, 'utf8')).version,
+  '7.0.2',
+);
+const nativeCompilerRequire = createRequire(typescriptManifest);
 const nativeCompiler = path.join(
   path.dirname(
-    nativePreviewRequire.resolve(
-      `@typescript/native-preview-${process.platform}-${process.arch}/package.json`,
+    nativeCompilerRequire.resolve(
+      `@typescript/typescript-${process.platform}-${process.arch}/package.json`,
     ),
   ),
   'lib',
-  process.platform === 'win32' ? 'tsgo.exe' : 'tsgo',
+  process.platform === 'win32' ? 'tsc.exe' : 'tsc',
 );
 
 function readJson(workspaceDir: string, relativePath: string): any {
@@ -39,14 +54,211 @@ function readJson(workspaceDir: string, relativePath: string): any {
   );
 }
 
-function createBaseWorkspace(workspaceDir: string) {
-  createWorkspace(workspaceDir);
-  addUltramodernVertical({
+async function createBaseWorkspace(workspaceDir: string) {
+  await createWorkspace(workspaceDir);
+  linkInstalledEffectCompiler(workspaceDir);
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
     modernVersion: '3.2.1',
   });
 }
+
+function readAppConfigs(workspaceDir: string): Map<string, Buffer> {
+  const configs = new Map<string, Buffer>();
+  for (const root of ['apps', 'verticals']) {
+    for (const app of fs.readdirSync(path.join(workspaceDir, root), {
+      withFileTypes: true,
+    })) {
+      if (!app.isDirectory()) continue;
+      const relativePath = `${root}/${app.name}/modern.config.ts`;
+      configs.set(
+        relativePath,
+        fs.readFileSync(path.join(workspaceDir, relativePath)),
+      );
+    }
+  }
+  return configs;
+}
+
+function assertAppConfigsPreserved(
+  workspaceDir: string,
+  configs: ReadonlyMap<string, Buffer>,
+  result: { createdPaths: string[]; rewrittenPaths: string[] },
+) {
+  for (const [relativePath, bytes] of configs) {
+    assert.deepEqual(
+      fs.readFileSync(path.join(workspaceDir, relativePath)),
+      bytes,
+      `${relativePath} must retain its exact bytes`,
+    );
+    assert.equal(
+      result.rewrittenPaths.includes(relativePath),
+      false,
+      `${relativePath} must not be reported as a planned or applied rewrite`,
+    );
+    assert.equal(
+      result.createdPaths.includes(relativePath),
+      false,
+      `${relativePath} already exists`,
+    );
+  }
+}
+
+test('shell and vertical additions preserve every existing native config through previews and target changes', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  const topologyRelative = 'topology/reference-topology.json';
+  const overlayRelative = 'topology/local-overlays/development.json';
+  try {
+    await createBaseWorkspace(workspaceDir);
+    assert.equal(readAppConfigs(workspaceDir).size, 2);
+
+    for (const name of ['admin', 'partner']) {
+      const configs = readAppConfigs(workspaceDir);
+      const topologyBefore = fs.readFileSync(
+        path.join(workspaceDir, topologyRelative),
+      );
+      const overlayBefore = fs.readFileSync(
+        path.join(workspaceDir, overlayRelative),
+      );
+      const options = {
+        workspaceRoot: workspaceDir,
+        name,
+        modernVersion: '3.2.1',
+      };
+      const plan = await planUltramodernShell(options);
+      const configPath = `apps/shell-${name}/modern.config.ts`;
+      assertAppConfigsPreserved(workspaceDir, configs, plan);
+      assert.ok(plan.createdPaths.includes(configPath));
+      assert.equal(fs.existsSync(path.join(workspaceDir, configPath)), false);
+      assert.deepEqual(
+        fs.readFileSync(path.join(workspaceDir, topologyRelative)),
+        topologyBefore,
+      );
+      assert.deepEqual(
+        fs.readFileSync(path.join(workspaceDir, overlayRelative)),
+        overlayBefore,
+      );
+
+      const result = await addUltramodernShell(options);
+      assertAppConfigsPreserved(workspaceDir, configs, result);
+      assert.ok(result.createdPaths.includes(configPath));
+      assert.ok(fs.readFileSync(path.join(workspaceDir, configPath)).length);
+      assert.equal(readAppConfigs(workspaceDir).size, configs.size + 1);
+      const topology = readJson(workspaceDir, topologyRelative);
+      const additional = topology.shells.find(
+        (shell: { id: string }) => shell.id === `shell-${name}`,
+      );
+      assert.deepEqual(additional.verticalRefs, ['catalog']);
+      const overlay = readJson(workspaceDir, overlayRelative);
+      assert.equal(
+        overlay.ports[`shell-${name}`],
+        result.assignedPorts[`shell-${name}`],
+      );
+      const previousPorts = JSON.parse(overlayBefore.toString()).ports;
+      for (const [appId, previousPort] of Object.entries(previousPorts)) {
+        assert.equal(overlay.ports[appId], previousPort);
+      }
+      assert.equal(
+        Object.values(previousPorts).includes(overlay.ports[`shell-${name}`]),
+        false,
+        'the new shell receives an unoccupied development port',
+      );
+
+      if (name === 'admin') {
+        // Keep the new shell pristine while replacing both original apps with
+        // native authored configuration, including intentional CRLF bytes.
+        for (const relativePath of configs.keys()) {
+          const authored = [
+            "import { defineConfig } from '@modern-js/app-tools';",
+            "import { ultramodernAppTools } from '@modern-js/ultramodern-app-tools';",
+            '',
+            `// Consumer config for ${relativePath}`,
+            'export default defineConfig({',
+            '  plugins: [ultramodernAppTools()],',
+            "  source: { alias: { '@consumer': './src' } },",
+            '});',
+            '',
+          ].join('\r\n');
+          fs.writeFileSync(path.join(workspaceDir, relativePath), authored);
+        }
+      }
+    }
+
+    const overlay = readJson(workspaceDir, overlayRelative);
+    overlay.ports['shell-admin'] = 4102;
+    fs.writeFileSync(
+      path.join(workspaceDir, overlayRelative),
+      `${JSON.stringify(overlay, null, 2)}\n`,
+    );
+    for (const { name, shell, port } of [
+      { name: 'orders', shell: 'shell-admin', port: 4103 },
+      { name: 'payments', shell: 'shell-super-app', port: 4104 },
+    ]) {
+      const configs = readAppConfigs(workspaceDir);
+      const topologyBefore = fs.readFileSync(
+        path.join(workspaceDir, topologyRelative),
+      );
+      const overlayBefore = fs.readFileSync(
+        path.join(workspaceDir, overlayRelative),
+      );
+      const options = {
+        workspaceRoot: workspaceDir,
+        name,
+        shell,
+        modernVersion: '3.2.1',
+      };
+      const plan = await planUltramodernVertical(options);
+      const configPath = `verticals/${name}/modern.config.ts`;
+      assertAppConfigsPreserved(workspaceDir, configs, plan);
+      assert.ok(plan.createdPaths.includes(configPath));
+      assert.equal(plan.selectedPort, port);
+      assert.equal(fs.existsSync(path.join(workspaceDir, configPath)), false);
+      assert.deepEqual(
+        fs.readFileSync(path.join(workspaceDir, topologyRelative)),
+        topologyBefore,
+      );
+      assert.deepEqual(
+        fs.readFileSync(path.join(workspaceDir, overlayRelative)),
+        overlayBefore,
+      );
+
+      const result = await addUltramodernVertical(options);
+      assertAppConfigsPreserved(workspaceDir, configs, result);
+      assert.ok(result.createdPaths.includes(configPath));
+      assert.ok(fs.readFileSync(path.join(workspaceDir, configPath)).length);
+      assert.equal(readAppConfigs(workspaceDir).size, configs.size + 1);
+      const topology = readJson(workspaceDir, topologyRelative);
+      const shells = [topology.shell, ...topology.shells];
+      for (const current of shells) {
+        const expectedRefs =
+          current.id === 'shell-admin'
+            ? ['catalog', 'orders']
+            : current.id === 'shell-super-app' && name === 'payments'
+              ? ['catalog', 'payments']
+              : ['catalog'];
+        assert.deepEqual(current.verticalRefs, expectedRefs);
+        assert.deepEqual(
+          current.moduleFederation.remotes.map(
+            (remote: { id: string }) => remote.id,
+          ),
+          expectedRefs,
+        );
+      }
+      const nextOverlay = readJson(workspaceDir, overlayRelative);
+      assert.equal(nextOverlay.ports[name], port);
+      for (const [appId, previousPort] of Object.entries(
+        JSON.parse(overlayBefore.toString()).ports,
+      )) {
+        assert.equal(nextOverlay.ports[appId], previousPort);
+      }
+      assert.equal(result.assignedPorts[name], port);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}, 300_000);
 
 type RecordedBuildInvocation = {
   argv: string[];
@@ -125,7 +337,109 @@ if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
   return { invocations, result };
 }
 
-test('root build executes every shell before and after adding a vertical and propagates failures', () => {
+test('generated primary and additional shells declare UI-only finalized Node and Cloudflare surfaces', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-shell-surfaces-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const shells = [topology.shell, ...topology.shells];
+    assert.equal(shells.length, 2);
+    assert.equal(topology.verticals[0].surfaceProfile, undefined);
+    assert.ok(topology.verticals[0].api);
+
+    for (const shell of shells) {
+      assert.equal(shell.surfaceProfile, 'ui-only');
+      assert.equal(shell.api, undefined);
+      assert.equal(shell.backendFederation, undefined);
+      const appDirectory = path.join(workspaceDir, shell.path);
+      assert.equal(fs.existsSync(path.join(appDirectory, 'api')), false);
+      const artifact: unknown = readJson(
+        workspaceDir,
+        `${shell.path}/shared/ultramodern-build.json`,
+      );
+      assertUltramodernBuildArtifact(artifact);
+      const ui = artifact.surfaces.ui;
+      assert.ok(ui);
+      // The shared carrier reserves API identity metadata; topology owns the
+      // declaration of executable surfaces.
+      assert.ok(artifact.surfaces.api);
+      for (const [distName, target, marker] of [
+        ['dist', 'node', 'f'],
+        ['dist-cloudflare', 'cloudflare', 'e'],
+      ] as const) {
+        const distDirectory = path.join(appDirectory, distName);
+        const buildMarker = marker.repeat(64);
+        const sourceRevision = 'a'.repeat(40);
+        const compiledUi = stampUltramodernBuildArtifactIdentity(artifact, {
+          buildMarker,
+          sourceRevision,
+        }).surfaces.ui;
+        assert.ok(compiledUi);
+        const finalized = await emitRendererBuildArtifact(
+          {
+            appDirectory,
+            distDirectory,
+            entrypoints: [
+              { entryName: ui.rendererIdentity.entryName, isMainEntry: true },
+            ],
+          },
+          {
+            rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
+            resolveRendererBuild: async () => ({
+              buildMarker,
+              sourceRevision,
+              ui: compiledUi,
+            }),
+          },
+        );
+        assert.ok(finalized);
+        const stamp = await resolveWorkerDeliveryUnitStamp(
+          appDirectory,
+          distDirectory,
+        );
+        assert.equal(stamp?.buildMarker, buildMarker);
+        assert.deepEqual(stamp?.surfaces.ui, finalized.surfaces.ui);
+        assert.equal(Object.hasOwn(stamp?.surfaces ?? {}, 'api'), false);
+
+        shell.surfaceProfile = 'full-stack';
+        fs.writeFileSync(
+          path.join(workspaceDir, 'topology/reference-topology.json'),
+          JSON.stringify(topology),
+        );
+        const fullStack = await resolveWorkerDeliveryUnitStamp(
+          appDirectory,
+          distDirectory,
+        );
+        assert.deepEqual(fullStack?.surfaces.api, finalized.surfaces.api);
+        await assert.rejects(
+          () =>
+            emitFrameworkMicroVerticalReleaseEnvelope({
+              apiOnly: false,
+              appDirectory,
+              distDirectory,
+              target,
+            }),
+          /backend federation manifest and container must be emitted together/u,
+        );
+        shell.surfaceProfile = 'ui-only';
+        fs.writeFileSync(
+          path.join(workspaceDir, 'topology/reference-topology.json'),
+          JSON.stringify(topology),
+        );
+      }
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('root build executes every shell before and after adding a vertical and propagates failures', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   const expectedInvocations = [
@@ -136,8 +450,8 @@ test('root build executes every shell before and after adding a vertical and pro
     ['performance:readiness'],
   ];
   try {
-    createBaseWorkspace(workspaceDir);
-    addUltramodernShell({
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -168,7 +482,7 @@ test('root build executes every shell before and after adding a vertical and pro
       ),
     );
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
@@ -202,18 +516,18 @@ test('root build executes every shell before and after adding a vertical and pro
   }
 });
 
-test('add-vertical targets an additional shell and rejects unknown shell ids during preflight', () => {
+test('add-vertical targets an additional shell and rejects unknown shell ids during preflight', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
-    addUltramodernShell({
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
     });
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
@@ -272,9 +586,9 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       `${validation.stdout}\n${validation.stderr}`,
     );
 
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'payments',
           modernVersion: '3.2.1',
@@ -301,11 +615,14 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
   }
 });
 
-test('workspace-wide port allocation avoids customized shell and overlay ports', () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
-  const workspaceDir = path.join(tempRoot, 'workspace');
-  try {
-    createBaseWorkspace(workspaceDir);
+describe('workspace-wide port allocation', () => {
+  let tempRoot: string;
+  let workspaceDir: string;
+
+  beforeAll(async () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+    workspaceDir = path.join(tempRoot, 'workspace');
+    await createBaseWorkspace(workspaceDir);
 
     const overlayPath = path.join(
       workspaceDir,
@@ -317,17 +634,26 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     overlay.ports.catalog = 3120;
     fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
+  });
 
-    addUltramodernShell({
+  beforeAll(async () => {
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
     });
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'partner',
       modernVersion: '3.2.1',
     });
+  });
+
+  afterAll(() => {
+    if (tempRoot) fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  test('additional shells avoid customized overlay ports and keep distinct ports', () => {
     const topologyAfterShell = readJson(
       workspaceDir,
       'topology/reference-topology.json',
@@ -362,23 +688,34 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     assert.ok(referencePaths.includes('apps/shell-admin'));
     assert.ok(referencePaths.includes('apps/shell-partner'));
+  });
 
+  test('a new vertical avoids customized shell ports and preserves existing allocations', async () => {
+    const verticalWorkspace = path.join(tempRoot, 'vertical-workspace');
+    fs.cpSync(workspaceDir, verticalWorkspace, {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
+    const overlayAfterShell = readJson(
+      verticalWorkspace,
+      'topology/local-overlays/development.json',
+    );
     overlayAfterShell.ports['shell-admin'] = 4101;
     fs.writeFileSync(
-      overlayPath,
+      path.join(verticalWorkspace, 'topology/local-overlays/development.json'),
       `${JSON.stringify(overlayAfterShell, null, 2)}\n`,
     );
-    addUltramodernVertical({
-      workspaceRoot: workspaceDir,
+    await addUltramodernVertical({
+      workspaceRoot: verticalWorkspace,
       name: 'orders',
       modernVersion: '3.2.1',
     });
     const topologyAfterVertical = readJson(
-      workspaceDir,
+      verticalWorkspace,
       'topology/reference-topology.json',
     );
     const overlayAfterVertical = readJson(
-      workspaceDir,
+      verticalWorkspace,
       'topology/local-overlays/development.json',
     );
     assert.equal(overlayAfterVertical.ports.orders, 4102);
@@ -388,18 +725,16 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     assert.equal(overlayAfterVertical.ports['shell-admin'], 4101);
     assert.equal(overlayAfterVertical.ports['shell-partner'], 3122);
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
+  });
 });
 
-test('planUltramodernShell reports the planned shell without mutating the workspace', () => {
+test('planUltramodernShell reports the planned shell without mutating the workspace', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
 
-    const plan = planUltramodernShell({
+    const plan = await planUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -428,29 +763,26 @@ test('planUltramodernShell reports the planned shell without mutating the worksp
   }
 });
 
-test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => {
+test('add-shell keeps consumer-authored root scripts and tsconfig bytes', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
     const packagePath = path.join(workspaceDir, 'package.json');
     const manifest = readJson(workspaceDir, 'package.json');
     manifest.scripts['consumer:check'] = 'echo authored';
     manifest.scripts.build = 'echo authored-build';
     fs.writeFileSync(packagePath, JSON.stringify(manifest, null, 2));
-    const topologyPath = path.join(
+    const originalVerticalRefs = readJson(
       workspaceDir,
       'topology/reference-topology.json',
-    );
-    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
-    topology.shell.verticalRefs = [];
-    fs.writeFileSync(topologyPath, JSON.stringify(topology, null, 2));
+    ).shell.verticalRefs;
     const tsconfigPath = path.join(workspaceDir, 'tsconfig.json');
     const authoredTsconfig =
       '{"references":[],"compilerOptions":{"strict":true},"extra":"authored"}\n';
     fs.writeFileSync(tsconfigPath, authoredTsconfig);
 
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -463,7 +795,7 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     assert.deepEqual(
       readJson(workspaceDir, 'topology/reference-topology.json').shell
         .verticalRefs,
-      [],
+      originalVerticalRefs,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { createRsbuild, type EnvironmentConfig } from '@rsbuild/core';
@@ -22,40 +23,129 @@ const createWorkerEnvironments = (
 });
 
 describe('Cloudflare builder environments', () => {
+  it.each([false, true, { environments: { server: 'workerSSR' } }])(
+    'preserves conditional React exports only when worker RSC is enabled: %j',
+    async rsc => {
+      const appDirectory = fs.mkdtempSync(
+        path.join(
+          process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+          'worker-react-exports-',
+        ),
+      );
+      const runtimeRequire = createRequire(
+        path.resolve(__dirname, '../../../runtime/render/package.json'),
+      );
+      try {
+        const defaults: Record<string, string> = {};
+        for (const [name, files] of [
+          ['react', ['index.js', 'jsx-runtime.js', 'jsx-dev-runtime.js']],
+          ['react-dom', ['index.js', 'server.edge.js']],
+        ] as const) {
+          const owner = path.dirname(
+            runtimeRequire.resolve(`${name}/package.json`),
+          );
+          fs.mkdirSync(path.join(appDirectory, 'node_modules'), {
+            recursive: true,
+          });
+          fs.symlinkSync(
+            owner,
+            path.join(appDirectory, 'node_modules', name),
+            'dir',
+          );
+          for (const file of files) {
+            const alias =
+              file === 'index.js'
+                ? `${name}$`
+                : `${name}/${file.slice(0, -3)}$`;
+            defaults[alias] = fs.realpathSync(path.join(owner, file));
+          }
+        }
+        const environments = createWorkerEnvironments(__filename);
+        environments.workerSSR!.tools = {
+          bundlerChain(chain) {
+            chain.resolve.alias.set('@fixture/neighbor$', __filename);
+          },
+        };
+        const rsbuild = await createRsbuild({
+          cwd: appDirectory,
+          rsbuildConfig: {
+            environments: getCloudflareBuilderEnvironments({
+              appContext: {
+                appDirectory,
+                apiDirectory: path.join(appDirectory, 'api'),
+                deployTarget: cloudflareDeployTarget,
+              },
+              environments,
+              normalizedConfig: { server: { rsc } },
+            }),
+            tools: {
+              htmlPlugin: false,
+              // SourceBuild installs consuming-React aliases in root tools.
+              bundlerChain(chain) {
+                for (const [name, target] of Object.entries(defaults)) {
+                  chain.resolve.alias.set(name, target);
+                }
+              },
+            },
+          },
+        });
+        const configs = await rsbuild.initConfigs();
+        const worker = configs.find(config => config.name === 'workerSSR');
+        if (!worker) throw new Error('Worker config is missing');
+        for (const [name, target] of Object.entries(defaults)) {
+          if (rsc) expect(worker.resolve?.alias).not.toHaveProperty(name);
+          else expect(worker.resolve?.alias).toHaveProperty(name, target);
+        }
+        expect(worker.resolve?.alias).toHaveProperty(
+          '@fixture/neighbor$',
+          __filename,
+        );
+        expect(worker.resolve?.conditionNames).not.toContain('react-server');
+        expect(worker.optimization?.runtimeChunk).toEqual(
+          rsc ? false : { name: '__modern_worker_runtime' },
+        );
+      } finally {
+        fs.rmSync(appDirectory, { force: true, recursive: true });
+      }
+    },
+  );
+
   it.each([
     { deployTarget: { target: 'cloudflare', explicit: true }, enabled: true },
     { deployTarget: { target: 'cloudflare', explicit: false }, enabled: true },
     { deployTarget: { target: 'node', explicit: true }, enabled: false },
     { deployTarget: undefined, enabled: false },
-  ] as const)('selects Cloudflare worker output from the resolved deploy target', ({
-    deployTarget,
-    enabled,
-  }) => {
-    const environments = createWorkerEnvironments('./src/bootstrap.server.jsx');
-    const result = getCloudflareBuilderEnvironments({
-      appContext: {
-        apiDirectory: '/app/api',
-        appDirectory: '/app',
-        deployTarget,
-      },
-      environments,
-      normalizedConfig: {},
-    });
+  ] as const)(
+    'selects Cloudflare worker output from the resolved deploy target',
+    ({ deployTarget, enabled }) => {
+      const environments = createWorkerEnvironments(
+        './src/bootstrap.server.jsx',
+      );
+      const result = getCloudflareBuilderEnvironments({
+        appContext: {
+          apiDirectory: '/app/api',
+          appDirectory: '/app',
+          deployTarget,
+        },
+        environments,
+        normalizedConfig: {},
+      });
 
-    if (!enabled) {
-      expect(result).toBe(environments);
-      return;
-    }
+      if (!enabled) {
+        expect(result).toBe(environments);
+        return;
+      }
 
-    expect(result).not.toBe(environments);
-    expect(result.workerSSR?.output).toMatchObject({
-      module: true,
-      target: 'web',
-    });
-    expect(result.workerSSR?.source?.entry).toEqual({
-      main: ['./src/index.server.jsx'],
-    });
-  });
+      expect(result).not.toBe(environments);
+      expect(result.workerSSR?.output).toMatchObject({
+        module: true,
+        target: 'web',
+      });
+      expect(result.workerSSR?.source?.entry).toEqual({
+        main: ['./src/index.server.jsx'],
+      });
+    },
+  );
 
   it('rewrites worker entries and adds an Effect BFF entry before user handlers', () => {
     const appDirectory = fs.mkdtempSync(

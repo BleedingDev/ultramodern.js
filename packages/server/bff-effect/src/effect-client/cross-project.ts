@@ -10,8 +10,8 @@ import * as Schema from 'effect/Schema';
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http';
-import { HttpApi, type HttpApiGroup } from 'effect/unstable/httpapi';
+import { HttpClient, HttpClientRequest } from 'effect/http';
+import { HttpApi, type HttpApiGroup } from 'effect/http-api';
 
 export interface EffectCrossProjectClientOptions {
   requestId: string;

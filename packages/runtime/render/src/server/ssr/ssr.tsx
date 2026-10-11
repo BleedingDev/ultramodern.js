@@ -35,14 +35,9 @@ function wrapStream(
   stream: ReadableStream,
   originalStream: ReactDOMServerReadableStream,
 ): ReactDOMServerReadableStream {
-  const wrappedStream = Object.create(stream);
-  for (const prop of Object.keys(originalStream)) {
-    if (!(prop in wrappedStream)) {
-      wrappedStream[prop] =
-        originalStream[prop as keyof ReactDOMServerReadableStream];
-    }
-  }
-  return wrappedStream as ReactDOMServerReadableStream;
+  return Object.assign(stream, {
+    allReady: originalStream.allReady,
+  });
 }
 
 export const renderSSRStream = async (

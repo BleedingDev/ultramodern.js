@@ -2,9 +2,9 @@ import { createDebugger, logger } from '@modern-js/utils';
 import { program } from '@modern-js/utils/commander';
 import { loadEnv } from '@rsbuild/core';
 import { createPluginManager } from '../../manager';
-import type { InternalContext } from '../../types/cli/context';
+import type { CLIPluginAPI } from '../../types/cli/api';
+import type { AppContext, InternalContext } from '../../types/cli/context';
 import type { CLIPlugin, CLIPluginExtends } from '../../types/cli/plugin';
-import type { Plugin } from '../../types/plugin';
 import type { DeepPartial } from '../../types/utils';
 import { initPluginAPI } from '../api';
 import { createContext, initAppContext } from '../context';
@@ -20,7 +20,10 @@ const debug = createDebugger('plugin');
 
 export const createCli = <Extends extends CLIPluginExtends>() => {
   let initOptions: CLIRunOptions<Extends>;
-  const pluginManager = createPluginManager();
+  const pluginManager = createPluginManager<
+    CLIPluginAPI<Extends> & Extends['extendApi'],
+    AppContext<Extends> & Extends['extendContext']
+  >();
   const existListenerMap = new Map();
 
   function createExistListener(
@@ -85,13 +88,14 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
 
     const allPlugins = [
       ...(internalPlugins || []),
-      ...((loaded.config as unknown as { plugins: Plugin[] }).plugins || []),
+      ...((loaded.config as unknown as { plugins: CLIPlugin<Extends>[] })
+        .plugins || []),
     ];
     checkIsDuplicationPlugin(allPlugins.map(plugin => plugin.name));
 
     pluginManager.addPlugins(allPlugins);
 
-    const plugins = (await pluginManager.getPlugins()) as CLIPlugin<Extends>[];
+    const plugins = await pluginManager.getPlugins();
 
     debug(
       'CLI Plugins:',
@@ -159,7 +163,7 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
   }
   async function run(options: CLIRunOptions<Extends>) {
     const { appContext } = await init(options);
-    await appContext.hooks.addCommand.call({ program });
+    await appContext.hooks.addCommand.call({ program: initCommandsMap() });
 
     await createFileWatcher(appContext);
 
@@ -170,9 +174,17 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
       );
     }
   }
+  /** Detach this host's process handlers after its lifecycle cleanup. */
+  function dispose() {
+    for (const [event, listener] of existListenerMap) {
+      process.off(event, listener);
+    }
+    existListenerMap.clear();
+  }
   return {
     init,
     run,
+    dispose,
     getPrevInitOptions: () => initOptions,
   };
 };
@@ -192,7 +204,10 @@ type CreateConfigOption<Extends extends CLIPluginExtends> = Omit<
 export const createConfigOptions = async <Extends extends CLIPluginExtends>(
   options: CreateConfigOption<Extends>,
 ) => {
-  const pluginManager = createPluginManager();
+  const pluginManager = createPluginManager<
+    CLIPluginAPI<Extends> & Extends['extendApi'],
+    AppContext<Extends> & Extends['extendContext']
+  >();
   pluginManager.clear();
 
   const { configFile, cwd, metaName = 'modern-js', command } = options;
@@ -210,11 +225,12 @@ export const createConfigOptions = async <Extends extends CLIPluginExtends>(
 
   const allPlugins = [
     ...(options.internalPlugins || []),
-    ...((loaded.config as unknown as { plugins: Plugin[] }).plugins || []),
+    ...((loaded.config as unknown as { plugins: CLIPlugin<Extends>[] })
+      .plugins || []),
   ];
   checkIsDuplicationPlugin(allPlugins.map(plugin => plugin.name));
   pluginManager.addPlugins(allPlugins);
-  const plugins = (await pluginManager.getPlugins()) as CLIPlugin<Extends>[];
+  const plugins = await pluginManager.getPlugins();
 
   const context = await createContext<Extends>({
     appContext: initAppContext<Extends>({

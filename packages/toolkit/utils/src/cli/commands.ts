@@ -1,4 +1,4 @@
-import type { Command } from '../../compiled/commander';
+import type { Command } from '../../compiled/commander/index.mjs';
 import { logger } from './logger';
 
 export const getFullArgv = () => {

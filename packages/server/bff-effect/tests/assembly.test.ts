@@ -1,13 +1,13 @@
 import * as Effect from 'effect/Effect';
-import * as Layer from 'effect/Layer';
-import * as Schema from 'effect/Schema';
 import {
   HttpApi,
   HttpApiBuilder,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiSchema,
-} from 'effect/unstable/httpapi';
+} from 'effect/http-api';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 import {
   assembleEffectBffRuntime,
   type EffectBffRuntimeAssembly,
@@ -35,52 +35,52 @@ const assembly: EffectBffRuntimeAssembly<'AssemblyApi', typeof group, never> = {
 };
 
 describe('Effect BFF runtime assembly', () => {
-  test.each([
-    false,
-    true,
-  ])('preserves native requests, errors, and handler options with transport=%s', async withTransport => {
-    const transport = withTransport ? Layer.empty : undefined;
-    const runtime = assembleEffectBffRuntime({ ...assembly, transport });
-    const nativeApiLayer = HttpApiBuilder.layer(api).pipe(
-      Layer.provide(handlers),
-    );
-    const native = defineEffectBff({
-      api,
-      layer:
-        transport === undefined
-          ? nativeApiLayer
-          : nativeApiLayer.pipe(Layer.merge(transport)),
-    });
-    const options = { openapi: { path: '/schema.json' } };
-    const assembledHandler = runtime.createHandler(options);
-    const nativeHandler = native.createHandler(options);
+  test.each([false, true])(
+    'preserves native requests, errors, and handler options with transport=%s',
+    async withTransport => {
+      const transport = withTransport ? Layer.empty : undefined;
+      const runtime = assembleEffectBffRuntime({ ...assembly, transport });
+      const nativeApiLayer = HttpApiBuilder.layer(api).pipe(
+        Layer.provide(handlers),
+      );
+      const native = defineEffectBff({
+        api,
+        layer:
+          transport === undefined
+            ? nativeApiLayer
+            : nativeApiLayer.pipe(Layer.merge(transport)),
+      });
+      const options = { openapi: { path: '/schema.json' } };
+      const assembledHandler = runtime.createHandler(options);
+      const nativeHandler = native.createHandler(options);
 
-    try {
-      for (const [pathname, status] of [
-        ['/status', 200],
-        ['/status?fail=true', 409],
-        ['/missing', 404],
-        ['/schema.json', 200],
-        ['/openapi.json', 404],
-      ] as const) {
-        const response = await assembledHandler.handler(
-          new Request(`http://localhost${pathname}`),
-        );
-        const reference = await nativeHandler.handler(
-          new Request(`http://localhost${pathname}`),
-        );
-        expect(response.status).toBe(status);
-        expect(response.status).toBe(reference.status);
-        expect(response.headers.get('content-type')).toBe(
-          reference.headers.get('content-type'),
-        );
-        expect(await response.text()).toBe(await reference.text());
+      try {
+        for (const [pathname, status] of [
+          ['/status', 200],
+          ['/status?fail=true', 409],
+          ['/missing', 404],
+          ['/schema.json', 200],
+          ['/openapi.json', 404],
+        ] as const) {
+          const response = await assembledHandler.handler(
+            new Request(`http://localhost${pathname}`),
+          );
+          const reference = await nativeHandler.handler(
+            new Request(`http://localhost${pathname}`),
+          );
+          expect(response.status).toBe(status);
+          expect(response.status).toBe(reference.status);
+          expect(response.headers.get('content-type')).toBe(
+            reference.headers.get('content-type'),
+          );
+          expect(await response.text()).toBe(await reference.text());
+        }
+      } finally {
+        await assembledHandler.dispose();
+        await nativeHandler.dispose();
       }
-    } finally {
-      await assembledHandler.dispose();
-      await nativeHandler.dispose();
-    }
-  });
+    },
+  );
 
   test('forwards validation options through the canonical factory', async () => {
     const runtime = assembleEffectBffRuntime(assembly);

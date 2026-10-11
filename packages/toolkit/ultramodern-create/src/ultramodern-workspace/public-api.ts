@@ -18,6 +18,8 @@ export { normalizeUltramodernBridgeConfig } from './bridge-config';
 export type {
   AddUltramodernShellOptions,
   AddUltramodernVerticalOptions,
+  ApplicationRenderer,
+  RendererGenerationCapabilities,
   UltramodernCodeSmithOverlay,
   UltramodernCodeSmithOverlayRuntimeConfig,
   UltramodernGeneratedAppDescriptor,
@@ -31,5 +33,8 @@ export type {
   UltramodernWorkspaceOptions,
   VerticalApiProtocol,
   VerticalPreset,
+  WorkspaceRenderer,
+  WorkspaceRendererIdentity,
+  WorkspaceRendererProfile,
 } from './types';
 export { generateUltramodernWorkspace } from './write-workspace';

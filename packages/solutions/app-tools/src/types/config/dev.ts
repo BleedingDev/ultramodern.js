@@ -1,5 +1,8 @@
 import type { BuilderConfig } from '@modern-js/builder';
-import type { CorsOptions, SetupMiddlewares } from '@modern-js/server';
+import type {
+  CorsOptions,
+  SetupMiddlewares,
+} from '@modern-js/server/config-types';
 import type { ServerConfig } from '@rsbuild/core';
 
 type BuilderDevConfig = NonNullable<BuilderConfig['dev']>;

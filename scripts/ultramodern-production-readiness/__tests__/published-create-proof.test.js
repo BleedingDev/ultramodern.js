@@ -1,7 +1,9 @@
 const assert = require('node:assert/strict');
-const { spawnSync } = require('node:child_process');
+const childProcess = require('node:child_process');
+const { spawnSync } = childProcess;
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const { createRequire, syncBuiltinESMExports } = require('node:module');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -100,6 +102,191 @@ function makeBootstrapRelease(version = '3.4.0-ultramodern.2') {
     release: { version },
   };
 }
+
+function makeNormalAcceptanceRelease() {
+  const release = makeBootstrapRelease();
+  release.source = { commit: 'a'.repeat(40) };
+  for (const item of release.packages) {
+    item.integrity = `sha512-${crypto
+      .createHash('sha512')
+      .update(item.targetName)
+      .digest('base64')}`;
+  }
+  Object.assign(release.createPackage.packageJson.dependencies, {
+    '@module-federation/runtime': 'npm:@bleedingdev/mf-runtime@2.9.1',
+    '@module-federation/dts-plugin': 'npm:@bleedingdev/mf-dts-plugin@2.9.1',
+    '@module-federation/modern-js-v3': 'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
+  });
+  return release;
+}
+
+function makeNormalAcceptanceReport(platform, moduleFederation) {
+  const verticals = Array.from(
+    { length: 10 },
+    (_, index) => `vertical-${index + 1}`,
+  );
+  const applicationSourceRevision = 'c'.repeat(40);
+  return {
+    verticals,
+    applicationSourceRevision,
+    report: {
+      artifactMode: 'source',
+      platform,
+      shellRuntime: platform,
+      targetRuntimes: Object.fromEntries(
+        verticals.map(appId => [appId, platform]),
+      ),
+      status: 'pass',
+      skipped: [],
+      evidence: {
+        'release-identity': {
+          artifactMode: 'source',
+          platform,
+          status: 'pass',
+          verticalIds: verticals,
+          assertions: verticals.map(appId => ({ appId, status: 'pass' })),
+          apps: verticals.map(appId => {
+            const identity = {
+              buildMarker: crypto
+                .createHash('sha256')
+                .update(appId)
+                .digest('hex'),
+              sourceRevision: applicationSourceRevision,
+              releaseVersion: '0.1.0',
+              moduleFederation,
+            };
+            return {
+              appId,
+              surfaces: Object.fromEntries(
+                ['frontend', 'ssr', 'api', 'backend'].map(surface => [
+                  surface,
+                  { ...identity },
+                ]),
+              ),
+            };
+          }),
+        },
+      },
+    },
+  };
+}
+
+test('normal acceptance validates served runtime identities without narrowing the SDK artifact audit', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { assertRuntimeAcceptanceDimension, createReleaseArtifactBinding } =
+    await import('../published-create-proof/acceptance-contract.mjs');
+  const release = makeNormalAcceptanceRelease();
+  const originalRelease = structuredClone(release);
+  const fullBinding = createReleaseArtifactBinding(release);
+  const originalFullBinding = structuredClone(fullBinding);
+  const servedBinding = createRuntimeArtifactBinding(release);
+  const runtimeCohort = [
+    { packageName: '@module-federation/runtime', version: '2.9.1' },
+  ];
+
+  assert.deepEqual(servedBinding.moduleFederation, runtimeCohort);
+  assert.equal(fullBinding.moduleFederation.length, 3);
+  assert.deepEqual(servedBinding.packages, fullBinding.packages);
+  assert.equal(servedBinding.sourceRevision, release.source.commit);
+  for (const platform of ['node', 'workerd']) {
+    const { report, verticals, applicationSourceRevision } =
+      makeNormalAcceptanceReport(platform, runtimeCohort);
+    const details = assertRuntimeAcceptanceDimension(report, {
+      artifactBinding: servedBinding,
+      applicationSourceRevision,
+      dimension: 'release-identity',
+      mode: 'source',
+      platform,
+      verticals,
+    });
+    assert.equal(details.apps.length, 10);
+    for (const app of details.apps) {
+      assert.deepEqual(app.moduleFederation, runtimeCohort);
+    }
+  }
+  assert.deepEqual(fullBinding, originalFullBinding);
+  assert.deepEqual(release, originalRelease);
+});
+
+test('normal acceptance rejects foreign runtimes and SDK tooling in served identities', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { assertRuntimeAcceptanceDimension, createReleaseArtifactBinding } =
+    await import('../published-create-proof/acceptance-contract.mjs');
+  const release = makeNormalAcceptanceRelease();
+  const servedBinding = createRuntimeArtifactBinding(release);
+  const invalidCohorts = [
+    [{ packageName: '@module-federation/runtime', version: '2.9.2' }],
+    createReleaseArtifactBinding(release).moduleFederation,
+  ];
+
+  for (const platform of ['node', 'workerd']) {
+    for (const moduleFederation of invalidCohorts) {
+      const { report, verticals, applicationSourceRevision } =
+        makeNormalAcceptanceReport(platform, moduleFederation);
+      assert.throws(
+        () =>
+          assertRuntimeAcceptanceDimension(report, {
+            artifactBinding: servedBinding,
+            applicationSourceRevision,
+            dimension: 'release-identity',
+            mode: 'source',
+            platform,
+            verticals,
+          }),
+        /Module Federation cohort differs from the exact release cohort/u,
+      );
+    }
+  }
+});
+
+test('normal acceptance rejects missing or invalid packed runtime declarations', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const cases = [
+    [
+      release => {
+        delete release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ];
+      },
+      /requires one exact Module Federation runtime/u,
+    ],
+    [
+      release => {
+        release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ] = 'npm:@bleedingdev/mf-runtime@2.9';
+      },
+      /must use one exact Module Federation version/u,
+    ],
+    [
+      release => {
+        release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ] = 'npm:@bleedingdev/mf-runtime@^2.9.1';
+      },
+      /must use one exact Module Federation version/u,
+    ],
+    [
+      release => {
+        release.packages[1].packageJson.optionalDependencies = {
+          '@module-federation/runtime': 'npm:@bleedingdev/mf-runtime@2.9.2',
+        };
+      },
+      /mixes Module Federation.*versions/u,
+    ],
+  ];
+  for (const [mutate, expectedError] of cases) {
+    const release = makeNormalAcceptanceRelease();
+    mutate(release);
+    assert.throws(() => createRuntimeArtifactBinding(release), expectedError);
+  }
+});
 
 test('builds the supported pnpm dlx package command contract from the authenticated create closure', async () => {
   const { createPnpmDlxArgs, resolveCreatePackage } = await import(
@@ -218,6 +405,170 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
+function makeBootstrapSidecar(name, version, packageJson = {}) {
+  return { name, version, packageJson: { name, version, ...packageJson } };
+}
+
+test('bootstrap admits only the exact reachable sidecar runtime and optional closure', async () => {
+  const { createPnpmDlxArgs, resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  const release = makeBootstrapRelease();
+  const jiti = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
+  const runtime = makeBootstrapSidecar('@bleedingdev/mf-runtime', '2.9.1');
+  const node = makeBootstrapSidecar('@bleedingdev/mf-node', '2.7.51');
+  const image = makeBootstrapSidecar('@bleedingdev/optional-native', '0.1.4');
+  const modern = makeBootstrapSidecar('@bleedingdev/mf-modern-js-v3', '2.9.1', {
+    dependencies: {
+      '@module-federation/runtime': `npm:${runtime.name}@${runtime.version}`,
+    },
+    optionalDependencies: { [node.name]: node.version },
+    devDependencies: { '@bleedingdev/dev-only': '1.0.0' },
+  });
+  const unused = makeBootstrapSidecar('@bleedingdev/unused', '1.0.0');
+  const devOnly = makeBootstrapSidecar('@bleedingdev/dev-only', '1.0.0');
+  const unreachable = makeBootstrapSidecar('@bleedingdev/unreachable', '1.0.0');
+  Object.assign(release.createPackage.packageJson.dependencies, {
+    jiti: `npm:${jiti.name}@${jiti.version}`,
+    '@module-federation/modern-js-v3': `npm:${modern.name}@${modern.version}`,
+  });
+  const utils = release.packages.find(
+    item => item.sourceName === '@modern-js/utils',
+  );
+  utils.packageJson.optionalDependencies = { [image.name]: image.version };
+  utils.packageJson.devDependencies = { [unused.name]: unused.version };
+  release.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
+  ).packageJson.dependencies = { [unreachable.name]: unreachable.version };
+  release.sidecars = {
+    packages: [
+      jiti,
+      modern,
+      runtime,
+      node,
+      image,
+      unused,
+      devOnly,
+      unreachable,
+    ],
+  };
+  const createPackage = resolveCreatePackage(release);
+  const expected = [
+    ...resolveCreatePackage(makeBootstrapRelease()).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+    ...[jiti, modern, runtime, node, image].map(
+      item => `${item.name}@${item.version}`,
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  assert.deepEqual(
+    createPackage.bootstrapReleaseAgePolicy.minimumReleaseAgeExclude,
+    expected,
+  );
+  const args = createPnpmDlxArgs(createPackage, ['my-app']);
+  assert.deepEqual(
+    args.filter(value =>
+      value.startsWith('--config.minimum-release-age-exclude='),
+    ),
+    expected.map(value => `--config.minimum-release-age-exclude=${value}`),
+  );
+  for (const flag of [
+    '--config.minimum-release-age=1440',
+    '--config.minimum-release-age-strict=true',
+    '--config.minimum-release-age-ignore-missing-time=false',
+  ])
+    assert(args.includes(flag));
+  assert(args.includes('dlx'));
+  assert(args.includes(createPackage.exactSpecifier));
+});
+
+test('bootstrap rejects mismatched or inexact sidecar dependency identities', async () => {
+  const { resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  for (const specifier of [
+    'npm:@bleedingdev/jiti@2.6.0',
+    'npm:@bleedingdev/jiti@^2.7.0',
+    'npm:@bleedingdev/jiti@*',
+  ]) {
+    const release = makeBootstrapRelease();
+    release.createPackage.packageJson.dependencies.jiti = specifier;
+    release.sidecars = {
+      packages: [makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0')],
+    };
+    assert.throws(
+      () => resolveCreatePackage(release),
+      /must resolve to exact bootstrap sidecar/u,
+    );
+  }
+  const release = makeBootstrapRelease();
+  const parent = makeBootstrapSidecar('@bleedingdev/parent', '1.0.0', {
+    dependencies: { '@bleedingdev/jiti': '^2.7.0' },
+  });
+  release.createPackage.packageJson.dependencies[parent.name] = parent.version;
+  release.sidecars = {
+    packages: [parent, makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0')],
+  };
+  assert.throws(
+    () => resolveCreatePackage(release),
+    /must resolve to exact bootstrap sidecar/u,
+  );
+});
+
+test('bootstrap rejects invalid sidecar observations and cannot forge sidecar exemptions', async () => {
+  const { createPnpmDlxArgs, resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  const sidecar = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
+  for (const packages of [
+    [makeBootstrapSidecar('@foreign/jiti', '2.7.0')],
+    [makeBootstrapSidecar('@bleedingdev/*', '2.7.0')],
+    [makeBootstrapSidecar('@bleedingdev/modern-js-forged', '2.7.0')],
+    [makeBootstrapSidecar(sidecar.name, '^2.7.0')],
+    [{ ...sidecar, packageJson: { name: '@foreign/jiti', version: '2.7.0' } }],
+    [{ ...sidecar, packageJson: { name: sidecar.name, version: '2.6.0' } }],
+    [{ name: sidecar.name, version: sidecar.version }],
+    [sidecar, sidecar],
+  ]) {
+    const release = makeBootstrapRelease();
+    release.sidecars = { packages };
+    assert.throws(
+      () => resolveCreatePackage(release),
+      /invalid packed sidecar observation|must be stable semver/u,
+    );
+  }
+  const release = makeBootstrapRelease();
+  release.createPackage.packageJson.dependencies.jiti =
+    'npm:@bleedingdev/jiti@2.7.0';
+  // An unobserved published dependency gets no candidate-sidecar exemption.
+  assert.deepEqual(
+    resolveCreatePackage(release).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+    resolveCreatePackage(makeBootstrapRelease()).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+  );
+  release.sidecars = {
+    packages: [makeBootstrapSidecar('@bleedingdev/unrelated', '1.0.0')],
+  };
+  assert.throws(
+    () => resolveCreatePackage(release),
+    /targets omitted bootstrap sidecar @bleedingdev\/jiti/u,
+  );
+  release.sidecars = { packages: [sidecar] };
+  const actual = resolveCreatePackage(release);
+  assert.doesNotThrow(() => createPnpmDlxArgs(actual, []));
+  assert.throws(
+    () =>
+      createPnpmDlxArgs(
+        {
+          ...actual,
+          bootstrapReleaseAgePolicy: { ...actual.bootstrapReleaseAgePolicy },
+        },
+        [],
+      ),
+    /exact authenticated bootstrap release-age policy/u,
+  );
+});
+
 test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
   const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
@@ -238,7 +589,7 @@ test('fresh-release installs use one exact cohort and sidecar selector set', asy
   });
   const release = makeBootstrapRelease();
   release.sidecars = {
-    packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
+    packages: [makeBootstrapSidecar('@bleedingdev/mf-bridge-react', '1.0.0')],
   };
   const exemptions = releaseAgeExemptions(release, { policyPath });
   assert.equal(exemptions.length, release.packages.length + 1);
@@ -443,6 +794,128 @@ test('acceptance children never inherit a source create bin or framework overrid
         process.env[name] = value;
       }
     }
+  }
+});
+
+test('acceptance defaults retain their existing private package-manager cache and store', async () => {
+  const { createAcceptancePackageManagerEnv } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-default-env');
+  const env = createAcceptancePackageManagerEnv(workDir);
+  assert.equal(
+    env.npm_config_store_dir,
+    path.join(workDir, 'package-manager', 'store'),
+  );
+  assert.equal(env.pnpm_config_store_dir, env.npm_config_store_dir);
+  assert.equal(
+    env.npm_config_cache,
+    path.join(workDir, 'package-manager', 'npm-cache'),
+  );
+  assert.equal(env.pnpm_config_package_import_method, undefined);
+  assert.equal(env.npm_config_package_import_method, undefined);
+  assert.equal(env.npm_config_ignore_scripts, undefined);
+  assert.equal(env.pnpm_config_ignore_scripts, undefined);
+});
+
+test('runtime context carries the explicit external store and clone-or-copy through child environments', async () => {
+  const { createAcceptanceRuntimeContext } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-store-env', 'work');
+  const storeDir = path.resolve(workDir, '..', 'external-store');
+  const environment = {
+    PATH: '/injected/bin',
+    PLAYWRIGHT_BROWSERS_PATH: path.resolve(workDir, '..', 'browsers'),
+  };
+  const pnpmExecutable = path.resolve(workDir, '..', 'tools', 'pnpm');
+  const runImpl = () => {
+    throw new Error('no package-manager command is needed');
+  };
+  const { env, pnpmExecutable: actualExecutable } =
+    createAcceptanceRuntimeContext({
+      workDir,
+      environment,
+      expectedPnpmVersion: '11.27.1',
+      registryEnv: {
+        npm_config_userconfig: path.join(workDir, 'registry.npmrc'),
+        PNPM_CONFIG_STORE_DIR: '/registry/store-must-not-win',
+        npm_config_store_dir: '/registry/store-must-not-win',
+        PNPM_CONFIG_PACKAGE_IMPORT_METHOD: 'hardlink',
+      },
+      storeDir,
+      runImpl,
+      resolveExactPnpmExecutableImpl: (...args) => {
+        assert.deepEqual(args, [runImpl, '11.27.1', environment, workDir]);
+        return pnpmExecutable;
+      },
+    });
+  assert.equal(actualExecutable, pnpmExecutable);
+  assert.equal(
+    env.PATH,
+    [path.dirname(pnpmExecutable), environment.PATH].join(path.delimiter),
+  );
+  assert.equal(
+    env.PLAYWRIGHT_BROWSERS_PATH,
+    environment.PLAYWRIGHT_BROWSERS_PATH,
+  );
+  assert.equal(env.npm_config_userconfig, path.join(workDir, 'registry.npmrc'));
+  const child = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      'process.stdout.write(JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(?:npm|pnpm)_config_(?:store_dir|package_import_method)$/i.test(key)))))',
+    ],
+    {
+      encoding: 'utf8',
+      env: createProcessEnv(env),
+    },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), {
+    npm_config_store_dir: storeDir,
+    pnpm_config_store_dir: storeDir,
+    npm_config_package_import_method: 'clone-or-copy',
+    pnpm_config_package_import_method: 'clone-or-copy',
+  });
+  assert.equal(env.npm_config_ignore_scripts, undefined);
+  assert.equal(env.pnpm_config_ignore_scripts, undefined);
+});
+
+test('explicit acceptance stores reject relative paths and disposable workspace descendants', async () => {
+  const { createAcceptancePackageManagerEnv } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-store-validation');
+  for (const storeDir of ['store', '', ' ', `${workDir}\0bad`]) {
+    assert.throws(
+      () =>
+        createAcceptancePackageManagerEnv(
+          workDir,
+          {},
+          undefined,
+          {},
+          { storeDir },
+        ),
+      /must be an absolute path/u,
+    );
+  }
+  for (const storeDir of [
+    workDir,
+    path.join(workDir, 'store'),
+    path.join(workDir, 'nested', '..', 'store'),
+  ]) {
+    assert.throws(
+      () =>
+        createAcceptancePackageManagerEnv(
+          workDir,
+          {},
+          undefined,
+          {},
+          { storeDir },
+        ),
+      /must be outside/u,
+    );
   }
 });
 
@@ -670,13 +1143,37 @@ test('browser smoke diagnostics redact structured and embedded JSON secrets', as
   }
 });
 
-test('asserts generated cohorts only from strict manifest expectations', async () => {
+test('asserts generated cohorts only from strict manifest expectations', async t => {
   const { assertGeneratedCohort } = await import(
     '../published-create-proof/package-cohort.mjs'
+  );
+  const { YAML_SPECIFIER, YAML_VERSION } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const yamlRequire = createRequire(
+    path.join(__dirname, '../../prebundle/package.json'),
+  );
+  const yamlManifest = yamlRequire('js-yaml/package.json');
+  assert.equal(yamlManifest.version, YAML_VERSION);
+  const yamlCli = path.join(
+    path.dirname(yamlRequire.resolve('js-yaml/package.json')),
+    yamlManifest.bin['js-yaml'],
   );
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'published-create-cohort-'),
   );
+  const catalogPath = path.join(root, 'pnpm-workspace.yaml');
+  // Exercise the installed pinned CLI without downloading it for each check.
+  t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+    assert.equal(command, 'pnpm');
+    assert.deepEqual(args, ['dlx', YAML_SPECIFIER, catalogPath]);
+    return spawnSync(process.execPath, [yamlCli, catalogPath], options);
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
   const version = '3.2.0-framework.1';
   const release = {
     aliases: {
@@ -719,7 +1216,7 @@ test('asserts generated cohorts only from strict manifest expectations', async (
 
   try {
     fs.writeFileSync(
-      path.join(root, 'pnpm-workspace.yaml'),
+      catalogPath,
       `catalogs:\n  ultramodern:\n    '@modern-js/ultramodern-create': npm:@bleedingdev/modern-js-ultramodern-create@${version}\n    '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@${version}\n`,
     );
     writeJson(root, 'package.json', {
@@ -745,6 +1242,39 @@ test('asserts generated cohorts only from strict manifest expectations', async (
     };
 
     assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    const catalog = fs.readFileSync(catalogPath, 'utf8');
+    fs.writeFileSync(
+      catalogPath,
+      `catalog:\n  '@modern-js/ultramodern-create': npm:@bleedingdev/modern-js-ultramodern-create@${version}\n  '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@${version}\n`,
+    );
+    writeJson(root, 'package.json', {
+      devDependencies: { '@modern-js/ultramodern-create': 'catalog:' },
+      dependencies: { '@modern-js/runtime': 'catalog:' },
+    });
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    for (const source of ['', 'null\n', 'inventory\n', '- inventory\n']) {
+      fs.writeFileSync(catalogPath, source);
+      assert.throws(
+        () => assertGeneratedCohort(root, release),
+        /must be a mapping|Expected one YAML document/u,
+      );
+    }
+    fs.writeFileSync(
+      catalogPath,
+      `lockfileVersion: '9.0'\n${catalog}---\nlockfileVersion: '9.0'\n${catalog}`,
+    );
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /Expected one YAML document/u,
+    );
+    fs.writeFileSync(catalogPath, 'catalogs: [\n');
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /Pinned YAML parser exited 1/u,
+    );
+    fs.writeFileSync(catalogPath, catalog);
 
     release.sidecars = {
       packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
@@ -791,8 +1321,6 @@ test('asserts generated cohorts only from strict manifest expectations', async (
       },
     });
 
-    const catalogPath = path.join(root, 'pnpm-workspace.yaml');
-    const catalog = fs.readFileSync(catalogPath, 'utf8');
     fs.writeFileSync(
       catalogPath,
       catalog.replace(/^ {4}'@modern-js\/runtime'.*\n/mu, ''),

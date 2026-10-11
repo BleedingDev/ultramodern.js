@@ -18,7 +18,11 @@ import {
   createOwnership,
   createTopology,
 } from './contracts';
-import { createShellHost, sharedPackages, shellApp } from './descriptors';
+import {
+  appEmitsBrowserUi,
+  createShellHost,
+  sharedPackages,
+} from './descriptors';
 import {
   copyRootTemplate,
   formatGeneratedWorkspaceFiles,
@@ -31,7 +35,12 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from './generation-result';
-import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
+import { createUltramodernBuildArtifactJson } from './module-federation';
+import {
+  assertUniqueTailwindPrefixes,
+  packageName,
+  toPackageScope,
+} from './naming';
 import { runCodeSmithOverlays } from './overlays';
 import {
   createRootPackageJson,
@@ -45,12 +54,23 @@ import {
   resolvePackageSource,
   resolveWorkspacePackageLinkingPolicy,
 } from './package-source';
+import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
+import { reconcileWorkspaceRendererIdentities } from './renderer-identity';
+import { initializeGeneratedRendererIdentity } from './renderer-initial-identity';
+import {
+  getRendererGenerationProfile,
+  isApplicationRenderer,
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import type {
   ResolvedPackageSource,
   UltramodernGenerationResult,
   UltramodernWorkspaceOptions,
   WorkspaceApp,
 } from './types';
+import { isForeignRendererPackage } from './validation/renderer';
+import { validateWorkspace } from './validation/workspace';
 import {
   EFFECT_VERSION,
   I18NEXT_VERSION,
@@ -58,6 +78,7 @@ import {
   PNPM_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
+import { createWorkspaceValidationContract } from './workspace-validation-contract';
 import { writeApp } from './write-app';
 import { createZeropsYaml } from './zerops';
 
@@ -74,6 +95,7 @@ function writeSharedPackages(
   targetDir: string,
   scope: string,
   packageSource: ResolvedPackageSource,
+  primaryShell: WorkspaceApp,
 ) {
   for (const sharedPackage of sharedPackages) {
     writeJson(
@@ -84,6 +106,7 @@ function writeSharedPackages(
         sharedPackage.id,
         sharedPackage.description,
         packageSource,
+        primaryShell.renderer,
       ),
     );
     writeJson(
@@ -96,7 +119,7 @@ function writeSharedPackages(
   writeFile(
     targetDir,
     'packages/shared-contracts/src/index.ts',
-    createSharedContractsIndex(),
+    createSharedContractsIndex(primaryShell.renderer),
   );
   writeFile(
     targetDir,
@@ -123,14 +146,31 @@ function writeSharedPackages(
 // on), so a workspace created on the day the cohort is published installs.
 // A catalog for any other release gets no exemption: this package cannot
 // authenticate that cohort, so it installs once it is 24h old.
-function renderCatalogPolicy(packageSource: ResolvedPackageSource) {
+function renderCatalogPolicy(
+  packageSource: ResolvedPackageSource,
+  primaryShell: WorkspaceApp,
+) {
   if (packageSource.strategy !== 'install') {
     return '';
   }
-  const catalog = ULTRAMODERN_WORKSPACE_MODERN_PACKAGES.map(
-    name =>
-      `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
-  ).join('\n');
+  // The catalog is workspace policy: it must not offer packages that belong
+  // to another renderer than the one the workspace was generated for.
+  const renderer = resolveWorkspaceRenderer(primaryShell);
+  const catalog = [
+    ...new Set([
+      ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+      '@modern-js/backend-federation-contracts',
+      '@modern-js/renderer-core',
+      ...(resolveAppGenerationProfile(primaryShell)?.frameworkDependencies ??
+        []),
+    ]),
+  ]
+    .filter(name => !isForeignRendererPackage(name, renderer))
+    .map(
+      name =>
+        `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
+    )
+    .join('\n');
   const cohort = hasCreateReleaseCohort()
     ? readCreateReleaseCohort()
     : undefined;
@@ -152,6 +192,7 @@ function writePnpmWorkspacePackages(
   targetDir: string,
   bridge: UltramodernBridgeConfig | undefined,
   packageSource: ResolvedPackageSource,
+  primaryShell: WorkspaceApp,
 ) {
   const pnpmWorkspacePath = `${targetDir}/pnpm-workspace.yaml`;
   const pnpmWorkspace = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
@@ -166,17 +207,17 @@ function writePnpmWorkspacePackages(
   writeFileReplacing(
     targetDir,
     'pnpm-workspace.yaml',
-    `${renderCatalogPolicy(packageSource)}${pnpmWorkspace.replace(
+    `${renderCatalogPolicy(packageSource, primaryShell)}${pnpmWorkspace.replace(
       /^packages:\r?\n(?: {2}- .+\r?\n)+/u,
       `packages:\n${renderedPackages}\n`,
     )}`,
   );
 }
 
-export function generateUltramodernWorkspace(
+export async function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
-): UltramodernGenerationResult {
-  const result = runFreshWorkspaceTransaction(options.targetDir, stagingRoot =>
+): Promise<UltramodernGenerationResult> {
+  return runFreshWorkspaceTransaction(options.targetDir, stagingRoot =>
     generateUltramodernWorkspaceInPlace(
       {
         ...options,
@@ -185,13 +226,12 @@ export function generateUltramodernWorkspace(
       options.targetDir,
     ),
   );
-  return result;
 }
 
-function generateUltramodernWorkspaceInPlace(
+async function generateUltramodernWorkspaceInPlace(
   options: UltramodernWorkspaceOptions,
   logicalWorkspaceRoot = options.targetDir,
-): UltramodernGenerationResult {
+): Promise<UltramodernGenerationResult> {
   const beforeFiles = createFileSnapshot(options.targetDir);
   const scope = toPackageScope(options.packageName);
   let packageSource: ResolvedPackageSource;
@@ -211,10 +251,24 @@ function generateUltramodernWorkspaceInPlace(
     packageSource = resolvePackageSource(options);
   }
   const bridge = normalizeUltramodernBridgeConfig(options.bridge);
+  const renderer = options.renderer ?? 'react';
+  if (!isApplicationRenderer(renderer))
+    throw new Error(`Unsupported renderer ${String(renderer)}.`);
+  const generation = getRendererGenerationProfile(renderer);
+  if (renderer !== 'react' && bridge)
+    throw new Error(
+      `Renderer ${renderer} does not support React bridge configuration.`,
+    );
   const enableTailwind = options.enableTailwind !== false;
   const initialVerticals: WorkspaceApp[] = [];
-  const createdApps = [createShellHost(initialVerticals), ...initialVerticals];
-  assertUniqueTailwindPrefixes([shellApp, ...initialVerticals]);
+  const initialShell = initializeGeneratedRendererIdentity(scope, {
+    ...createShellHost(initialVerticals),
+    renderer,
+    rendererProfile: generation.profile,
+    rendererGenerationProfile: generation,
+  });
+  const createdApps = [initialShell, ...initialVerticals];
+  assertUniqueTailwindPrefixes(createdApps);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
   const workspacePackageLinkingPolicy =
@@ -244,12 +298,24 @@ function generateUltramodernWorkspaceInPlace(
     },
     excludedRootTemplates,
   );
-  writePnpmWorkspacePackages(options.targetDir, bridge, packageSource);
+  writePnpmWorkspacePackages(
+    options.targetDir,
+    bridge,
+    packageSource,
+    initialShell,
+  );
 
   writeJson(
     options.targetDir,
     'package.json',
-    createRootPackageJson(scope, packageSource, initialVerticals, bridge),
+    createRootPackageJson(
+      scope,
+      packageSource,
+      initialVerticals,
+      bridge,
+      [],
+      initialShell,
+    ),
   );
   // Zerops materialization is a delivery-unit capability. Fresh workspaces
   // start with the shell alone; add-vertical writes the manifest together
@@ -271,7 +337,7 @@ function generateUltramodernWorkspaceInPlace(
   writeJson(
     options.targetDir,
     'topology/reference-topology.json',
-    createTopology(scope, initialVerticals),
+    createTopology(scope, initialVerticals, initialShell, 'source-authoring'),
   );
   writeJson(
     options.targetDir,
@@ -286,7 +352,7 @@ function generateUltramodernWorkspaceInPlace(
   writeApp(
     options.targetDir,
     scope,
-    shellApp,
+    initialShell,
     packageSource,
     enableTailwind,
     initialVerticals,
@@ -303,12 +369,13 @@ function generateUltramodernWorkspaceInPlace(
       bridge,
     );
   }
-  writeSharedPackages(options.targetDir, scope, packageSource);
-  writeGeneratedWorkspaceScripts(options.targetDir);
+  writeSharedPackages(options.targetDir, scope, packageSource, initialShell);
+  writeGeneratedWorkspaceScripts(options.targetDir, { renderer });
 
   const preliminaryAfterFiles = createFileSnapshot(options.targetDir);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
   const preliminaryResult = createGenerationResult({
+    phase: 'source-authoring',
     operation: 'workspace',
     workspaceRoot: logicalWorkspaceRoot,
     packageScope: scope,
@@ -317,12 +384,66 @@ function generateUltramodernWorkspaceInPlace(
     createdPaths: preliminaryDiff.createdPaths,
     rewrittenPaths: preliminaryDiff.rewrittenPaths,
   });
+  const deferredUiArtifactPaths = new Set(
+    createdApps
+      .filter(appEmitsBrowserUi)
+      .map(app => `${app.directory}/shared/ultramodern-build.json`),
+  );
   runCodeSmithOverlays({
     workspaceRoot: options.targetDir,
+    deferredUiArtifactPaths,
     overlays: options.overlays,
     result: preliminaryResult,
   });
   formatGeneratedWorkspaceFiles(options.targetDir);
+
+  const evaluations = await captureWorkspaceRendererEvaluations(
+    options.targetDir,
+    createdApps,
+    { command: 'generate' },
+  );
+  const reconciledApps = await reconcileWorkspaceRendererIdentities(
+    options.targetDir,
+    scope,
+    createdApps,
+    { command: 'generate', evaluations },
+  );
+  const reconciledShell = reconciledApps[0]!;
+  if (reconciledShell.renderer !== renderer) {
+    throw new Error(
+      `Generated application renderer ${renderer} disagrees with the renderer resolved from modern.config (${reconciledShell.renderer}).`,
+    );
+  }
+  writeFileReplacing(
+    options.targetDir,
+    'topology/reference-topology.json',
+    `${JSON.stringify(createTopology(scope, initialVerticals, reconciledShell), null, 2)}\n`,
+  );
+  for (const app of reconciledApps) {
+    const artifactPath = `${app.directory}/shared/ultramodern-build.json`;
+    (deferredUiArtifactPaths.has(artifactPath)
+      ? writeFile
+      : writeFileReplacing)(
+      options.targetDir,
+      artifactPath,
+      createUltramodernBuildArtifactJson(scope, app),
+    );
+  }
+  validateWorkspace(
+    options.targetDir,
+    createWorkspaceValidationContract(
+      scope,
+      enableTailwind,
+      sharedPackages.map(sharedPackage => ({
+        id: sharedPackage.id,
+        path: sharedPackage.directory,
+        package: packageName(scope, sharedPackage.id),
+      })),
+      initialVerticals,
+      [],
+      reconciledShell,
+    ),
+  );
 
   const afterFiles = createFileSnapshot(options.targetDir);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(
@@ -335,7 +456,7 @@ function generateUltramodernWorkspaceInPlace(
     workspaceRoot: logicalWorkspaceRoot,
     packageScope: scope,
     packageSource,
-    createdApps,
+    createdApps: reconciledApps,
     createdPaths,
     rewrittenPaths,
   });

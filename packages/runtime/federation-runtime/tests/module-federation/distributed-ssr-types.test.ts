@@ -92,15 +92,15 @@ describe('createDistributedSsrComponent types', () => {
         }),
       );
       const compilerManifestPath = requireCjs.resolve(
-        '@typescript/native-preview/package.json',
+        'typescript/package.json',
       );
       const { bin } = JSON.parse(
         readFileSync(compilerManifestPath, 'utf8'),
-      ) as { bin: { tsgo: string } };
+      ) as { bin: { tsc: string } };
       const result = spawnSync(
         process.execPath,
         [
-          path.resolve(path.dirname(compilerManifestPath), bin.tsgo),
+          path.resolve(path.dirname(compilerManifestPath), bin.tsc),
           '--project',
           path.join(fixtureRoot, 'tsconfig.json'),
         ],

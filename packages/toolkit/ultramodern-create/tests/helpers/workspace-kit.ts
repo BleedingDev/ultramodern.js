@@ -22,6 +22,20 @@ export function linkInstalledCompiler(workspaceDir: string) {
   }
 }
 
+export function linkInstalledEffectCompiler(workspaceDir: string) {
+  for (const name of ['typescript', '@effect/tsgo']) {
+    const compilerPath = path.join(workspaceDir, 'node_modules', name);
+    if (!fs.existsSync(compilerPath)) {
+      fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
+      fs.symlinkSync(
+        path.dirname(require.resolve(`${name}/package.json`)),
+        compilerPath,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+    }
+  }
+}
+
 export function runValidation(workspaceDir: string) {
   return spawnSync(
     process.execPath,
@@ -29,7 +43,11 @@ export function runValidation(workspaceDir: string) {
     {
       cwd: workspaceDir,
       encoding: 'utf-8',
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
+      env: {
+        ...process.env,
+        NODE_ENV: 'development',
+        ULTRAMODERN_WORKSPACE_ROOT: workspaceDir,
+      },
     },
   );
 }
@@ -62,7 +80,7 @@ type CreateWorkspaceOptions = {
   workspaceDir?: string;
 };
 
-export function createWorkspace(
+export async function createWorkspace(
   packageNameOrWorkspaceDir: string,
   options: CreateWorkspaceOptions = {},
 ) {
@@ -83,7 +101,7 @@ export function createWorkspace(
         ));
   const tempRoot = path.dirname(workspaceDir);
 
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName,
     modernVersion: '3.2.1',

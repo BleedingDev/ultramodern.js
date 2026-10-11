@@ -168,61 +168,63 @@ describe('static plugin precompressed assets', () => {
       expectedEncoding: null,
       expectedBody: 'wildcard identity',
     },
-  ])('selects $expectedRepresentation for $acceptEncoding', async ({
-    acceptEncoding,
-    expectedEncoding,
-    expectedBody,
-  }) => {
-    const pwd = await createTempDir();
-    const originBody = Buffer.from('wildcard identity');
-    const staticFile = path.join(pwd, 'static', 'wildcard.js');
+  ])(
+    'selects $expectedRepresentation for $acceptEncoding',
+    async ({ acceptEncoding, expectedEncoding, expectedBody }) => {
+      const pwd = await createTempDir();
+      const originBody = Buffer.from('wildcard identity');
+      const staticFile = path.join(pwd, 'static', 'wildcard.js');
 
-    await mkdir(path.dirname(staticFile), { recursive: true });
-    await writeFile(staticFile, originBody);
-    await writeFile(`${staticFile}.br`, Buffer.from('br'));
-    await writeFile(`${staticFile}.gz`, Buffer.from('gzip'));
+      await mkdir(path.dirname(staticFile), { recursive: true });
+      await writeFile(staticFile, originBody);
+      await writeFile(`${staticFile}.br`, Buffer.from('br'));
+      await writeFile(`${staticFile}.gz`, Buffer.from('gzip'));
 
-    const server = await createStaticServer(pwd);
-    const response = await server.request('/static/wildcard.js', {
-      headers: new Headers({
-        'accept-encoding': acceptEncoding,
-      }),
-    });
+      const server = await createStaticServer(pwd);
+      const response = await server.request('/static/wildcard.js', {
+        headers: new Headers({
+          'accept-encoding': acceptEncoding,
+        }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
-    expect(await response.text()).toBe(expectedBody);
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
+      expect(await response.text()).toBe(expectedBody);
+    },
+  );
 
   it.each([
     // Explicit br;q=0 must beat the wildcard, leaving gzip as the only pick.
     ['br;q=0, *;q=0.8, identity;q=0', 'gzip'],
     // Implicit identity (q=1) outranks an explicitly down-weighted coding.
     ['br;q=0.8', null],
-  ])('selects the highest ranked representation for %s', async (acceptEncoding, expectedEncoding) => {
-    const pwd = await createTempDir();
-    const originBody = Buffer.from('ranked representation');
-    const brBody = brotliCompressSync(originBody);
-    const gzipBody = gzipSync(originBody);
-    const staticFile = path.join(pwd, 'static', 'ranked.js');
+  ])(
+    'selects the highest ranked representation for %s',
+    async (acceptEncoding, expectedEncoding) => {
+      const pwd = await createTempDir();
+      const originBody = Buffer.from('ranked representation');
+      const brBody = brotliCompressSync(originBody);
+      const gzipBody = gzipSync(originBody);
+      const staticFile = path.join(pwd, 'static', 'ranked.js');
 
-    await mkdir(path.dirname(staticFile), { recursive: true });
-    await writeFile(staticFile, originBody);
-    await writeFile(`${staticFile}.br`, brBody);
-    await writeFile(`${staticFile}.gz`, gzipBody);
+      await mkdir(path.dirname(staticFile), { recursive: true });
+      await writeFile(staticFile, originBody);
+      await writeFile(`${staticFile}.br`, brBody);
+      await writeFile(`${staticFile}.gz`, gzipBody);
 
-    const server = await createStaticServer(pwd);
-    const response = await server.request('/static/ranked.js', {
-      headers: new Headers({ 'accept-encoding': acceptEncoding }),
-    });
+      const server = await createStaticServer(pwd);
+      const response = await server.request('/static/ranked.js', {
+        headers: new Headers({ 'accept-encoding': acceptEncoding }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
-    const expected = expectedEncoding === 'gzip' ? gzipBody : originBody;
-    expect(Buffer.from(await response.arrayBuffer()).equals(expected)).toBe(
-      true,
-    );
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
+      const expected = expectedEncoding === 'gzip' ? gzipBody : originBody;
+      expect(Buffer.from(await response.arrayBuffer()).equals(expected)).toBe(
+        true,
+      );
+    },
+  );
 
   it('falls back to origin asset when no variant is accepted', async () => {
     const pwd = await createTempDir();
@@ -359,6 +361,95 @@ describe('static plugin Module Federation backend assets', () => {
 
     expect(validResponse.status).toBe(200);
     expect(misplacedPrefixResponse.status).toBe(404);
+  });
+
+  it('serves only the Node container the browser manifest publishes for SSR', async () => {
+    const pwd = await createTempDir();
+    const bundles = path.join(pwd, 'bundles');
+    await mkdir(bundles, { recursive: true });
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: {
+          publicPath: 'http://localhost:3043/',
+          remoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrRemoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrPublicPath: 'http://localhost:3043/bundles/',
+        },
+      }),
+    );
+    await writeFile(
+      path.join(bundles, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: { publicPath: 'http://localhost:3043/bundles/' },
+        exposes: [
+          {
+            assets: {
+              js: { sync: ['__federation_expose_Widget.js'], async: ['a.js'] },
+            },
+          },
+        ],
+        shared: [{ assets: { js: { sync: ['octane.js'] } } }],
+      }),
+    );
+    for (const name of [
+      'remoteEntry.js',
+      '__federation_expose_Widget.js',
+      'a.js',
+      'octane.js',
+      'main.js',
+    ]) {
+      await writeFile(path.join(bundles, name), 'module.exports = {};');
+    }
+
+    const server = await createStaticServer(pwd);
+    for (const name of [
+      'remoteEntry.js',
+      '__federation_expose_Widget.js',
+      'a.js',
+      'octane.js',
+    ]) {
+      const response = await server.request(`/bundles/${name}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('content-type')).toMatch(/^text\/javascript/);
+      expect(await response.text()).toBe('module.exports = {};');
+    }
+    // The application's own server bundle and the container's private
+    // manifest share the directory and stay unpublished.
+    expect((await server.request('/bundles/main.js')).status).toBe(404);
+    expect((await server.request('/bundles/mf-manifest.json')).status).toBe(
+      404,
+    );
+  });
+
+  it('publishes a root-relative SSR public path at the serving origin', async () => {
+    const pwd = await createTempDir();
+    await mkdir(path.join(pwd, 'bundles'), { recursive: true });
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: {
+          publicPath: '/',
+          remoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrRemoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrPublicPath: '/bundles/',
+        },
+      }),
+    );
+    await writeFile(
+      path.join(pwd, 'bundles', 'remoteEntry.js'),
+      'module.exports = {};',
+    );
+
+    const server = await createStaticServer(pwd);
+    const manifest = await server.request('/mf-manifest.json');
+    expect(manifest.status).toBe(200);
+    expect((await manifest.json()).metaData).toMatchObject({
+      publicPath: 'http://localhost/',
+      ssrPublicPath: 'http://localhost/bundles/',
+    });
+    expect((await server.request('/bundles/remoteEntry.js')).status).toBe(200);
   });
 });
 

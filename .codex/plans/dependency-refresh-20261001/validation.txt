@@ -1,0 +1,95 @@
+validate
+All selected plans parsed cleanly.
+
+dag
+flowchart TD
+  subgraph plan_dr_baseline["Dependency refresh baseline"]
+    plan_dr_baseline_todo_1["freeze-target-matrix (pending)\nRefresh registry evidence and freeze a target or reasoned exception for every active dependency, peer, alias, override and recipe."]
+    plan_dr_baseline_todo_2["record-ownership-routes (pending)\nClassify expected package edits by fork ownership and record the reviewed route for each upstream-owned change."]
+    plan_dr_baseline_todo_1 --> plan_dr_baseline_todo_2
+    plan_dr_baseline_todo_3["capture-acceptance-baseline (pending)\nCapture current build, runtime, consumer install and bundle baselines with reproducible commands and failure provenance."]
+    plan_dr_baseline_todo_2 --> plan_dr_baseline_todo_3
+  end
+  subgraph plan_dr_build["Dependency refresh build and federation"]
+    plan_dr_build_todo_1["update-rstack-cohort (pending)\nUpgrade Rsbuild Rspack Rslib Rspress Rstest and compatible plugins with working compiler adapter and declaration output."]
+    plan_dr_build_todo_2["update-federation-cohort (pending)\nMove Module Federation packages to the frozen compatible versions and prove CSR SSR DTS lazy-loading and manifest behavior."]
+    plan_dr_build_todo_1 --> plan_dr_build_todo_2
+    plan_dr_build_todo_3["reconcile-canonical-corrections (pending)\nCompare exact upstream artifacts, retire absorbed fixes, refresh remaining canonical patches and sidecar recipes, and verify deterministic reconstruction."]
+    plan_dr_build_todo_2 --> plan_dr_build_todo_3
+  end
+  subgraph plan_dr_effect["Dependency refresh Effect stable"]
+    plan_dr_effect_todo_1["move-effect-import-contract (pending)\nUpdate Effect runtime pins and every old unstable import, re-export and generated source contract to the verified 4.0.0 exports."]
+    plan_dr_effect_todo_2["verify-effect-runtime-semantics (pending)\nRepair RC-to-stable schema, HTTP, RPC, cancellation and cleanup differences and verify Node and Worker behavior with focused regressions."]
+    plan_dr_effect_todo_1 --> plan_dr_effect_todo_2
+    plan_dr_effect_todo_3["retire-effect-correction (pending)\nProve upstream Worker code-generation safety and deliver exact patch and sidecar removal proposals to the supply and generator owners."]
+    plan_dr_effect_todo_2 --> plan_dr_effect_todo_3
+  end
+  subgraph plan_dr_generator["Dependency refresh generator integration"]
+    plan_dr_generator_todo_1["synchronize-producer-pins (pending)\nApply the frozen targets to versions policy templates aliases peers and publication projections and remove obsolete correction references."]
+    plan_dr_generator_todo_2["resolve-final-lockfile (pending)\nRegenerate the full dependency graph with the selected pnpm, inspect deduplication and peer/patch integrity, and prove a frozen reinstall."]
+    plan_dr_generator_todo_1 --> plan_dr_generator_todo_2
+    plan_dr_generator_todo_3["prove-generated-consumers (pending)\nGenerate supported app and workspace variants and prove independent installs builds tests and source/packed package parity."]
+    plan_dr_generator_todo_2 --> plan_dr_generator_todo_3
+  end
+  subgraph plan_dr_release["Dependency refresh release acceptance"]
+    plan_dr_release_todo_1["pass-integrated-quality-gates (pending)\nPass all required build lint type framework builder supply boundary and security gates on the final frozen dependency graph."]
+    plan_dr_release_todo_2["qualify-packed-release (pending)\nValidate one release cohort with independent packed installs and mandatory Tractor acceptance when the downstream demo exists."]
+    plan_dr_release_todo_1 --> plan_dr_release_todo_2
+    plan_dr_release_todo_3["prepare-one-release-handoff (pending)\nAdd the coordinated changeset and final version/security evidence and stage one reviewed release promotion with whole-cohort rollback instructions."]
+    plan_dr_release_todo_2 --> plan_dr_release_todo_3
+  end
+  subgraph plan_dr_runtime["Dependency refresh runtime and security"]
+    plan_dr_runtime_todo_1["update-active-runtime-libraries (pending)\nUpgrade frozen runtime router i18n Hono data and documentation targets and repair the owning framework contracts with regression coverage."]
+    plan_dr_runtime_todo_2["refresh-prebundled-utilities (pending)\nUpdate utility producer inputs, resolve dotenv-expand execution policy, replace deprecated packages, and regenerate vendor outputs through the existing producer."]
+    plan_dr_runtime_todo_1 --> plan_dr_runtime_todo_2
+    plan_dr_runtime_todo_3["repair-transitive-security (pending)\nUpgrade affected parents and scoped security floors and document a verified disposition for every remaining advisory path."]
+    plan_dr_runtime_todo_2 --> plan_dr_runtime_todo_3
+  end
+  subgraph plan_dr_tooling["Dependency refresh tooling"]
+    plan_dr_tooling_todo_1["update-node-pnpm-contract (pending)\nUpdate Node and pnpm pins across root policy and CI and prove install, filter, pack and policy parity on the selected versions."]
+    plan_dr_tooling_todo_2["update-release-tooling (pending)\nUpgrade Changesets CLI and declared libraries together and prove the existing fixed-group release and publication preparation in a dry run."]
+    plan_dr_tooling_todo_1 --> plan_dr_tooling_todo_2
+    plan_dr_tooling_todo_3["update-lint-test-tools (pending)\nUpgrade lint and test tool cohorts and repair their owning configs and active examples with passing behavioral checks."]
+    plan_dr_tooling_todo_2 --> plan_dr_tooling_todo_3
+  end
+  plan_dr_baseline_todo_3 --> plan_dr_tooling_todo_1
+  plan_dr_build_todo_3 --> plan_dr_generator_todo_1
+  plan_dr_effect_todo_3 --> plan_dr_build_todo_1
+  plan_dr_effect_todo_3 --> plan_dr_generator_todo_1
+  plan_dr_generator_todo_3 --> plan_dr_release_todo_1
+  plan_dr_runtime_todo_3 --> plan_dr_generator_todo_1
+  plan_dr_tooling_todo_3 --> plan_dr_build_todo_1
+  plan_dr_tooling_todo_3 --> plan_dr_effect_todo_1
+  plan_dr_tooling_todo_3 --> plan_dr_release_todo_1
+  plan_dr_tooling_todo_3 --> plan_dr_runtime_todo_1
+
+frontier
+Dependency refresh baseline [ready]
+  active: freeze-target-matrix [pending] Refresh registry evidence and freeze a target or reasoned exception for every active dependency, peer, alias, override and recipe.
+  next:   record-ownership-routes [pending] Classify expected package edits by fork ownership and record the reviewed route for each upstream-owned change.
+Dependency refresh build and federation [blocked] blocked_by=dr-tooling,dr-effect
+  active: update-rstack-cohort [pending] Upgrade Rsbuild Rspack Rslib Rspress Rstest and compatible plugins with working compiler adapter and declaration output.
+  next:   update-federation-cohort [pending] Move Module Federation packages to the frozen compatible versions and prove CSR SSR DTS lazy-loading and manifest behavior.
+Dependency refresh Effect stable [blocked] blocked_by=dr-tooling
+  active: move-effect-import-contract [pending] Update Effect runtime pins and every old unstable import, re-export and generated source contract to the verified 4.0.0 exports.
+  next:   verify-effect-runtime-semantics [pending] Repair RC-to-stable schema, HTTP, RPC, cancellation and cleanup differences and verify Node and Worker behavior with focused regressions.
+Dependency refresh generator integration [blocked] blocked_by=dr-effect,dr-build,dr-runtime
+  active: synchronize-producer-pins [pending] Apply the frozen targets to versions policy templates aliases peers and publication projections and remove obsolete correction references.
+  next:   resolve-final-lockfile [pending] Regenerate the full dependency graph with the selected pnpm, inspect deduplication and peer/patch integrity, and prove a frozen reinstall.
+Dependency refresh release acceptance [blocked] blocked_by=dr-generator,dr-tooling
+  active: pass-integrated-quality-gates [pending] Pass all required build lint type framework builder supply boundary and security gates on the final frozen dependency graph.
+  next:   qualify-packed-release [pending] Validate one release cohort with independent packed installs and mandatory Tractor acceptance when the downstream demo exists.
+Dependency refresh runtime and security [blocked] blocked_by=dr-tooling
+  active: update-active-runtime-libraries [pending] Upgrade frozen runtime router i18n Hono data and documentation targets and repair the owning framework contracts with regression coverage.
+  next:   refresh-prebundled-utilities [pending] Update utility producer inputs, resolve dotenv-expand execution policy, replace deprecated packages, and regenerate vendor outputs through the existing producer.
+Dependency refresh tooling [blocked] blocked_by=dr-baseline
+  active: update-node-pnpm-contract [pending] Update Node and pnpm pins across root policy and CI and prove install, filter, pack and policy parity on the selected versions.
+  next:   update-release-tooling [pending] Upgrade Changesets CLI and declared libraries together and prove the existing fixed-group release and publication preparation in a dry run.
+
+handoff state:
+  resolved graph id: dr-baseline-plus-6-plans-856b012e0f
+  graph source: matched-plan-set
+  selection hash: 856b012e0f
+  state dir: /tmp/modernjs-dependency-research/graphs/dr-baseline-plus-6-plans-856b012e0f
+  snapshot path: /tmp/modernjs-dependency-research/graphs/dr-baseline-plus-6-plans-856b012e0f/snapshot.json
+  selected plan count: 7

@@ -48,55 +48,56 @@ const executeRetryRequest = ({
   });
 
 describe('transport retry behavior', () => {
-  test.each([
-    'FetchError',
-  ])('retries %s up to the configured max then rejects', async errorName => {
-    rs.useFakeTimers();
-    const errors = [
-      createNamedError(errorName),
-      createNamedError(errorName),
-      createNamedError(errorName),
-    ];
-    let callCount = 0;
-    const fetcher = rs.fn(async () => {
-      const error = errors[callCount];
-      callCount += 1;
-      throw error;
-    });
+  test.each(['FetchError'])(
+    'retries %s up to the configured max then rejects',
+    async errorName => {
+      rs.useFakeTimers();
+      const errors = [
+        createNamedError(errorName),
+        createNamedError(errorName),
+        createNamedError(errorName),
+      ];
+      let callCount = 0;
+      const fetcher = rs.fn(async () => {
+        const error = errors[callCount];
+        callCount += 1;
+        throw error;
+      });
 
-    const pending = executeRetryRequest({
-      fetcher,
-      retry: {
-        retries: 2,
-        baseDelayMs: 10,
-        maxDelayMs: 100,
-        jitterRatio: 0,
-      },
-    });
-    const observed = pending.catch(error => error);
+      const pending = executeRetryRequest({
+        fetcher,
+        retry: {
+          retries: 2,
+          baseDelayMs: 10,
+          maxDelayMs: 100,
+          jitterRatio: 0,
+        },
+      });
+      const observed = pending.catch(error => error);
 
-    try {
-      await flushMicrotasks();
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      try {
+        await flushMicrotasks();
+        expect(fetcher).toHaveBeenCalledTimes(1);
 
-      await rs.advanceTimersByTimeAsync(9);
-      expect(fetcher).toHaveBeenCalledTimes(1);
-      await rs.advanceTimersByTimeAsync(1);
-      await flushMicrotasks();
-      expect(fetcher).toHaveBeenCalledTimes(2);
+        await rs.advanceTimersByTimeAsync(9);
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        await rs.advanceTimersByTimeAsync(1);
+        await flushMicrotasks();
+        expect(fetcher).toHaveBeenCalledTimes(2);
 
-      await rs.advanceTimersByTimeAsync(19);
-      expect(fetcher).toHaveBeenCalledTimes(2);
-      await rs.advanceTimersByTimeAsync(1);
-      await flushMicrotasks();
-      expect(fetcher).toHaveBeenCalledTimes(3);
-      await expect(observed).resolves.toBe(errors[2]);
-    } finally {
-      await rs.advanceTimersByTimeAsync(1000);
-      await observed;
-      rs.useRealTimers();
-    }
-  });
+        await rs.advanceTimersByTimeAsync(19);
+        expect(fetcher).toHaveBeenCalledTimes(2);
+        await rs.advanceTimersByTimeAsync(1);
+        await flushMicrotasks();
+        expect(fetcher).toHaveBeenCalledTimes(3);
+        await expect(observed).resolves.toBe(errors[2]);
+      } finally {
+        await rs.advanceTimersByTimeAsync(1000);
+        await observed;
+        rs.useRealTimers();
+      }
+    },
+  );
 
   test('should not retry caller-aborted requests', async () => {
     rs.useFakeTimers();

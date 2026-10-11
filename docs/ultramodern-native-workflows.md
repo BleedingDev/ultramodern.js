@@ -100,7 +100,7 @@ schemas and handlers remain application code.
 For Node-specific API modules, import `defineEffectBff` and framework context
 helpers from `@modern-js/bff-effect/effect`. Import `Effect` and `Layer` as
 namespaces from `effect/Effect` and `effect/Layer`, and `HttpApiBuilder` from
-`effect/unstable/httpapi`. Keep worker handlers and worker context on
+`effect/http-api`. Keep worker handlers and worker context on
 `@modern-js/bff-effect/effect-edge`. Native `@modern-js/plugin-bff/server`
 exports Hono APIs.
 

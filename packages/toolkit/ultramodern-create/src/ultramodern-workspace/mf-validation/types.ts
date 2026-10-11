@@ -1,16 +1,6 @@
-export type JsonRecord = Record<string, unknown>;
+import type { ModuleFederationConfigInspection } from '@modern-js/app-tools-extensions/module-federation-config';
 
-export type ModuleFederationConfigInspection = {
-  appDir: string;
-  configPath: string;
-  dts: {
-    compilerInstance?: string;
-    tsConfigPath?: string;
-  };
-  exposePaths: Record<string, string>;
-  exposes: string[];
-  hostOnlyNoExposes: boolean;
-};
+export type JsonRecord = Record<string, unknown>;
 
 export type ModuleFederationDiscoveredConfig = {
   appDir: string;
@@ -30,20 +20,4 @@ export type ModuleFederationValidationOptions = {
   workspaceRoot: string;
   appDirs?: string[];
   target?: ModuleFederationValidationTarget;
-};
-
-export type BalancedBlock = {
-  inner: string;
-  suffix: string;
-};
-
-export type LocatedObjectLiteral = {
-  end: number;
-  source: string;
-  start: number;
-};
-
-export type ParsedObjectLiteral = {
-  hasSpread: boolean;
-  properties: Map<string, string>;
 };

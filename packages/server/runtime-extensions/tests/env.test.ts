@@ -37,18 +37,21 @@ describe('parseServerRuntimeExtensionsEnv', () => {
       expectedNodeEnv: 'production',
       expectedContractGatesFile: undefined,
     },
-  ])('$name', ({
-    env,
-    expectedEnvironment,
-    expectedModernEnv,
-    expectedNodeEnv,
-    expectedContractGatesFile,
-  }) => {
-    const parsed = parseServerRuntimeExtensionsEnv(env);
+  ])(
+    '$name',
+    ({
+      env,
+      expectedEnvironment,
+      expectedModernEnv,
+      expectedNodeEnv,
+      expectedContractGatesFile,
+    }) => {
+      const parsed = parseServerRuntimeExtensionsEnv(env);
 
-    expect(parsed.environmentName).toBe(expectedEnvironment);
-    expect(parsed.modernEnv).toBe(expectedModernEnv);
-    expect(parsed.nodeEnv).toBe(expectedNodeEnv);
-    expect(parsed.contractGatesFile).toBe(expectedContractGatesFile);
-  });
+      expect(parsed.environmentName).toBe(expectedEnvironment);
+      expect(parsed.modernEnv).toBe(expectedModernEnv);
+      expect(parsed.nodeEnv).toBe(expectedNodeEnv);
+      expect(parsed.contractGatesFile).toBe(expectedContractGatesFile);
+    },
+  );
 });

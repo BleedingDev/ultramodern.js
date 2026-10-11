@@ -27,7 +27,7 @@ export const catalogOperationContexts = { readiness: createMicroVerticalOperatio
 export const catalogApiContract = { apiPrefix: '/catalog-api', basePath: '/catalog-api/catalog', ownerId: 'catalog', readinessPath: '/catalog-api/catalog/readiness' } as const;`;
 /** A sub-API whose group uses every non-endpoint Effect combinator. */
 const prefixedSearchApi =
-  () => `import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+  () => `import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import { CatalogAnnotation, CatalogAuthMiddleware } from '../middleware.ts';
 export const catalogSearchApi = HttpApi.make('CatalogSearchApi').add(
   HttpApiGroup.make('catalogSearch')
@@ -135,7 +135,7 @@ const subApi = (
   group: string,
   route: string,
   routeExpression = `'${route}'`,
-) => `import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+) => `import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 export const ${exportName} = HttpApi.make('${pascal(exportName)}').add(HttpApiGroup.make('${group}').add(HttpApiEndpoint.post('execute', ${routeExpression}, { success: Schema.Unknown })));`;
 
 test('composes sub-APIs declared in sibling modules', () => {
@@ -290,7 +290,7 @@ test('source rules receive the resolved re-export chain across packages', async 
     ],
   ]);
   expect(result.diagnostics).toEqual([
-    'verticals/catalog/shared/api.ts: HttpApi from effect/unstable/httpapi via packages/contracts/src/catalog-search.ts#HttpApi',
+    'verticals/catalog/shared/api.ts: HttpApi from effect/http-api via packages/contracts/src/catalog-search.ts#HttpApi',
   ]);
 
   // A private subpath the package does not export ends the chain unresolved.
@@ -395,7 +395,7 @@ export const strict = S.String;`,
   // Every source file is checked, not only API contracts.
   write(
     path.join(shared, 'src/endpoints.ts'),
-    `import { HttpApiEndpoint } from 'effect/unstable/httpapi';
+    `import { HttpApiEndpoint } from 'effect/http-api';
 import { Schema } from 'effect';
 export const probe = HttpApiEndpoint.get('probe', '/probe', { success: Schema.Any });`,
   );
@@ -410,7 +410,7 @@ export const probe = HttpApiEndpoint.get('probe', '/probe', { success: Schema.An
   );
   write(
     endpoints,
-    `import { HttpApiEndpoint } from 'effect/unstable/httpapi';
+    `import { HttpApiEndpoint } from 'effect/http-api';
 import { Schema } from 'effect';
 import { loose, strict } from '@domain/shared-contracts/schemas';
 const { get } = HttpApiEndpoint;
@@ -450,10 +450,10 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
         : value.kind,
     );
   expect(externals(graph.evaluate(module, exported('search').callee))).toEqual([
-    'effect/unstable/httpapi:HttpApiEndpoint.get',
+    'effect/http-api:HttpApiEndpoint.get',
   ]);
   expect(externals(graph.evaluate(module, exported('create').callee))).toEqual([
-    'effect/unstable/httpapi:HttpApiEndpoint.post',
+    'effect/http-api:HttpApiEndpoint.post',
   ]);
   // The initializer and the later member write are both possible values.
   const success = (exported('search').arguments[2] as t.ObjectExpression)
@@ -551,11 +551,11 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
   const cjs = path.join(root, 'verticals/catalog/src/contracts/legacy.cjs');
   write(
     cjs,
-    `const { HttpApiEndpoint } = require('effect/unstable/httpapi');\nconst Schema = require('effect').Schema;\nexports.probe = [HttpApiEndpoint.get, Schema.Any];`,
+    `const { HttpApiEndpoint } = require('effect/http-api');\nconst Schema = require('effect').Schema;\nexports.probe = [HttpApiEndpoint.get, Schema.Any];`,
   );
   write(
     path.join(root, 'verticals/catalog/src/contracts/endpoint-helper.cjs'),
-    `const { HttpApiEndpoint } = require('effect/unstable/httpapi');\nexports.get = HttpApiEndpoint.get;\nexports.api = {};\nexports.api.post = HttpApiEndpoint.post;\nexports.lazy ??= HttpApiEndpoint.patch;\nObject.assign(module.exports, { assigned: HttpApiEndpoint.trace });\nconst api = module.exports;\napi.viaAlias = HttpApiEndpoint.head;\napi.nested = {};\nconst nested = api.nested;\nnested.deep = HttpApiEndpoint.options;\nmodule.exports.schemas = { loose: require('effect').Schema.Unknown };`,
+    `const { HttpApiEndpoint } = require('effect/http-api');\nexports.get = HttpApiEndpoint.get;\nexports.api = {};\nexports.api.post = HttpApiEndpoint.post;\nexports.lazy ??= HttpApiEndpoint.patch;\nObject.assign(module.exports, { assigned: HttpApiEndpoint.trace });\nconst api = module.exports;\napi.viaAlias = HttpApiEndpoint.head;\napi.nested = {};\nconst nested = api.nested;\nnested.deep = HttpApiEndpoint.options;\nmodule.exports.schemas = { loose: require('effect').Schema.Unknown };`,
   );
   write(
     path.join(root, 'verticals/catalog/src/contracts/whole.cjs'),
@@ -586,15 +586,15 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
   ).toEqual(
     new Set([
       'unresolved',
-      'effect/unstable/httpapi:HttpApiEndpoint.post',
+      'effect/http-api:HttpApiEndpoint.post',
       'effect:Schema.Unknown',
-      'effect/unstable/httpapi:HttpApiEndpoint.get',
+      'effect/http-api:HttpApiEndpoint.get',
       'effect:Schema.Json',
       'effect:Schema.Never',
-      'effect/unstable/httpapi:HttpApiEndpoint.patch',
-      'effect/unstable/httpapi:HttpApiEndpoint.head',
-      'effect/unstable/httpapi:HttpApiEndpoint.options',
-      'effect/unstable/httpapi:HttpApiEndpoint.trace',
+      'effect/http-api:HttpApiEndpoint.patch',
+      'effect/http-api:HttpApiEndpoint.head',
+      'effect/http-api:HttpApiEndpoint.options',
+      'effect/http-api:HttpApiEndpoint.trace',
     ]),
   );
   const cjsModule = graph.module(cjs);
@@ -608,10 +608,7 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
         (exportsWrite.expression as t.AssignmentExpression).right,
       ),
     ),
-  ).toEqual([
-    'effect:Schema.Any',
-    'effect/unstable/httpapi:HttpApiEndpoint.get',
-  ]);
+  ).toEqual(['effect:Schema.Any', 'effect/http-api:HttpApiEndpoint.get']);
   write(
     path.join(root, 'verticals/catalog/src/contracts/default-export.cjs'),
     `module.exports = require('effect').Schema.Record;`,
@@ -1605,12 +1602,12 @@ test('follows a flat variadic add whose spread names generated groups', () => {
   );
   write(
     path.join(root, 'verticals/catalog/shared/groups/search.ts'),
-    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 export const searchGroup = HttpApiGroup.make('search').add(HttpApiEndpoint.post('reindex', '/catalog/search/reindex', { success: Schema.String }));`,
   );
   write(
     path.join(root, 'verticals/catalog/shared/groups/commands.ts'),
-    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 export const commandsGroup = HttpApiGroup.make('commands').add(HttpApiEndpoint.post('archive', '/catalog/commands/archive', { success: Schema.String }), HttpApiEndpoint.post('restore', '/catalog/commands/restore', { success: Schema.String }));`,
   );
   write(
@@ -1797,7 +1794,8 @@ test.each([
     'exact baseline',
   ],
 ])('rejects %s', (before, after, reason) =>
-  expect(validate(contract.replace(before, after))).toContain(reason));
+  expect(validate(contract.replace(before, after))).toContain(reason),
+);
 test('additional metadata remains caller-owned', () => {
   expectation = {
     ...expectation,
@@ -2109,7 +2107,7 @@ test('classifies RPC surfaces and validates native RPC topology', () => {
   fs.rmSync(path.join(root, 'verticals/catalog/src/api/catalog-client.ts'));
   write(
     path.join(root, 'verticals/catalog/shared/rpc.ts'),
-    `import { Rpc, RpcGroup } from 'effect/unstable/rpc'; import { Schema } from '@modern-js/bff-effect/effect-client'; export const CatalogRpcGroup = RpcGroup.make(Rpc.make('ping', { success: Schema.Struct({}) }));`,
+    `import { Rpc, RpcGroup } from 'effect/rpc'; import { Schema } from '@modern-js/bff-effect/effect-client'; export const CatalogRpcGroup = RpcGroup.make(Rpc.make('ping', { success: Schema.Struct({}) }));`,
   );
   write(
     path.join(root, 'verticals/catalog/src/api/catalog-rpc-client.ts'),
@@ -2166,58 +2164,58 @@ test('classifies RPC surfaces and validates native RPC topology', () => {
   ).toContain('forbidden opposite protocol client export');
 });
 
-test.each([
-  'catalog',
-  'checkout',
-])('preserves actual generated %s public operation IDs without config copies', stem => {
-  const service = {
-    id: stem,
-    api: { consumedBy: [], prefix: `/${stem}-api`, stem },
-  };
-  const generated = createSharedApi(service, { scope: 'fixture' });
-  write(file, generated);
-  const expected = {
-    ...expectation,
-    apiPrefix: `/${stem}-api`,
-    basePath: `/${stem}-api/${stem}`,
-    ownerId: stem,
-    readinessPath: `/${stem}-api/${stem}/readiness`,
-  };
-  expect(
-    microVerticalApiBaselineViolation(stem, file, expected),
-  ).toBeUndefined();
-  const operationId =
-    stem === 'checkout'
-      ? 'CheckoutApi:checkout:getCart'
-      : 'CatalogApi:catalog:list';
-  write(file, generated.replace(operationId, `${operationId}Wrong`));
-  expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
-    'operation map',
-  );
-  write(file, generated.replace("method: 'POST'", "method: 'GET'"));
-  expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
-    'operation map',
-  );
-  write(
-    file,
-    generated.replace(`routePath: '/${stem}'`, "routePath: '/foreign'"),
-  );
-  expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
-    'operation map',
-  );
-  if (stem === 'checkout') {
+test.each(['catalog', 'checkout'])(
+  'preserves actual generated %s public operation IDs without config copies',
+  stem => {
+    const service = {
+      id: stem,
+      api: { consumedBy: [], prefix: `/${stem}-api`, stem },
+    };
+    const generated = createSharedApi(service, { scope: 'fixture' });
+    write(file, generated);
+    const expected = {
+      ...expectation,
+      apiPrefix: `/${stem}-api`,
+      basePath: `/${stem}-api/${stem}`,
+      ownerId: stem,
+      readinessPath: `/${stem}-api/${stem}/readiness`,
+    };
+    expect(
+      microVerticalApiBaselineViolation(stem, file, expected),
+    ).toBeUndefined();
+    const operationId =
+      stem === 'checkout'
+        ? 'CheckoutApi:checkout:getCart'
+        : 'CatalogApi:catalog:list';
+    write(file, generated.replace(operationId, `${operationId}Wrong`));
+    expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
+      'operation map',
+    );
+    write(file, generated.replace("method: 'POST'", "method: 'GET'"));
+    expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
+      'operation map',
+    );
     write(
       file,
-      generated.replace(
-        "checkoutCartPath: '/checkout-api/checkout/cart'",
-        "checkoutCartPath: '/checkout-api/checkout/cartoon'",
-      ),
+      generated.replace(`routePath: '/${stem}'`, "routePath: '/foreign'"),
     );
     expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
-      'metadata',
+      'operation map',
     );
-  }
-});
+    if (stem === 'checkout') {
+      write(
+        file,
+        generated.replace(
+          "checkoutCartPath: '/checkout-api/checkout/cart'",
+          "checkoutCartPath: '/checkout-api/checkout/cartoon'",
+        ),
+      );
+      expect(microVerticalApiBaselineViolation(stem, file, expected)).toContain(
+        'metadata',
+      );
+    }
+  },
+);
 
 test('infers non-cart operations only from reachable named native endpoint groups', () => {
   const source = contract

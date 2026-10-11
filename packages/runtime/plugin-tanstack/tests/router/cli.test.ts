@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -25,7 +26,7 @@ function createAppContextApi<T extends object>(initial: T) {
 }
 
 /**
- * Compiles the generated registration output with `tsgo` under
+ * Compiles the generated registration output with TypeScript 7 under
  * @tsconfig/strictest — the way a consumer's own type check would see it.
  */
 async function typecheckGeneratedRegistration(options: {
@@ -107,15 +108,25 @@ async function typecheckGeneratedRegistration(options: {
     include: ['src/**/*.ts', 'src/**/*.d.ts'],
   });
 
+  const compilerPackagePath = createRequire(import.meta.url).resolve(
+    'typescript/package.json',
+  );
+  const compilerPackage = await fs.readJson(compilerPackagePath);
+  const compilerPath = path.resolve(
+    path.dirname(compilerPackagePath),
+    compilerPackage.bin.tsc,
+  );
+
   try {
     await execFileAsync(
-      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
-      ['-p', 'tsconfig.json'],
-      { cwd: projectDirectory, shell: process.platform === 'win32' },
+      process.execPath,
+      [compilerPath, '-p', 'tsconfig.json'],
+      { cwd: projectDirectory },
     );
   } catch (error: any) {
-    throw typeof error?.stdout === 'string'
-      ? new Error(error.stdout, { cause: error })
+    const output = error?.stderr || error?.stdout;
+    throw typeof output === 'string'
+      ? new Error(output, { cause: error })
       : error;
   }
 }

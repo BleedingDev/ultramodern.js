@@ -15,7 +15,7 @@ UltraModern 工作区已使用 Effect 合同和处理器。新增 API delivery u
 
 Node 专用 API 从 `@modern-js/bff-effect/effect` 导入 `defineEffectBff` 和框架
 上下文 helper；`Effect`、`Layer` 分别使用 `effect/Effect`、`effect/Layer` 的
-namespace import，`HttpApiBuilder` 从 `effect/unstable/httpapi` 导入。Worker
+namespace import，`HttpApiBuilder` 从 `effect/http-api` 导入。Worker
 handler 与 Worker 上下文保留在 `@modern-js/bff-effect/effect-edge`。
 原生 `@modern-js/plugin-bff/server` 只提供 Hono API。
 

@@ -1,4 +1,4 @@
-import { RpcSerialization } from 'effect/unstable/rpc';
+import { RpcSerialization } from 'effect/rpc';
 
 import type { EffectRpcSerialization } from './handler/types';
 

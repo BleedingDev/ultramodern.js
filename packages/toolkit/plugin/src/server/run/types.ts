@@ -1,4 +1,4 @@
-import type { ServerRoute } from '@modern-js/types';
+import type { ServerRoute } from '@modern-js/types/server';
 import type { Plugin } from '../../types/plugin';
 
 /** Registered BFF runtimes. Runtime packages extend this interface. */

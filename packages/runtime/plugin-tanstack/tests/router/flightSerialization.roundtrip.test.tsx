@@ -1,3 +1,4 @@
+import { rstest } from '@rstest/core';
 import type React from 'react';
 import { isValidElement } from 'react';
 import { createRscProxy } from '../../src/runtime/rsc/createRscProxy';
@@ -10,6 +11,10 @@ import {
   SERVER_COMPONENT_STREAM,
   type ServerComponentStream,
 } from '../../src/runtime/rsc/symbols';
+
+rstest.mock('react-server-dom-rspack/client.edge', () => ({
+  createFromReadableStream: async () => null,
+}));
 
 type RoundTripFixture = {
   bigintValue: bigint;

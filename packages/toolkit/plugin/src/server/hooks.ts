@@ -1,4 +1,5 @@
 import { createAsyncHook } from '../hooks';
+import type { AsyncHook } from '../types/hooks';
 import type {
   ModifyConfigFn,
   OnPrepareFn,
@@ -8,7 +9,7 @@ import type { DeepPartial } from '../types/utils';
 
 export type { ModifyConfigFn, OnPrepareFn, OnResetFn };
 
-export function initHooks<Config>() {
+export function initHooks<Config>(): Hooks<Config> {
   return {
     modifyConfig: createAsyncHook<ModifyConfigFn<DeepPartial<Config>>>(),
     onPrepare: createAsyncHook<OnPrepareFn>(),
@@ -16,4 +17,8 @@ export function initHooks<Config>() {
   };
 }
 
-export type Hooks<Config> = ReturnType<typeof initHooks<Config>>;
+export type Hooks<Config> = {
+  modifyConfig: AsyncHook<ModifyConfigFn<DeepPartial<Config>>>;
+  onPrepare: AsyncHook<OnPrepareFn>;
+  onReset: AsyncHook<OnResetFn>;
+};

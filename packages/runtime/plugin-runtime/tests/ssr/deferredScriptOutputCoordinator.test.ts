@@ -238,21 +238,24 @@ describe('DeferredScriptOutputCoordinator', () => {
       'colgroup',
       '<table hidden><colgroup id="modern-js-S:6"><col /></colgroup></table>',
     ],
-  ])('waits for the React %s continuation protocol script', (_name, segment) => {
-    const { coordinator, output } = createCoordinator();
-    coordinator.markShellFinished();
+  ])(
+    'waits for the React %s continuation protocol script',
+    (_name, segment) => {
+      const { coordinator, output } = createCoordinator();
+      coordinator.markShellFinished();
 
-    coordinator.writeReact(segment);
-    coordinator.enqueueResolver(resolver('continuation'));
+      coordinator.writeReact(segment);
+      coordinator.enqueueResolver(resolver('continuation'));
 
-    expect(output()).toBe(segment);
+      expect(output()).toBe(segment);
 
-    coordinator.writeReact('<script>$RC("B:0", "modern-js-S:0")</script>');
+      coordinator.writeReact('<script>$RC("B:0", "modern-js-S:0")</script>');
 
-    expect(output()).toBe(
-      `${segment}<script>$RC("B:0", "modern-js-S:0")</script><script data-resolver="continuation"></script>`,
-    );
-  });
+      expect(output()).toBe(
+        `${segment}<script>$RC("B:0", "modern-js-S:0")</script><script data-resolver="continuation"></script>`,
+      );
+    },
+  );
 
   test('does not confuse business IDs with React continuation segments', () => {
     const { coordinator, output } = createCoordinator();

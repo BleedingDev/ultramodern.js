@@ -18,7 +18,6 @@ type TsConfigJson = {
 const builderRequire = createRequire(import.meta.url);
 
 const STABLE_TSGO_PACKAGE = 'typescript/package.json';
-const NATIVE_PREVIEW_TSGO_PACKAGE = '@typescript/native-preview/package.json';
 const TSGO_CHECKER_DIR = path.join('.modern-js', 'tsgo');
 
 const tryResolve = (request: string, rootPath: string): string | undefined => {
@@ -29,47 +28,20 @@ const tryResolve = (request: string, rootPath: string): string | undefined => {
   }
 };
 
-const readPackageMajorVersion = (
-  packageJsonPath: string,
-): number | undefined => {
-  try {
-    const packageJson = JSON.parse(
-      fs.readFileSync(packageJsonPath, 'utf8'),
-    ) as {
-      version?: unknown;
-    };
-    const major = Number.parseInt(
-      String(packageJson.version).split('.')[0],
-      10,
+const resolveTsgoPackagePath = (rootPath: string): string => {
+  const packageJsonPath =
+    tryResolve(STABLE_TSGO_PACKAGE, rootPath) ??
+    builderRequire.resolve(STABLE_TSGO_PACKAGE);
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+    name?: unknown;
+    version?: unknown;
+  };
+  if (packageJson.name !== 'typescript' || packageJson.version !== '7.0.2') {
+    throw new Error(
+      `The native type checker requires typescript@7.0.2; found ${String(packageJson.name)}@${String(packageJson.version)} at ${packageJsonPath}.`,
     );
-    return Number.isFinite(major) ? major : undefined;
-  } catch {
-    return undefined;
   }
-};
-
-const resolveTsgoPackagePath = (rootPath: string): string | undefined => {
-  const stableTypeScriptPath = tryResolve(STABLE_TSGO_PACKAGE, rootPath);
-  if (
-    stableTypeScriptPath &&
-    (readPackageMajorVersion(stableTypeScriptPath) ?? 0) >= 7
-  ) {
-    return stableTypeScriptPath;
-  }
-
-  // A project without TypeScript 7 keeps the preview lane when it is
-  // installed. When neither is resolvable the checker keeps its own default
-  // instead of failing the build on a missing package.
-  const previewFromProject = tryResolve(NATIVE_PREVIEW_TSGO_PACKAGE, rootPath);
-  if (previewFromProject) {
-    return previewFromProject;
-  }
-
-  try {
-    return builderRequire.resolve(NATIVE_PREVIEW_TSGO_PACKAGE);
-  } catch {
-    return undefined;
-  }
+  return packageJsonPath;
 };
 
 const toPosixPath = (input: string): string => input.replaceAll(path.sep, '/');
@@ -253,16 +225,14 @@ const createTsgoCheckerConfig = (
     baseUrl: null,
   };
 
-  // `rootDir` must name the project's own directory, never the generated
-  // config's. An explicit value has already been made absolute while the
-  // extends chain was merged; with `composite` and no explicit value
-  // TypeScript defaults `rootDir` to the directory holding the config, which
-  // here would be `.modern-js/tsgo/` and would put every source file outside
-  // the root (TS6059). Pin what the default would have produced in place.
+  // TypeScript 7 defaults `rootDir` to the config directory for ordinary and
+  // composite projects. Preserve the project's root when moving its checker
+  // config into `.modern-js/tsgo/`, or build checks reject app sources (TS6059).
+  // Explicit and inherited roots are already absolute after merging extends.
   const declaredRootDir = tsConfig.compilerOptions?.rootDir;
   if (typeof declaredRootDir === 'string') {
     compilerOptions.rootDir = toPosixPath(declaredRootDir);
-  } else if (tsConfig.compilerOptions?.composite === true) {
+  } else {
     compilerOptions.rootDir = toPosixPath(configDirectory);
   }
   const moduleResolution = String(
@@ -383,10 +353,8 @@ const normalizeTsgoConfig = (config: TsCheckerOptions, rootPath: string) => {
 };
 
 /**
- * Type checking runs on TypeScript Go (`tsgo`) by default. The checker
- * prefers the project's stable TypeScript 7 package, then falls back to
- * `@typescript/native-preview` for projects still on the preview lane.
- * Set `tools.tsChecker.typescript.tsgo: false` to use the classic checker.
+ * Type checking uses the canonical stable TypeScript 7.0.2 package by default,
+ * supplied by the project or the builder's declared production dependency.
  */
 export const withTsgoDefaults = (
   userOptions: TsCheckerChain | undefined,
@@ -400,22 +368,9 @@ export const withTsgoDefaults = (
     : [];
   return [
     {
-      typescript: tsgoPath
-        ? { tsgo: true, typescriptPath: tsgoPath }
-        : { tsgo: true },
+      typescript: { tsgo: true, typescriptPath: tsgoPath },
     },
     ...userChain,
-    (config: TsCheckerOptions) => {
-      const { typescript } = config;
-      // A user opting out of tsgo gets the classic checker on the project's
-      // own `typescript` install instead of the injected tsgo path.
-      if (
-        typescript?.tsgo === false &&
-        typescript.typescriptPath === tsgoPath
-      ) {
-        typescript.typescriptPath = tryResolve('typescript', rootPath);
-      }
-      return normalizeTsgoConfig(config, rootPath);
-    },
+    (config: TsCheckerOptions) => normalizeTsgoConfig(config, rootPath),
   ];
 };

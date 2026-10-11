@@ -1,8 +1,9 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
+
+import { HttpRouter, HttpServer } from 'effect/http';
+import type { HttpApi } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
-import { HttpRouter, HttpServer } from 'effect/unstable/http';
-import type { HttpApi } from 'effect/unstable/httpapi';
-import type { Rpc } from 'effect/unstable/rpc';
+import type { Rpc } from 'effect/rpc';
 
 import { prepareJsonRequestBody } from './batch';
 import { createDataPlatformBatchRequestHandler } from './batch-handler';

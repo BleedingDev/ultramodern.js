@@ -33,13 +33,16 @@ describe('ssr utils', () => {
     'bad>name',
     'bad/name',
     'bad=name',
-  ])('omits the invalid attribute name %j without affecting valid attributes', name => {
-    expect(
-      attributesToString({
-        [name]: 'injected',
-        'data-valid': 'kept',
-        omitted: undefined,
-      }),
-    ).toBe(' data-valid="kept"');
-  });
+  ])(
+    'omits the invalid attribute name %j without affecting valid attributes',
+    name => {
+      expect(
+        attributesToString({
+          [name]: 'injected',
+          'data-valid': 'kept',
+          omitted: undefined,
+        }),
+      ).toBe(' data-valid="kept"');
+    },
+  );
 });

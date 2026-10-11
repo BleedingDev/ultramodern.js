@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto';
+import { builtinModules } from 'node:module';
 import ncc from '@vercel/ncc';
-import { Package as DtsPacker } from 'dts-packer';
 import fastGlob from 'fast-glob';
 import fs from 'fs-extra';
-import { join } from 'path';
-import { DEFAULT_EXTERNALS } from './constant';
-import { pick, replaceFileContent } from './helper';
+import { dirname, join } from 'path';
+import { rollup } from 'rollup';
+import { dts } from 'rollup-plugin-dts';
+import { DEFAULT_EXTERNALS, ROOT_DIR } from './constant';
+import { findDepPath, pick } from './helper';
 import type { ParsedTask } from './types';
 
 function emitAssets(
@@ -24,57 +27,50 @@ function emitIndex(code: string, distPath: string) {
 
 function emitESMIndex(code: string, distPath: string) {
   const distIndex = join(distPath, 'index.mjs');
-  fs.outputFileSync(distIndex, code);
+  fs.outputFileSync(
+    distIndex,
+    `import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\n${code}`,
+  );
 }
 
-function fixTypeExternalPath(
-  file: string,
-  task: ParsedTask,
-  externals: Record<string, string>,
-) {
-  const filepath = join(task.distPath, file);
-
-  replaceFileContent(filepath, content => {
-    let newContent = content;
-    Object.keys(externals).forEach(name => {
-      newContent = newContent.replace(
-        new RegExp(`../../${name}`, 'g'),
-        externals[name],
-      );
-    });
-    return newContent;
-  });
-}
-
-function emitDts(task: ParsedTask) {
+async function emitDts(task: ParsedTask) {
   if (!task.emitDts) {
-    return;
+    return [require.resolve(`@types/${task.depName}/package.json`)];
   }
-
-  if (task.ignoreDts) {
-    fs.writeFileSync(join(task.distPath, 'index.d.ts'), 'export = any;\n');
-    return;
-  }
-
+  const manifest = fs.readJSONSync(join(task.depPath, 'package.json'));
+  const types =
+    manifest.types ??
+    manifest.typings ??
+    manifest.exports?.types ??
+    manifest.exports?.['.']?.types ??
+    (fs.existsSync(join(task.depPath, 'index.d.ts'))
+      ? 'index.d.ts'
+      : undefined);
+  const input = types
+    ? join(task.depPath, types)
+    : join(
+        dirname(require.resolve(`@types/${task.depName}/package.json`)),
+        'index.d.ts',
+      );
+  const externals = { ...DEFAULT_EXTERNALS, ...task.externals };
+  const bundle = await rollup({
+    input,
+    external: name =>
+      name.startsWith('node:') ||
+      builtinModules.includes(name) ||
+      name in externals,
+    plugins: [dts({ respectExternal: true })],
+  });
   try {
-    const externals = {
-      ...DEFAULT_EXTERNALS,
-      ...task.externals,
-    };
-    const { files } = new DtsPacker({
-      cwd: process.cwd(),
-      name: task.depName,
-      typesRoot: task.distPath,
-      externals: Object.keys(externals),
+    await bundle.write({
+      file: join(task.distPath, 'index.d.ts'),
+      format: 'es',
+      paths: externals,
     });
-
-    Object.keys(files).forEach(file => {
-      fixTypeExternalPath(file, task, externals);
-    });
-  } catch (error) {
-    console.error(`DtsPacker failed: ${task.depName}`);
-    console.error(error);
+  } finally {
+    await bundle.close();
   }
+  return bundle.watchFiles;
 }
 
 function emitPackageJson(task: ParsedTask) {
@@ -94,9 +90,12 @@ function emitPackageJson(task: ParsedTask) {
     ...task.packageJsonField,
   ]);
 
-  if (task.depName !== pickedPackageJson.name) {
-    pickedPackageJson.name = task.depName;
-  }
+  pickedPackageJson.types = 'index.d.ts';
+
+  // The lodash forwarding package must not collide with the external package
+  // when deployment tools group traced files by package name and version.
+  pickedPackageJson.name =
+    task.depName === 'lodash' ? 'lodash-compiled' : task.depName;
 
   if (task.ignoreDts) {
     delete pickedPackageJson.typing;
@@ -107,11 +106,75 @@ function emitPackageJson(task: ParsedTask) {
   fs.writeJSONSync(outputPath, pickedPackageJson);
 }
 
-function emitLicense(task: ParsedTask) {
-  const licensePath = join(task.depPath, 'LICENSE');
-  if (fs.existsSync(licensePath)) {
-    fs.copySync(licensePath, join(task.distPath, 'license'));
+function emitLicense(task: ParsedTask, declarationInputs: string[]) {
+  const licenses = fastGlob.sync('{license,licence,copying,notice}{,.*}', {
+    cwd: task.depPath,
+    caseSensitiveMatch: false,
+  });
+  if (licenses.length === 0) {
+    throw new Error(`Missing license for ${task.depName}`);
   }
+  for (const license of licenses) {
+    fs.copySync(join(task.depPath, license), join(task.distPath, license));
+  }
+  const dependency = fs.readJSONSync(join(task.depPath, 'package.json'));
+  const producer = fs.readJSONSync(
+    join(ROOT_DIR, 'scripts/prebundle/package.json'),
+  );
+  const declarationPackages = new Map<
+    string,
+    { name: string; version: string; license: string }
+  >();
+  for (const input of declarationInputs) {
+    const directory = findDepPath(task.depName, input);
+    const source = fs.readJSONSync(join(directory, 'package.json'));
+    if (!declarationPackages.has(source.name)) {
+      declarationPackages.set(
+        source.name,
+        pick(source, ['name', 'version', 'license']),
+      );
+      for (const file of fastGlob.sync(
+        '{license,licence,copying,notice}{,.*}',
+        {
+          cwd: directory,
+          caseSensitiveMatch: false,
+        },
+      )) {
+        fs.copySync(
+          join(directory, file),
+          join(
+            task.distPath,
+            'declaration-licenses',
+            source.name.replaceAll('/', '_'),
+            file,
+          ),
+        );
+      }
+    }
+  }
+  fs.writeJSONSync(
+    join(task.distPath, 'provenance.json'),
+    {
+      name: task.depName,
+      sourceName: dependency.name,
+      version: dependency.version,
+      entrySha256: createHash('sha256')
+        .update(fs.readFileSync(task.depEntry))
+        .digest('hex'),
+      license: dependency.license,
+      repository: dependency.repository,
+      producer: 'scripts/prebundle',
+      ncc: producer.dependencies['@vercel/ncc'],
+      declarations: producer.dependencies['rollup-plugin-dts'],
+      declarationSources: [...declarationPackages.values()].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      lockfileSha256: createHash('sha256')
+        .update(fs.readFileSync(join(ROOT_DIR, 'pnpm-lock.yaml')))
+        .digest('hex'),
+    },
+    { spaces: 2 },
+  );
 }
 
 function emitExtraFiles(task: ParsedTask) {
@@ -129,32 +192,7 @@ function removeSourceMap(task: ParsedTask) {
   });
 }
 
-function renameDistFolder(task: ParsedTask) {
-  const pkgPath = join(task.distPath, 'package.json');
-  const pkgJson = fs.readJsonSync(pkgPath, 'utf-8');
-
-  ['types', 'typing', 'typings'].forEach(key => {
-    if (pkgJson[key]?.startsWith('dist/')) {
-      pkgJson[key] = pkgJson[key].replace('dist/', 'types/');
-
-      const distFolder = join(task.distPath, 'dist');
-      const typesFolder = join(task.distPath, 'types');
-      if (fs.existsSync(distFolder)) {
-        fs.renameSync(distFolder, typesFolder);
-      }
-    }
-  });
-
-  fs.writeJSONSync(pkgPath, pkgJson);
-}
-
-const pkgName = process.argv[2];
-
 export async function prebundle(task: ParsedTask) {
-  if (pkgName && task.depName !== pkgName) {
-    return;
-  }
-
   console.log(`==== Start prebundle "${task.depName}" ====`);
 
   if (task.clear) {
@@ -173,10 +211,11 @@ export async function prebundle(task: ParsedTask) {
     assetBuilds: false,
     minify: task.minify,
     esm: false,
+    license: 'licenses-cjs.txt',
   });
 
   if (task.depEsmEntry) {
-    const { code: esmCode } = await ncc(task.depEsmEntry, {
+    const { code: esmCode, assets: esmAssets } = await ncc(task.depEsmEntry, {
       externals: {
         ...DEFAULT_EXTERNALS,
         ...task.externals,
@@ -184,17 +223,28 @@ export async function prebundle(task: ParsedTask) {
       assetBuilds: false,
       minify: task.minify,
       esm: true,
+      license: 'licenses-esm.txt',
     });
     emitESMIndex(esmCode, task.distPath);
+    emitAssets(esmAssets, task.distPath);
   }
 
   emitIndex(code, task.distPath);
   emitAssets(assets, task.distPath);
-  emitDts(task);
-  emitLicense(task);
+  const declarationInputs = await emitDts(task);
+  if (
+    (task.depEsmEntry ||
+      task.emitFiles.some(file => file.path === 'index.mjs')) &&
+    task.emitDts
+  ) {
+    fs.copySync(
+      join(task.distPath, 'index.d.ts'),
+      join(task.distPath, 'index.d.mts'),
+    );
+  }
+  emitLicense(task, declarationInputs);
   emitPackageJson(task);
   removeSourceMap(task);
-  renameDistFolder(task);
   emitExtraFiles(task);
 
   if (task.afterBundle) {

@@ -235,7 +235,11 @@ const createOutputFixture = async ({
     name: 'fixture-worker',
     main: 'server/index.mjs',
     compatibility_date: '2026-06-02',
-    compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public'],
+    compatibility_flags: [
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+      'enable_request_signal',
+    ],
     assets: {
       binding: 'ASSETS',
       directory: './public',
@@ -396,6 +400,7 @@ describe('Cloudflare output verifier', () => {
         'wrangler.json assets.directory must be ./public.',
         'wrangler.json assets.run_worker_first must be true.',
         'wrangler.json compatibility_flags must include global_fetch_strictly_public.',
+        'wrangler.json compatibility_flags must include enable_request_signal.',
       ]),
     );
   });
@@ -498,31 +503,30 @@ describe('Cloudflare output verifier', () => {
         "// require('node:child_process')\nconst text = \"import('node:child_process')\";",
       expectedOk: true,
     },
-  ])('enforces worker import grammar: $name', async ({
-    source,
-    dependencies,
-    expectedOk,
-  }) => {
-    const { outputDirectory } = await createOutputFixture({
-      bffWorkerSource: withDispatcher(source),
-    });
-    await writeJson(path.join(outputDirectory, 'worker/package.json'), {
-      dependencies,
-      type: 'commonjs',
-    });
+  ])(
+    'enforces worker import grammar: $name',
+    async ({ source, dependencies, expectedOk }) => {
+      const { outputDirectory } = await createOutputFixture({
+        bffWorkerSource: withDispatcher(source),
+      });
+      await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+        dependencies,
+        type: 'commonjs',
+      });
 
-    const result = await verifyCloudflareOutput({
-      outputDirectory,
-      importWorker: false,
-    });
+      const result = await verifyCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+      });
 
-    expect(result.ok).toBe(expectedOk);
-    if (!expectedOk) {
-      expect(result.issues).toContainEqual(
-        expect.objectContaining({ code: 'invalid-worker-bundle' }),
-      );
-    }
-  });
+      expect(result.ok).toBe(expectedOk);
+      if (!expectedOk) {
+        expect(result.issues).toContainEqual(
+          expect.objectContaining({ code: 'invalid-worker-bundle' }),
+        );
+      }
+    },
+  );
 
   it('eagerly lowers local imports across real Rspack worker entries', async () => {
     const { directory, outputDirectory } = await createOutputFixture({

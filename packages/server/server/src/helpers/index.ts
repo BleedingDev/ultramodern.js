@@ -38,15 +38,23 @@ export function startWatcher({
    */
   onChange: (filepath: string, event: WatchEvent) => void;
 }) {
+  const loaderDirectory = path.resolve(pwd, distDir, SERVER_BUNDLE_DIRECTORY);
   const defaultWatched = [
-    path.join(resolveMockDirectory(pwd, mockDir), '**/*'),
-    `${SERVER_DIR}/**/*`,
-    `${apiDir}/**`,
-    `${sharedDir}/**/*`,
-    `${distDir}/${SERVER_BUNDLE_DIRECTORY}/*-server-loaders.js`,
+    resolveMockDirectory(pwd, mockDir),
+    SERVER_DIR,
+    apiDir,
+    sharedDir,
+    loaderDirectory,
   ];
 
   const mergedWatchOptions = mergeWatchOptions(watchOptions);
+  const ignored = mergedWatchOptions.ignored;
+  mergedWatchOptions.ignored = [
+    ...(Array.isArray(ignored) ? ignored : ignored ? [ignored] : []),
+    file =>
+      file.startsWith(`${loaderDirectory}${path.sep}`) &&
+      !file.endsWith('-server-loaders.js'),
+  ];
 
   const defaultWatchedPaths = defaultWatched.map(p => {
     const finalPath = path.isAbsolute(p) ? p : path.join(pwd, p);

@@ -12,6 +12,109 @@ async function loadWorkerModule(workerPath) {
   return workerModulePromises.get(workerPath);
 }
 
+function createWorkerRendererGuardResponse(request) {
+  const deliveryUnit = MODERN_WORKER_MANIFEST.deliveryUnit;
+  const surfaces = deliveryUnit?.surfaces;
+  // API identity is universal. Only an explicit UI surface selects a renderer.
+  if (!surfaces || !Object.hasOwn(surfaces, 'ui')) {
+    return undefined;
+  }
+
+  const ui = surfaces.ui;
+  const identity = ui?.rendererIdentity;
+  const profile = ui?.rendererProfile;
+  // The built renderer's adapter decides whether documents are native.
+  const builtRenderer = MODERN_WORKER_MANIFEST.renderer;
+  const isNative =
+    builtRenderer?.nativeDocuments === true &&
+    [identity?.renderer, profile?.renderer].includes(builtRenderer.name);
+  if (
+    isNative &&
+    (request.headers.has('x-rsc-tree') || request.headers.has('x-rsc-action'))
+  ) {
+    return Response.json(
+      { code: 'unsupported-renderer-capability', capability: 'rsc' },
+      { status: 400, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+
+  const isRecord = value =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+  const isCanonicalString = value =>
+    typeof value === 'string' && value.length > 0 && value.trim() === value;
+  const hasExactFields = (value, fields) =>
+    isRecord(value) &&
+    Object.keys(value).every(field => fields.includes(field)) &&
+    fields.every(field => Object.hasOwn(value, field));
+  const exactVersion =
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
+  const isPackageIdentity = (value, router = false, hydration = false) => {
+    const fields = router
+      ? ['name', 'version', 'coreName', 'coreVersion']
+      : ['name', 'version'];
+    return (
+      hasExactFields(value, fields) &&
+      isCanonicalString(value.name) &&
+      (!router || isCanonicalString(value.coreName)) &&
+      (router ? ['version', 'coreVersion'] : ['version']).every(
+        field =>
+          isCanonicalString(value[field]) &&
+          (exactVersion.test(value[field]) ||
+            (hydration && /^[1-9]\d*$/u.test(value[field]))),
+      )
+    );
+  };
+  const validMetadata =
+    isRecord(ui) &&
+    ui.surface === 'ui' &&
+    hasExactFields(identity, [
+      'renderer',
+      'appId',
+      'entryName',
+      'protocolVersion',
+      'buildId',
+    ]) &&
+    identity.renderer === builtRenderer?.name &&
+    identity.protocolVersion === 1 &&
+    ['appId', 'entryName', 'buildId'].every(field =>
+      isCanonicalString(identity[field]),
+    ) &&
+    identity.appId === ui.appId &&
+    ui.appId === deliveryUnit.appId &&
+    identity.buildId === ui.buildMarker &&
+    ui.buildMarker === deliveryUnit.buildMarker &&
+    hasExactFields(profile, [
+      'renderer',
+      'protocolVersion',
+      'compiler',
+      'hydration',
+      'router',
+    ]) &&
+    profile.renderer === identity.renderer &&
+    profile.protocolVersion === identity.protocolVersion &&
+    isPackageIdentity(profile.compiler) &&
+    isPackageIdentity(profile.hydration, false, true) &&
+    isPackageIdentity(profile.router, true);
+
+  if (!validMetadata) {
+    return Response.json(
+      { code: 'invalid-renderer-metadata' },
+      { status: 500, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  if (isNative && !hasNativeWorkerRenderer(identity.renderer)) {
+    return Response.json(
+      {
+        code: 'unsupported-renderer-capability',
+        capability: 'cloudflare-worker',
+        renderer: identity.renderer,
+      },
+      { status: 501, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  return undefined;
+}
+
 function getRuntimeModule(workerModule) {
   const defaultExport = workerModule.default;
   const nestedDefaultExport =
@@ -52,6 +155,26 @@ async function getRequestHandler(workerModule) {
   );
 }
 
+function hasNativeWorkerRenderer(renderer) {
+  return MODERN_WORKER_MANIFEST.nativeRenderer?.renderer === renderer;
+}
+
+function getNativeRouteIdentity(route) {
+  const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
+  const identity =
+    identities && Object.hasOwn(identities, route.entryName)
+      ? identities[route.entryName]
+      : undefined;
+  // The built native-document renderer, or one that shipped native resources.
+  const builtRenderer = MODERN_WORKER_MANIFEST.renderer;
+  return identity &&
+    ((builtRenderer?.nativeDocuments === true &&
+      identity.renderer === builtRenderer.name) ||
+      hasNativeWorkerRenderer(identity.renderer))
+    ? identity
+    : undefined;
+}
+
 const ROUTE_DATA_REQUEST_PARAM = '__loader';
 
 // Route data requests (`?__loader=`) are answered by the entry's route data
@@ -59,8 +182,11 @@ const ROUTE_DATA_REQUEST_PARAM = '__loader';
 // falls through to page rendering, as it does on Node.
 async function dispatchRouteDataRequest(route, request) {
   const routeDataWorkerPath = route.routeDataWorker;
+  // Native entries answer their own data protocol through the native
+  // dispatcher; the legacy route-data worker speaks the React encoding.
   if (
     !routeDataWorkerPath ||
+    getNativeRouteIdentity(route) ||
     !new URL(request.url).searchParams.has(ROUTE_DATA_REQUEST_PARAM)
   ) {
     return undefined;
@@ -99,6 +225,179 @@ async function dispatchRouteDataRequest(route, request) {
 }
 
 async function dispatchRouteWorker(route, request, env, ctx) {
+  const rendererRejection = createWorkerRendererGuardResponse(request);
+  if (rendererRejection) return rendererRejection;
+
+  const nativeIdentity = getNativeRouteIdentity(route);
+  return withWorkerRendererIdentity(
+    nativeIdentity
+      ? applyRouteResponseHeaders(
+          await invokeNativeRouteWorker(
+            route,
+            nativeIdentity,
+            request,
+            env,
+            ctx,
+          ),
+          route,
+        )
+      : await invokeRouteWorker(route, request, env, ctx),
+    route,
+  );
+}
+
+const CUMULATIVE_RESPONSE_HEADERS = new Set([
+  'content-security-policy',
+  'content-security-policy-report-only',
+  'link',
+  'server-timing',
+  'set-cookie',
+]);
+
+/**
+ * Merge a route's configured `responseHeaders` into a native response, as the
+ * Node host does: CSP, Link, Server-Timing and cookies append, `Vary` unions, the
+ * renderer's Content-Type stays, and other fields take the configured value.
+ */
+function applyRouteResponseHeaders(response, route) {
+  const configured = Object.entries(route.responseHeaders ?? {});
+  if (configured.length === 0) return response;
+  const headers = new Headers(response.headers);
+  for (const [rawName, rawValue] of configured) {
+    const name = rawName.toLowerCase();
+    const value = String(rawValue);
+    // The renderer owns its body framing and content coding.
+    if (
+      name === 'content-length' ||
+      name === 'transfer-encoding' ||
+      name === 'content-encoding'
+    )
+      continue;
+    if (CUMULATIVE_RESPONSE_HEADERS.has(name)) headers.append(name, value);
+    else if (name === 'vary') {
+      const fields = new Map();
+      for (const field of `${headers.get('vary') ?? ''},${value}`.split(',')) {
+        const item = field.trim();
+        if (item && !fields.has(item.toLowerCase()))
+          fields.set(item.toLowerCase(), item);
+      }
+      headers.set('vary', [...fields.values()].join(', '));
+    } else if (name !== 'content-type' || !headers.has(name))
+      headers.set(name, value);
+  }
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+function createWorkerRendererErrorResponse(code, entryName) {
+  return Response.json(
+    { code, entryName: String(entryName) },
+    { status: 500, headers: { 'cache-control': 'no-store' } },
+  );
+}
+
+// Native-document renderers bundle their server handler with the renderer-core
+// worker dispatcher. Build-validated document inputs come from the manifest.
+async function invokeNativeRouteWorker(route, identity, request, env, ctx) {
+  const nativeRenderer = MODERN_WORKER_MANIFEST.nativeRenderer;
+  const resources =
+    nativeRenderer?.renderer === identity.renderer &&
+    Object.hasOwn(nativeRenderer.entries, route.entryName)
+      ? nativeRenderer.entries[route.entryName]
+      : undefined;
+  // Native renderers have no Flight transport. Reject before the bundle loads.
+  if (
+    request.headers.has('x-rsc-tree') ||
+    request.headers.has('x-rsc-action')
+  ) {
+    return Response.json(
+      { code: 'unsupported-renderer-capability', capability: 'rsc' },
+      { status: 400, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  if (!resources) {
+    return createWorkerRendererErrorResponse(
+      'missing-native-renderer-resources',
+      route.entryName,
+    );
+  }
+  try {
+    const workerModule = route.worker
+      ? await loadWorkerModule(route.worker)
+      : undefined;
+    if (
+      !workerModule ||
+      typeof workerModule.dispatchNativeWorkerRequest !== 'function'
+    ) {
+      return createWorkerRendererErrorResponse(
+        'missing-native-worker-bundle',
+        route.entryName,
+      );
+    }
+    return await workerModule.dispatchNativeWorkerRequest(request, {
+      identity,
+      bundle: workerModule,
+      resources,
+      bindings: env,
+      executionContext: ctx,
+    });
+  } catch (error) {
+    // A bundle evaluation or pre-commit native failure must not escape fetch.
+    console.error(error);
+    return createWorkerRendererErrorResponse(
+      'native-render-failed',
+      route.entryName,
+    );
+  }
+}
+
+/**
+ * The Node host's ASCII-only identity header bytes: fixed field order and
+ * non-ASCII code units escaped, since Fetch header values are ByteStrings.
+ */
+function serializeRendererIdentityHeader(identity) {
+  return JSON.stringify({
+    renderer: identity.renderer,
+    appId: identity.appId,
+    entryName: identity.entryName,
+    protocolVersion: identity.protocolVersion,
+    buildId: identity.buildId,
+  }).replace(/[\u007f-\u{10ffff}]/gu, character =>
+    Array.from(
+      { length: character.length },
+      (_, index) =>
+        `\\u${character.charCodeAt(index).toString(16).padStart(4, '0')}`,
+    ).join(''),
+  );
+}
+
+function withWorkerRendererIdentity(response, route) {
+  const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
+  if (!identities) return response;
+  if (!Object.hasOwn(identities, route.entryName)) {
+    // Do not let a manifest/route mismatch escape fetch and fail the isolate.
+    response.body?.cancel().catch(() => {});
+    return createWorkerRendererErrorResponse(
+      'missing-renderer-identity',
+      route.entryName,
+    );
+  }
+  const headers = new Headers(response.headers);
+  headers.set(
+    'x-ultramodern-renderer-identity',
+    serializeRendererIdentityHeader(identities[route.entryName]),
+  );
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+async function invokeRouteWorker(route, request, env, ctx) {
   const workerPath = route.worker;
   if (!workerPath) {
     return new Response('Worker bundle not configured for SSR route', {
@@ -127,6 +426,30 @@ async function dispatchRouteWorker(route, request, env, ctx) {
     return fetchHandler(request, env, ctx);
   }
 
+  const runtime = getRuntimeModule(workerModule);
+  // Match the native server dispatcher: actions precede Flight trees, and
+  // neither path may fall back to HTML rendering or rewrite the Request body.
+  if (request.headers.get('x-rsc-action')) {
+    const handleAction = await runtime.handleAction;
+    if (typeof handleAction !== 'function') {
+      return new Response('Cannot find server action handler', { status: 500 });
+    }
+    return handleAction(request);
+  }
+
+  if (request.headers.get('x-rsc-tree')) {
+    const rscPayloadHandler = await runtime.rscPayloadHandler;
+    if (typeof rscPayloadHandler !== 'function') {
+      return new Response('Cannot find request handler for RSC', {
+        status: 500,
+      });
+    }
+    return rscPayloadHandler(
+      request,
+      await getRequestHandlerOptions(route, request, env, ctx, false),
+    );
+  }
+
   const requestHandler = await getRequestHandler(workerModule);
 
   if (typeof requestHandler === 'function') {
@@ -134,6 +457,7 @@ async function dispatchRouteWorker(route, request, env, ctx) {
       route,
       request,
       env,
+      ctx,
     );
 
     return withRouteCssLinks(
@@ -142,9 +466,8 @@ async function dispatchRouteWorker(route, request, env, ctx) {
       requestHandlerOptions.resource.routeManifest,
       request,
       env,
-      requestHandlerOptions.locals[
-        DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY
-      ]?.getStylesheetHrefs(),
+      undefined,
+      requestHandlerOptions.locals[DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY],
     );
   }
 
@@ -343,6 +666,8 @@ function disposeEffectBffDispatcherAfterResponse(response, dispatcher, ctx) {
 }
 
 async function dispatchBffRequest(request, env, ctx) {
+  const rendererRejection = createWorkerRendererGuardResponse(request);
+  if (rendererRejection) return rendererRejection;
   const bff = MODERN_WORKER_MANIFEST.bff;
 
   const requestUrl = new URL(request.url);

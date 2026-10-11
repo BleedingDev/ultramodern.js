@@ -67,57 +67,57 @@ test('emits an executable diagnostic module for platform-native paths', async ()
   );
 });
 
-test.each([
-  false,
-  true,
-])('native loader forwards the neutral plugin and reports transform rejection=%s once', async reject => {
-  const appDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'bff-loader-transform-'),
-  );
-  try {
-    const lambdaDir = path.join(appDir, 'api/lambda');
-    const resourcePath = path.join(lambdaDir, 'ping.ts');
-    const source = 'export default () => "pong";';
-    await fs.outputFile(resourcePath, source);
-    await fs.outputJSON(path.join(appDir, 'package.json'), {
-      name: 'loader-transform',
-    });
-    const plugin = path.join(appDir, 'transform.cjs');
-    await fs.writeFile(
-      plugin,
-      reject
-        ? 'exports.modifyClient = () => { throw new Error("loader transform rejected"); };'
-        : 'exports.modifyClient = draft => { draft.statements.push("export const loaderTransform = true;"); };',
+test.each([false, true])(
+  'native loader forwards the neutral plugin and reports transform rejection=%s once',
+  async reject => {
+    const appDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'bff-loader-transform-'),
     );
-    const callback = rstest.fn();
-    await loader.call(
-      {
-        resourcePath,
-        cacheable: () => {},
-        async: () => callback,
-        getOptions: () => ({
-          appDir,
-          apiDir: path.join(appDir, 'api'),
-          lambdaDir,
-          existLambda: true,
-          prefix: '/api',
-          port: 3000,
-          target: 'client',
-          clientCodegenPlugin: plugin,
-          requestId: 'configured-loader-id',
-        }),
-      } as never,
-      source,
-    );
-    expect(callback).toHaveBeenCalledTimes(1);
-    if (reject) {
-      expect(callback.mock.calls[0]?.[0]).toMatchObject({
-        name: 'ClientCodegenError',
+    try {
+      const lambdaDir = path.join(appDir, 'api/lambda');
+      const resourcePath = path.join(lambdaDir, 'ping.ts');
+      const source = 'export default () => "pong";';
+      await fs.outputFile(resourcePath, source);
+      await fs.outputJSON(path.join(appDir, 'package.json'), {
+        name: 'loader-transform',
       });
-    } else {
-      expect(callback.mock.calls[0]?.[0]).toBeUndefined();
+      const plugin = path.join(appDir, 'transform.cjs');
+      await fs.writeFile(
+        plugin,
+        reject
+          ? 'exports.modifyClient = () => { throw new Error("loader transform rejected"); };'
+          : 'exports.modifyClient = draft => { draft.statements.push("export const loaderTransform = true;"); };',
+      );
+      const callback = rstest.fn();
+      await loader.call(
+        {
+          resourcePath,
+          cacheable: () => {},
+          async: () => callback,
+          getOptions: () => ({
+            appDir,
+            apiDir: path.join(appDir, 'api'),
+            lambdaDir,
+            existLambda: true,
+            prefix: '/api',
+            port: 3000,
+            target: 'client',
+            clientCodegenPlugin: plugin,
+            requestId: 'configured-loader-id',
+          }),
+        } as never,
+        source,
+      );
+      expect(callback).toHaveBeenCalledTimes(1);
+      if (reject) {
+        expect(callback.mock.calls[0]?.[0]).toMatchObject({
+          name: 'ClientCodegenError',
+        });
+      } else {
+        expect(callback.mock.calls[0]?.[0]).toBeUndefined();
+      }
+    } finally {
+      await fs.remove(appDir);
     }
-  } finally {
-    await fs.remove(appDir);
-  }
-});
+  },
+);

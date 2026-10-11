@@ -11,6 +11,7 @@ import {
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
   resolutionParityResultId,
+  runtimeIdentityBinding,
 } from './acceptance-contract.mjs';
 import { canonicalJson, sha256 } from './release-age-audit.mjs';
 
@@ -339,7 +340,7 @@ function expectedBinding(
 
 // Node and workerd identities exist only where the source lane built and ran
 // the workspace.
-function assertSourceRuntimeIdentity(receipt) {
+function assertSourceRuntimeIdentity(receipt, runtimeModuleFederation) {
   assertExactKeys(
     receipt.binding.runtimeIdentity,
     ['node', 'workerd'],
@@ -380,7 +381,7 @@ function assertSourceRuntimeIdentity(receipt) {
           typeof app.releaseVersion === 'string' &&
           app.releaseVersion.length > 0 &&
           JSON.stringify(app.moduleFederation) ===
-            JSON.stringify(receipt.binding.artifacts.moduleFederation),
+            JSON.stringify(runtimeModuleFederation),
         `Acceptance receipt ${platform} MicroVertical identity is stale or mixed`,
       );
       appIds.push(app.appId);
@@ -390,28 +391,10 @@ function assertSourceRuntimeIdentity(receipt) {
       `Acceptance receipt ${platform} MicroVertical identity contains duplicate app ids`,
     );
   }
-  const nodeByAppId = new Map(
-    receipt.binding.runtimeIdentity.node.map(app => [app.appId, app]),
+  runtimeIdentityBinding(
+    { apps: receipt.binding.runtimeIdentity.node },
+    { apps: receipt.binding.runtimeIdentity.workerd },
   );
-  const workerdByAppId = new Map(
-    receipt.binding.runtimeIdentity.workerd.map(app => [app.appId, app]),
-  );
-  assertCondition(
-    JSON.stringify([...nodeByAppId.keys()].sort()) ===
-      JSON.stringify([...workerdByAppId.keys()].sort()),
-    'Acceptance receipt Node and workerd identities cover different MicroVerticals',
-  );
-  for (const [appId, node] of nodeByAppId) {
-    const workerd = workerdByAppId.get(appId);
-    assertCondition(
-      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
-        field => node[field] === workerd?.[field],
-      ) &&
-        JSON.stringify(node.moduleFederation) ===
-          JSON.stringify(workerd?.moduleFederation),
-      `Acceptance receipt ${appId} Node and workerd identities differ`,
-    );
-  }
   const runtimeIdentityResults = Object.fromEntries(
     ['node', 'workerd'].map(platform => [
       platform,
@@ -582,6 +565,14 @@ function assertAcceptanceReceipt(
       'Acceptance receipt Module Federation package identity is invalid',
     );
   }
+  const runtimeModuleFederation =
+    receipt.binding.artifacts.moduleFederation.filter(
+      item => item.packageName === '@module-federation/runtime',
+    );
+  assertCondition(
+    runtimeModuleFederation.length === 1,
+    'Acceptance receipt requires one exact Module Federation runtime in its artifact cohort',
+  );
   assertCondition(
     receipt.binding.artifacts.sourceRevision === receipt.binding.source.commit,
     'Acceptance receipt artifact sourceRevision is stale or mixed',
@@ -684,6 +675,20 @@ function assertAcceptanceReceipt(
       );
       assertRuntimeResultDetails(result, receipt.mode);
       if (result.id === 'dependency-closure-audit') {
+        assertExactKeys(
+          result.details.advisories,
+          ['auditLevel', 'acknowledged'],
+          'Acceptance receipt advisories',
+        );
+        assertCondition(
+          result.details.advisories.auditLevel === 'high',
+          'Acceptance receipt advisories must audit high and critical vulnerabilities',
+        );
+        assertCondition(
+          Array.isArray(result.details.advisories.acknowledged) &&
+            result.details.advisories.acknowledged.length === 0,
+          'ERP-10 acceptance receipt must contain an empty acknowledged advisory list',
+        );
         const identities = result.details.closureIdentities;
         assertCondition(
           Array.isArray(identities) &&
@@ -721,7 +726,7 @@ function assertAcceptanceReceipt(
     }
   }
   if (receipt.mode === 'source') {
-    assertSourceRuntimeIdentity(receipt);
+    assertSourceRuntimeIdentity(receipt, runtimeModuleFederation);
   } else {
     // The published lane runs nothing, so it has no runtime identity to bind.
     assertCondition(

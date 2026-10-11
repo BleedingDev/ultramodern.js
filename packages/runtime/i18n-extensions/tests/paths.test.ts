@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import { canonicalPath, localizePath } from '../src/paths';
+import { canonicalPath, configuredLanguage, localizePath } from '../src/paths';
 
 const config = {
   languages: ['en', 'cs'],
@@ -20,5 +20,12 @@ describe('@modern-js/i18n-runtime-extensions/paths', () => {
     expect(
       canonicalPath('/CS/produkty/red-shoe?tag=boots#details', config),
     ).toBe('/products/red-shoe?tag=boots#details');
+  });
+
+  test('configuredLanguage resolves a configured language or throws', () => {
+    expect(configuredLanguage('CS', ['en', 'cs'])).toBe('cs');
+    expect(() => configuredLanguage('de', ['en', 'cs'])).toThrow(
+      new RangeError('Unsupported language "de"; expected one of: en, cs'),
+    );
   });
 });

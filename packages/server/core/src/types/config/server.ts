@@ -1,5 +1,5 @@
-import type { SSRMode } from '@modern-js/types';
-import type { WatchOptions } from '@modern-js/utils';
+import type { SSRMode } from '@modern-js/types/common';
+import type { WatchOptions } from '@modern-js/utils/watch-options';
 
 type Route =
   | string
@@ -47,7 +47,14 @@ export interface ServerUserConfig {
   publicRoutes?: Record<string, string>;
   ssr?: SSR;
   ssrByEntries?: SSRByEntries;
-  rsc?: boolean;
+  rsc?:
+    | boolean
+    | {
+        environments?: {
+          server?: string;
+          client?: string;
+        };
+      };
   baseUrl?: string | string[];
   port?: number;
   watchOptions?: WatchOptions;

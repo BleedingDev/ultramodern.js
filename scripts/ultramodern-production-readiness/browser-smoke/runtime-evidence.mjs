@@ -1,13 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import {
+  assertReleaseEnvelopeRendererBinding,
+  assertRendererReleaseArtifactBinding,
+  releaseEnvelopePayload,
+} from '../../ultramodern-publish/lib/renderer-release-binding.mjs';
 
-// Must stay in sync with app-tools/ultramodern-release-identity.ts. Node shell
-// output has no full-stack MicroVertical envelope, so strict acceptance derives
-// its promoted expectation from the canonical delivery-unit identity inputs.
-const RELEASE_BUILD_MARKER_NAMESPACE =
-  'ultramodern-delivery-unit-release-build-marker:v1';
 const PROMOTABLE_SOURCE_REVISION_PATTERN = /^(?:[a-f\d]{40}|[a-f\d]{64})$/u;
 const dimensions = [
   'ssr',
@@ -73,16 +75,6 @@ function assertNonEmptyString(value, label) {
     throw new Error(`${label} must be a non-empty trimmed string`);
   }
   return value;
-}
-
-function createReleaseBuildMarker({
-  generationBuildMarker,
-  sourceRevision,
-  unitId,
-}) {
-  return sha256(
-    `${RELEASE_BUILD_MARKER_NAMESPACE}:${unitId}:${generationBuildMarker}:${sourceRevision}`,
-  ).slice(0, 16);
 }
 
 function configuredDeliveryUnit(app) {
@@ -206,6 +198,165 @@ function readAppPackageJson(projectDir, app) {
   return JSON.parse(
     fs.readFileSync(path.join(projectDir, app.path, 'package.json'), 'utf8'),
   );
+}
+
+function readRegularJson(root, logicalPath, label) {
+  const segments = assertLogicalPath(logicalPath, label).split('/');
+  const rootStat = fs.lstatSync(root);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory())
+    throw new Error(`${label} must use an ordinary artifact root`);
+  let filename = fs.realpathSync(root);
+  for (const [index, segment] of segments.entries()) {
+    filename = path.join(filename, segment);
+    const stat = fs.lstatSync(filename);
+    if (
+      stat.isSymbolicLink() ||
+      (index === segments.length - 1 ? !stat.isFile() : !stat.isDirectory())
+    )
+      throw new Error(`${label} must use an ordinary file and directory path`);
+  }
+  return JSON.parse(fs.readFileSync(filename, 'utf8'));
+}
+
+function finalizedBuildArtifact(projectDir, app, sourceRevision, platform) {
+  const appRoot = path.join(projectDir, app.path);
+  const appRequire = createRequire(path.join(appRoot, 'package.json'));
+  const sdkEntry = appRequire.resolve('@modern-js/ultramodern-app-tools');
+  const sdk = appRequire(sdkEntry);
+  const ownerRequire = createRequire(sdkEntry);
+  const contracts = ownerRequire('@modern-js/backend-federation-contracts');
+  const source = readRegularJson(
+    appRoot,
+    contracts.ULTRAMODERN_BUILD_ARTIFACT_PATH,
+    `${app.id} original build artifact`,
+  );
+  contracts.assertUltramodernBuildArtifact(source);
+  const deliveryUnit = configuredDeliveryUnit(app);
+  const packageJson = readAppPackageJson(projectDir, app);
+  if (
+    source.deliveryUnit.appId !== app.id ||
+    source.deliveryUnit.packageName !== packageJson.name ||
+    source.deliveryUnit.unitId !== deliveryUnit.unitId ||
+    source.deliveryUnit.version !== deliveryUnit.version ||
+    source.deliveryUnit.version !== packageJson.version ||
+    source.deliveryUnit.buildMarker !== deliveryUnit.buildMarker
+  )
+    throw new Error(
+      `${app.id} original build artifact conflicts with its configured delivery unit`,
+    );
+  if (!PROMOTABLE_SOURCE_REVISION_PATTERN.test(sourceRevision))
+    throw new Error(
+      `${app.id} finalized build requires a promotable source revision`,
+    );
+  if (!source.surfaces.ui) {
+    if (app.kind === 'shell')
+      throw new Error(
+        `${app.id} finalized shell requires its declared UI artifact`,
+      );
+    const { createUltramodernReleaseBuildMarker } = ownerRequire(
+      '@modern-js/app-tools-extensions/release-identity',
+    );
+    return contracts.stampUltramodernBuildArtifactIdentity(source, {
+      buildMarker: createUltramodernReleaseBuildMarker({
+        generationBuildMarker: deliveryUnit.buildMarker,
+        sourceRevision,
+        unitId: deliveryUnit.unitId,
+      }),
+      sourceRevision,
+    });
+  }
+  if (sdk.RENDERER_BUILD_MANIFEST_FILE !== 'renderer-build.json')
+    throw new Error(
+      `${app.id} selected SDK has no canonical renderer build manifest`,
+    );
+  const renderer = source.surfaces.ui.rendererIdentity.renderer;
+  const outputRoot = path.join(appRoot, '.output');
+  const manifestDirectory =
+    platform === 'workerd'
+      ? ownerRequire(
+          '@modern-js/app-tools-extensions/cloudflare-output-plan',
+        ).createCloudflareOutputPlan(outputRoot).paths.publicAssets
+      : outputRoot;
+  // This is the compiler's finalized authority. Envelope verification below
+  // independently checks its immutable build carriers and executed artifacts.
+  const manifest = sdk.validateRendererBuildManifest(
+    readRegularJson(
+      outputRoot,
+      path
+        .relative(
+          outputRoot,
+          path.join(manifestDirectory, sdk.RENDERER_BUILD_MANIFEST_FILE),
+        )
+        .replace(/\\/gu, '/'),
+      `${app.id} finalized renderer manifest`,
+    ),
+    sdk.resolveRendererProfile(renderer),
+  );
+  if (
+    manifest.sourceRevision !== sourceRevision ||
+    Object.values(manifest.entries).some(identity => identity.appId !== app.id)
+  )
+    throw new Error(
+      `${app.id} finalized renderer provenance conflicts with its release`,
+    );
+  const primaryEntryName = source.surfaces.ui.rendererIdentity.entryName;
+  const primary = manifest.entries[primaryEntryName];
+  if (!primary)
+    throw new Error(
+      `${app.id} finalized renderer has no configured primary entry`,
+    );
+  const {
+    renderer: selected,
+    protocolVersion,
+    compiler,
+    hydration,
+    router,
+  } = manifest.profile;
+  const { stampFinalizedRendererBuildArtifact } = ownerRequire(
+    '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp',
+  );
+  return stampFinalizedRendererBuildArtifact(
+    source,
+    {
+      buildMarker: manifest.buildId,
+      sourceRevision: manifest.sourceRevision,
+      ui: {
+        rendererIdentity: primary,
+        rendererProfile: {
+          renderer: selected,
+          protocolVersion,
+          compiler,
+          hydration,
+          router,
+        },
+        routerBindings: manifest.routerBindings,
+      },
+    },
+    {
+      appDirectory: appRoot,
+      distDirectory: path.join(appRoot, '.output'),
+      entrypoints: Object.keys(manifest.entries).map(entryName => ({
+        entryName,
+        isMainEntry: entryName === primaryEntryName,
+      })),
+    },
+  );
+}
+
+function assertFinalizedBuildCarriers(location, app, expected) {
+  for (const artifact of location.envelope.artifacts.filter(item =>
+    ['ultramodern-build.json', 'public/ultramodern-build.json'].includes(
+      item.logicalPath,
+    ),
+  )) {
+    const built = JSON.parse(
+      fs.readFileSync(artifactPath(location, artifact.logicalPath), 'utf8'),
+    );
+    if (canonical(built) !== canonical(expected))
+      throw new Error(
+        `${app.id} executed build artifact conflicts with its finalized compiler identity`,
+      );
+  }
 }
 
 function envelopeLocation(projectDir, app, platform) {
@@ -421,25 +572,10 @@ function readAndVerifyEnvelopeArtifact(location, appId, value, index) {
 
 function verifyEnvelope(location, appId, apiOnly = false) {
   const { envelope } = location;
-  assertExactKeys(
-    envelope,
-    [
-      'schemaVersion',
-      'kind',
-      'target',
-      'identity',
-      'artifacts',
-      'surfaces',
-      'envelopeDigest',
-    ],
-    `${appId} release envelope`,
-  );
-  if (
-    envelope.schemaVersion !== 3 ||
-    envelope.kind !== 'ultramodern-target-microvertical-release-envelope'
-  ) {
-    throw new Error(`${appId} has an invalid release envelope schema`);
-  }
+  assertReleaseEnvelopeRendererBinding(envelope, {
+    label: `${appId} release envelope`,
+    expectedAppId: appId,
+  });
   assertExactKeys(
     envelope.identity,
     ['unitId', 'buildMarker', 'sourceRevision', 'releaseVersion'],
@@ -456,13 +592,11 @@ function verifyEnvelope(location, appId, apiOnly = false) {
       `${appId} release identity.${field}`,
     );
   }
-  if (envelope.identity.sourceRevision === 'workspace') {
-    throw new Error(`${appId} release identity is not promotable`);
-  }
   if (!/^[a-f\d]{64}$/u.test(envelope.envelopeDigest)) {
     throw new Error(`${appId} release envelope digest is invalid`);
   }
-  const { envelopeDigest, ...payload } = envelope;
+  const envelopeDigest = envelope.envelopeDigest;
+  const payload = releaseEnvelopePayload(envelope);
   if (sha256(canonical(payload)) !== envelopeDigest) {
     throw new Error(`${appId} release envelope digest mismatch`);
   }
@@ -487,14 +621,22 @@ function verifyEnvelope(location, appId, apiOnly = false) {
 
   assertExactKeys(
     envelope.surfaces,
-    ['uiClient', 'ssr', 'apiBackend', 'backendFederation'],
+    [
+      'uiClient',
+      'ssr',
+      'apiBackend',
+      ...(Object.hasOwn(envelope.surfaces, 'backendFederation')
+        ? ['backendFederation']
+        : []),
+    ],
     `${appId} release surfaces`,
   );
-  assertExactKeys(
-    envelope.surfaces.backendFederation,
-    ['manifest', 'container'],
-    `${appId} backend federation surfaces`,
-  );
+  if (Object.hasOwn(envelope.surfaces, 'backendFederation'))
+    assertExactKeys(
+      envelope.surfaces.backendFederation,
+      ['manifest', 'container'],
+      `${appId} backend federation surfaces`,
+    );
   const surfaces = {
     uiClient: assertSortedUniquePaths(
       envelope.surfaces.uiClient,
@@ -509,16 +651,28 @@ function verifyEnvelope(location, appId, apiOnly = false) {
     apiBackend: assertSortedUniquePaths(
       envelope.surfaces.apiBackend,
       `${appId} surfaces.apiBackend`,
+      !apiOnly,
     ),
-    backendManifest: assertLogicalPath(
-      envelope.surfaces.backendFederation.manifest,
-      `${appId} surfaces.backendFederation.manifest`,
-    ),
-    backendContainer: assertLogicalPath(
-      envelope.surfaces.backendFederation.container,
-      `${appId} surfaces.backendFederation.container`,
-    ),
+    backendManifest: envelope.surfaces.backendFederation
+      ? assertLogicalPath(
+          envelope.surfaces.backendFederation.manifest,
+          `${appId} surfaces.backendFederation.manifest`,
+        )
+      : undefined,
+    backendContainer: envelope.surfaces.backendFederation
+      ? assertLogicalPath(
+          envelope.surfaces.backendFederation.container,
+          `${appId} surfaces.backendFederation.container`,
+        )
+      : undefined,
   };
+  if (
+    surfaces.apiBackend.length > 0 !==
+    Boolean(envelope.surfaces.backendFederation)
+  )
+    throw new Error(
+      `${appId} API/backend and backend federation surfaces must be declared together`,
+    );
   if (apiOnly && (surfaces.uiClient.length > 0 || surfaces.ssr.length > 0)) {
     throw new Error(
       `${appId} API-only release declares an unexpected UI or SSR surface`,
@@ -527,6 +681,33 @@ function verifyEnvelope(location, appId, apiOnly = false) {
   const artifactByPath = new Map(
     artifacts.map(artifact => [artifact.logicalPath, artifact]),
   );
+  const buildCarriers = artifacts.filter(artifact =>
+    ['ultramodern-build.json', 'public/ultramodern-build.json'].includes(
+      artifact.logicalPath,
+    ),
+  );
+  if (buildCarriers.length === 0) {
+    throw new Error(
+      `${appId} release envelope must bind an immutable build artifact`,
+    );
+  }
+  for (const artifact of buildCarriers) {
+    if (
+      artifact.kind !== 'file' ||
+      artifact.runtime !== 'release-identity-metadata'
+    ) {
+      throw new Error(
+        `${appId} immutable build artifact must be release-identity-metadata file evidence`,
+      );
+    }
+    assertRendererReleaseArtifactBinding(
+      envelope,
+      JSON.parse(
+        fs.readFileSync(artifactPath(location, artifact.logicalPath), 'utf8'),
+      ),
+      { label: `${appId} ${artifact.logicalPath}`, expectedAppId: appId },
+    );
+  }
   const expectedRuntimes = {
     uiClient: 'browser',
     ssr: envelope.target === 'node' ? 'nodejs' : 'workerd',
@@ -538,8 +719,10 @@ function verifyEnvelope(location, appId, apiOnly = false) {
     uiClient: surfaces.uiClient,
     ssr: surfaces.ssr,
     apiBackend: surfaces.apiBackend,
-    backendManifest: [surfaces.backendManifest],
-    backendContainer: [surfaces.backendContainer],
+    backendManifest: surfaces.backendManifest ? [surfaces.backendManifest] : [],
+    backendContainer: surfaces.backendContainer
+      ? [surfaces.backendContainer]
+      : [],
   })) {
     for (const logicalPath of logicalPaths) {
       const artifact = artifactByPath.get(logicalPath);
@@ -719,8 +902,7 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
   if (
     execution.modulesRoot !== expectedRoot ||
     execution.envelopeDigest !== location.envelope.envelopeDigest ||
-    JSON.stringify(execution.identity) !==
-      JSON.stringify(location.envelope.identity) ||
+    !isDeepStrictEqual(execution.identity, location.envelope.identity) ||
     typeof execution.worker !== 'string' ||
     execution.worker.length === 0 ||
     !Array.isArray(execution.modules) ||
@@ -924,16 +1106,21 @@ function releaseIdentity(
       `${app.id} release envelope version ${location.envelope.identity.releaseVersion} differs from its configured delivery unit version ${deliveryUnit.version}`,
     );
   }
-  const expectedBuildMarker = createReleaseBuildMarker({
-    generationBuildMarker: deliveryUnit.buildMarker,
-    sourceRevision: location.envelope.identity.sourceRevision,
-    unitId: deliveryUnit.unitId,
-  });
-  if (location.envelope.identity.buildMarker !== expectedBuildMarker) {
+  const expectedBuild = finalizedBuildArtifact(
+    projectDir,
+    app,
+    location.envelope.identity.sourceRevision,
+    platform,
+  );
+  if (
+    location.envelope.identity.buildMarker !==
+    expectedBuild.deliveryUnit.buildMarker
+  ) {
     throw new Error(
-      `${app.id} release envelope build marker does not derive from its configured delivery unit and source revision`,
+      `${app.id} release envelope build marker differs from its finalized build identity`,
     );
   }
+  assertFinalizedBuildCarriers(location, app, expectedBuild);
   const apiOnly = app.surfaceProfile === 'api-only';
   const frontendManifest = location.envelope.surfaces.uiClient.find(
     logicalPath =>
@@ -961,19 +1148,25 @@ function releaseIdentity(
   };
   return {
     appId: app.id,
+    schemaVersion: location.envelope.schemaVersion,
     envelopeDigest: location.envelope.envelopeDigest,
     envelopePath: path.relative(
       fs.realpathSync(projectDir),
       location.envelopePath,
     ),
+    ...(location.envelope.ui ? { ui: location.envelope.ui } : {}),
     ...(platform === 'workerd' && verifyRuntime
       ? {
           workerd: verifyWorkerdRuntimeCorrelation(projectDir, app, location),
         }
       : {}),
     surfaces: {
-      api: { ...identity },
-      backend: { ...identity },
+      ...(location.envelope.surfaces.apiBackend.length > 0
+        ? {
+            api: { ...identity },
+            backend: { ...identity },
+          }
+        : {}),
       ...(apiOnly ? {} : { frontend: { ...identity }, ssr: { ...identity } }),
     },
   };
@@ -981,6 +1174,29 @@ function releaseIdentity(
 
 function verifyShellWorkerdIdentity(projectDir, app, identity) {
   const outputRoot = path.join(projectDir, app.path, '.output');
+  const location = envelopeLocation(projectDir, app, 'workerd');
+  verifyEnvelope(location, app.id, false);
+  for (const field of [
+    'unitId',
+    'buildMarker',
+    'sourceRevision',
+    'releaseVersion',
+  ])
+    if (location.envelope.identity[field] !== identity[field])
+      throw new Error(
+        `${app.id} Cloudflare shell envelope identity.${field} differs from its finalized compiler identity`,
+      );
+  const emitsApi = app.surfaceProfile !== 'ui-only';
+  if (
+    !location.envelope.ui ||
+    location.envelope.surfaces.uiClient.length === 0 ||
+    location.envelope.surfaces.ssr.length === 0 ||
+    location.envelope.surfaces.apiBackend.length > 0 !== emitsApi ||
+    Boolean(location.envelope.surfaces.backendFederation) !== emitsApi
+  )
+    throw new Error(
+      `${app.id} Cloudflare shell envelope surfaces differ from its declared application surface profile`,
+    );
   const manifestPath = path.join(
     outputRoot,
     'server/modern-worker-manifest.json',
@@ -1002,7 +1218,16 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
       );
     }
   }
-  for (const surface of ['ui', 'api']) {
+  const expectedSurfaces = emitsApi ? ['api', 'ui'] : ['ui'];
+  if (
+    !isRecord(stamped.surfaces) ||
+    canonical(Object.keys(stamped.surfaces).sort()) !==
+      canonical(expectedSurfaces)
+  )
+    throw new Error(
+      `${app.id} Cloudflare worker manifest surfaces differ from its declared application surface profile`,
+    );
+  for (const surface of expectedSurfaces) {
     if (!isRecord(stamped.surfaces?.[surface])) {
       throw new Error(
         `${app.id} Cloudflare worker manifest ${surface} delivery-unit surface is missing`,
@@ -1021,6 +1246,14 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
       );
     }
   }
+  for (const field of ['rendererIdentity', 'rendererProfile', 'routerBindings'])
+    if (
+      canonical(stamped.surfaces.ui[field]) !==
+      canonical(location.envelope.ui[field])
+    )
+      throw new Error(
+        `${app.id} Cloudflare worker manifest UI ${field} differs from its verified release envelope`,
+      );
   const wranglerPath = path.join(outputRoot, 'wrangler.json');
   if (!fs.existsSync(wranglerPath)) {
     throw new Error(`${app.id} Cloudflare Wrangler config is missing`);
@@ -1113,12 +1346,16 @@ function bindContractToExpectedReleaseIdentities({
             `${app.id} delivery-unit version ${deliveryUnit.version} differs from its package version ${String(packageJson.version)}`,
           );
         }
+        const expectedBuild = finalizedBuildArtifact(
+          projectDir,
+          app,
+          sourceRevision,
+          platform,
+        );
+        // Executed HTTP and browser markers must match the actual compiler
+        // expectation. Cloudflare also binds its staged envelope and worker.
         const identity = {
-          buildMarker: createReleaseBuildMarker({
-            generationBuildMarker: deliveryUnit.buildMarker,
-            sourceRevision,
-            unitId: deliveryUnit.unitId,
-          }),
+          buildMarker: expectedBuild.deliveryUnit.buildMarker,
           releaseVersion: deliveryUnit.version,
           sourceRevision,
           unitId: deliveryUnit.unitId,
@@ -1187,9 +1424,11 @@ function readNodeBackendArtifactEvidence(projectDir, app) {
   const identity = releaseIdentity(projectDir, app, 'node');
   return {
     appId: identity.appId,
+    schemaVersion: identity.schemaVersion,
     envelopeDigest: identity.envelopeDigest,
     envelopePath: identity.envelopePath,
     identity: identity.surfaces.backend,
+    ...(identity.ui ? { ui: identity.ui } : {}),
   };
 }
 

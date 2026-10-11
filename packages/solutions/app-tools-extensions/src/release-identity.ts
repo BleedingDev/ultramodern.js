@@ -1,6 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
+// The framework initializes this fixed reader before authored config observation.
+// Its commands remain private; authored subprocess APIs keep their own guards.
+const invokeGit = execFileSync;
 const BUILD_MARKER_NAMESPACE =
   'ultramodern-delivery-unit-release-build-marker:v1';
 const PROMOTABLE_SOURCE_REVISION_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -24,7 +27,7 @@ const gitOutput = (
   args: string[],
 ): string | undefined => {
   try {
-    return execFileSync('git', args, {
+    return invokeGit('git', args, {
       cwd: workspaceRoot,
       encoding: 'utf8',
       env: workspaceGitEnv(),
@@ -54,10 +57,11 @@ export const createUltramodernReleaseBuildMarker = ({
 export const resolveUltramodernSourceRevision = (
   workspaceRoot = process.cwd(),
   configuredSourceRevision?: string,
+  environment: Readonly<NodeJS.ProcessEnv> = process.env,
 ): string => {
   const configuredArgumentValue = configuredSourceRevision?.trim();
   const configuredEnvironmentValue =
-    process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
+    environment.ULTRAMODERN_SOURCE_REVISION?.trim();
   const configuredArgument =
     configuredArgumentValue && configuredArgumentValue !== 'workspace'
       ? configuredArgumentValue
@@ -120,16 +124,19 @@ export const resolveUltramodernReleaseIdentity = ({
   sourceRevision: configuredSourceRevision,
   unitId,
   workspaceRoot,
+  environment,
 }: {
   generationBuildMarker: string;
   sourceRevision?: string;
   unitId: string;
   workspaceRoot?: string;
+  environment?: Readonly<NodeJS.ProcessEnv>;
 }): UltramodernReleaseIdentity => {
   const explicitSourceRevision = configuredSourceRevision?.trim();
   const sourceRevision = resolveUltramodernSourceRevision(
     workspaceRoot,
     explicitSourceRevision,
+    environment,
   );
   return {
     buildMarker:

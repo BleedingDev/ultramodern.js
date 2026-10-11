@@ -231,21 +231,24 @@ describe('backend federation integrity plugin', () => {
   test.each([
     EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE,
     EFFECT_BFF_CONTEXT_STORAGE_SHARE,
-  ])('Node loaders reject a caller share that replaces the host %s', async name => {
-    const shared = { [name]: { version: '0.0.0', lib: () => ({}) } };
-    const reserved = `Share ${name} is reserved`;
-    await expect(
-      loadBackendFederatedEffectApi({
-        shared,
-      } as unknown as Parameters<typeof loadBackendFederatedEffectApi>[0]),
-    ).rejects.toThrow(reserved);
-    await expect(
-      loadBackendFederatedEffectApiFromManifest({
-        hostName: 'integrityHost',
-        shared,
-      } as unknown as Parameters<
-        typeof loadBackendFederatedEffectApiFromManifest
-      >[0]),
-    ).rejects.toThrow(reserved);
-  });
+  ])(
+    'Node loaders reject a caller share that replaces the host %s',
+    async name => {
+      const shared = { [name]: { version: '0.0.0', lib: () => ({}) } };
+      const reserved = `Share ${name} is reserved`;
+      await expect(
+        loadBackendFederatedEffectApi({
+          shared,
+        } as unknown as Parameters<typeof loadBackendFederatedEffectApi>[0]),
+      ).rejects.toThrow(reserved);
+      await expect(
+        loadBackendFederatedEffectApiFromManifest({
+          hostName: 'integrityHost',
+          shared,
+        } as unknown as Parameters<
+          typeof loadBackendFederatedEffectApiFromManifest
+        >[0]),
+      ).rejects.toThrow(reserved);
+    },
+  );
 });

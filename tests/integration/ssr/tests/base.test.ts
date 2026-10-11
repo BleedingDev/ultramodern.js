@@ -89,19 +89,19 @@ describe('Traditional SSR', () => {
     await basicUsage(page, appPort);
   });
 
-  test.each([
-    'GET',
-    'POST',
-  ])('%s SSR preserves loader headers and GET method', async method => {
-    const response = await fetch(
-      `http://localhost:${appPort}/abort?no-cache=1`,
-      { method, headers: { 'x-loader-test': 'preserved' } },
-    );
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(
-      'loader-result:GET:preserved:false',
-    );
-  });
+  test.each(['GET', 'POST'])(
+    '%s SSR preserves loader headers and GET method',
+    async method => {
+      const response = await fetch(
+        `http://localhost:${appPort}/abort?no-cache=1`,
+        { method, headers: { 'x-loader-test': 'preserved' } },
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        'loader-result:GET:preserved:false',
+      );
+    },
+  );
 
   test('aborts the loader signal when the SSR client disconnects', async () => {
     const id = randomUUID();

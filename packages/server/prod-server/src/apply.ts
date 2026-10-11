@@ -40,7 +40,9 @@ export async function applyPlugins(
 ) {
   const { pwd, appContext, config, logger: optLogger, serverConfig } = options;
 
-  const enableRsc = config.server?.rsc ?? serverConfig?.server?.rsc ?? false;
+  const enableRsc = Boolean(
+    config.server?.rsc ?? serverConfig?.server?.rsc ?? false,
+  );
 
   const serverErrorHandler = options.serverConfig?.onError;
   const loadCachePwd = isProd() ? pwd : appContext.appDirectory || pwd;

@@ -6,6 +6,11 @@ import {
 } from './descriptors';
 import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
+import { hasNativeAppGeneration } from './renderer-generations';
+import {
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import {
   GENERATED_TOOLING_COMMANDS,
   type GeneratedToolingCommandKey,
@@ -139,10 +144,10 @@ function createWorkspaceAppScriptPlan(
   // that died from a signal (a native stack overflow) as a plain exit 1.
   const buildSteps = [
     routesGenerate,
-    'modern build --deploy-target node',
+    'ultramodern build --deploy-target node',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'modern deploy --skip-build --deploy-target node',
-    // NOTE: the Module Federation DTS archive is emitted by `modern build`
+    'ultramodern deploy --skip-build --deploy-target node',
+    // NOTE: the Module Federation DTS archive is emitted by `ultramodern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
     // under parallel `pnpm -r build` — an early app would assert a sibling's
@@ -155,20 +160,20 @@ function createWorkspaceAppScriptPlan(
   const cloudflareBuildSteps = (requirePublicUrls: boolean) =>
     [
       routesGenerate,
-      'modern build --deploy-target cloudflare',
+      'ultramodern build --deploy-target cloudflare',
       createPublicSurfaceGenerationCommand(
         app,
         'cloudflare-dist',
         requirePublicUrls,
       ),
-      'modern deploy --skip-build --deploy-target cloudflare',
+      'ultramodern deploy --skip-build --deploy-target cloudflare',
       requirePublicUrls
         ? `${cloudflareOutputVerify} --require-public-urls`
         : cloudflareOutputVerify,
     ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: [routesGenerate, 'modern dev']
+    dev: [routesGenerate, 'ultramodern dev']
       .filter((step): step is string => Boolean(step))
       .join(' && '),
     build: buildSteps.join(' && '),
@@ -183,14 +188,25 @@ function createWorkspaceAppScriptPlan(
       app.directory,
       'cloudflareProof',
     )} --app ${app.id}`,
-    serve: 'modern serve',
+    serve: 'ultramodern serve',
     typecheck: createStrictTsgoTypecheckCommand(app.directory),
   };
 }
 
 export function createWorkspaceAppPackageScripts(
   app: WorkspaceApp,
-): WorkspaceAppPackageScripts {
+): Partial<WorkspaceAppPackageScripts> {
+  const renderer = resolveWorkspaceRenderer(app);
+  if (hasNativeAppGeneration(renderer)) {
+    return {
+      dev: 'ultramodern dev',
+      build: 'ultramodern build',
+      serve: 'ultramodern serve',
+      typecheck:
+        resolveAppGenerationProfile(app)?.typecheckCommand ??
+        createStrictTsgoTypecheckCommand(app.directory),
+    };
+  }
   const plan = createWorkspaceAppScriptPlan(app);
 
   return Object.fromEntries(

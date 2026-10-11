@@ -4,6 +4,8 @@ import {
   ultramodernBridgeCliBooleanFlags,
   ultramodernBridgeCliValueFlags,
 } from '../ultramodern-workspace/bridge-config';
+import { isApplicationRenderer } from '../ultramodern-workspace/renderer-profile';
+import type { ApplicationRenderer } from '../ultramodern-workspace/types';
 
 export const WORKSPACE_PROTOCOL_FLAG = '--workspace';
 export const DRY_RUN_FLAG = '--dry-run';
@@ -13,6 +15,7 @@ export const CODESMITH_OVERLAY_FLAG = '--codesmith-overlay';
 export const PRESET_FLAG = '--preset';
 export const API_PROTOCOL_FLAG = '--api-protocol';
 export const HORIZONTAL_REMOTE_FLAG = '--horizontal-remote';
+export const RENDERER_FLAG = '--renderer';
 const SUPPORTED_PRESETS = ['full-stack', 'api-only', 'ui-only'] as const;
 const SUPPORTED_API_PROTOCOLS = ['rest', 'rpc'] as const;
 
@@ -128,6 +131,7 @@ export function collectPositionalArgs(args: string[]): string[] {
   const optionWithValue = new Set([
     '--lang',
     '-l',
+    RENDERER_FLAG,
     BFF_RUNTIME_OPTION,
     '--ultramodern-package-source',
     '--ultramodern-package-version',
@@ -171,6 +175,7 @@ export function collectPositionalArgs(args: string[]): string[] {
 
     if (
       arg.startsWith('--lang=') ||
+      arg.startsWith(`${RENDERER_FLAG}=`) ||
       arg.startsWith(`${BFF_RUNTIME_OPTION}=`) ||
       arg.startsWith('--ultramodern-package-source=') ||
       arg.startsWith('--ultramodern-package-version=') ||
@@ -298,6 +303,32 @@ export function detectDryRunFlag(args: string[]): boolean {
   }
 
   return args.includes(DRY_RUN_FLAG);
+}
+
+export function detectRendererFlag(
+  args: string[],
+): ApplicationRenderer | undefined {
+  const requested = args.some(
+    arg => arg === RENDERER_FLAG || arg.startsWith(`${RENDERER_FLAG}=`),
+  );
+  if (!requested) return undefined;
+  const renderer = getOptionValue(args, [RENDERER_FLAG]);
+  if (!isApplicationRenderer(renderer)) {
+    throw new Error(`${RENDERER_FLAG} requires react, solid or octane.`);
+  }
+  const values = args.flatMap((arg, index) =>
+    arg === RENDERER_FLAG
+      ? [args[index + 1]]
+      : arg.startsWith(`${RENDERER_FLAG}=`)
+        ? [arg.slice(`${RENDERER_FLAG}=`.length)]
+        : [],
+  );
+  if (values.some(value => value !== renderer)) {
+    throw new Error(
+      'Conflicting renderer selections. Choose one renderer when creating the workspace.',
+    );
+  }
+  return renderer;
 }
 
 export function detectCodeSmithOverlays(args: string[]) {

@@ -1,4 +1,4 @@
-import { Link } from '@modern-js/runtime/router';
+import { Link } from '@modern-js/plugin-tanstack/runtime';
 
 const Index = () => (
   <div>

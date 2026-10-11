@@ -104,7 +104,7 @@ const buildEffectWorkerRuntimeModule = async (
     format: 'esm',
     outfile: outputFile,
     platform: 'node',
-    target: 'node26.7',
+    target: 'node26.10',
   });
   return import(
     `${pathToFileURL(outputFile).href}?t=${Date.now()}`

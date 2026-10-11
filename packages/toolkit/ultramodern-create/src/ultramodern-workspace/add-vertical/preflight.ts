@@ -3,8 +3,10 @@ import path from 'node:path';
 import { normalizeWorkspaceInputs } from '../../ultramodern-tooling/config';
 import type { UltramodernBridgeConfig } from '../bridge-config';
 import {
+  appEmitsBrowserUi,
   createRemoteManifestEnv,
   createVerticalDescriptor,
+  resolveRemoteRefs,
 } from '../descriptors';
 import { readJsonFile } from '../fs-io';
 import {
@@ -12,6 +14,14 @@ import {
   normalizePath,
   toPackageScope,
 } from '../naming';
+import { captureWorkspaceRendererEvaluations } from '../renderer-config-evaluation';
+import { reconcileWorkspaceRendererIdentities } from '../renderer-identity';
+import { initializeGeneratedRendererIdentity } from '../renderer-initial-identity';
+import {
+  appSupportsFederation,
+  getRendererGenerationProfile,
+  resolveWorkspaceRenderer,
+} from '../renderer-profile';
 import type {
   AddUltramodernVerticalOptions,
   JsonValue,
@@ -88,9 +98,28 @@ export class UnknownUltramodernShellError extends Error {
   }
 }
 
-export function prepareAddUltramodernVertical(
+export function resolveAddedVerticalComposition(
+  targetShell: WorkspaceApp,
+  existingVerticals: WorkspaceApp[],
+  vertical: WorkspaceApp,
+): WorkspaceApp[] {
+  return [
+    ...resolveRemoteRefs(
+      {
+        ...targetShell,
+        verticalRefs: targetShell.verticalRefs?.filter(
+          id => id !== vertical.id,
+        ),
+      },
+      existingVerticals,
+    ),
+    vertical,
+  ];
+}
+
+export async function prepareAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
-): AddUltramodernVerticalPreflight {
+): Promise<AddUltramodernVerticalPreflight> {
   const name = assertValidVerticalName(options.name);
   const topologyPath = path.join(options.workspaceRoot, TOPOLOGY_PATH);
   const ownershipPath = path.join(options.workspaceRoot, OWNERSHIP_PATH);
@@ -121,6 +150,14 @@ export function prepareAddUltramodernVertical(
     topology,
     overlay,
   });
+  assertValidWorkspaceMembership(workspace.apps);
+  assertGlobalPortUniqueness(
+    {
+      ...overlay.ports,
+      [workspace.primaryShell!.id]: workspace.primaryShell!.port,
+    },
+    workspace.additionalShells,
+  );
   const { packageSource, enableTailwind, bridge } = workspaceOperationSettings(
     options,
     workspace.config,
@@ -130,35 +167,63 @@ export function prepareAddUltramodernVertical(
   const scope = toPackageScope(
     String(rootPackage.name ?? path.basename(options.workspaceRoot)),
   );
-
-  const existingVerticals = workspace.verticals;
-  const additionalShells = workspace.additionalShells;
-  // Supplying topology always resolves the primary shell, including defaults.
-  const resolvedPrimaryShell = workspace.primaryShell!;
-  const targetShell = resolveTargetShell(
+  const targetShellId = resolveTargetShell(
     options.shell,
-    resolvedPrimaryShell,
-    additionalShells,
+    workspace.primaryShell!,
+    workspace.additionalShells,
     topologyPath,
+  ).id;
+
+  const evaluations = await captureWorkspaceRendererEvaluations(
+    options.workspaceRoot,
+    workspace.apps,
   );
+  const resolvedApps = await reconcileWorkspaceRendererIdentities(
+    options.workspaceRoot,
+    scope,
+    workspace.apps,
+    { evaluations },
+  );
+  const existingVerticals = resolvedApps.filter(app => app.kind === 'vertical');
+  const additionalShells = resolvedApps.filter(
+    app => app.kind === 'shell' && app.id !== workspace.primaryShell!.id,
+  );
+  // Supplying topology always resolves the primary shell, including defaults.
+  const resolvedPrimaryShell = resolvedApps.find(
+    app => app.id === workspace.primaryShell!.id,
+  )!;
+  const targetShell = resolvedApps.find(app => app.id === targetShellId)!;
   const portsWithPrimary = {
     ...overlay.ports,
     [resolvedPrimaryShell.id]: resolvedPrimaryShell.port,
   };
   assertGlobalPortUniqueness(portsWithPrimary, additionalShells);
   const port = nextAvailablePort(portsWithPrimary, additionalShells);
+  const renderer = resolveWorkspaceRenderer(targetShell);
   const vertical = createVerticalDescriptor(name, port, {
     preset: options.preset,
     apiProtocol: options.apiProtocol,
     horizontalRemote: options.horizontalRemote,
+    ...(renderer !== 'none' ? { renderer } : {}),
   });
+  if (appEmitsBrowserUi(vertical)) {
+    if (renderer === 'none') {
+      throw new Error(`Target shell ${targetShell.id} requires a UI renderer.`);
+    }
+    const generation = getRendererGenerationProfile(renderer);
+    vertical.renderer = renderer;
+    vertical.rendererProfile = generation.profile;
+    vertical.rendererGenerationProfile = generation;
+  } else {
+    vertical.renderer = 'none';
+  }
+  Object.assign(vertical, initializeGeneratedRendererIdentity(scope, vertical));
   const updatedVerticals = [...existingVerticals, vertical];
-  const targetVerticals = [
-    ...existingVerticals.filter(id =>
-      (targetShell.verticalRefs ?? []).includes(id.id),
-    ),
+  const targetVerticals = resolveAddedVerticalComposition(
+    targetShell,
+    existingVerticals,
     vertical,
-  ];
+  );
   const allApps = [
     resolvedPrimaryShell,
     ...updatedVerticals,
@@ -166,9 +231,15 @@ export function prepareAddUltramodernVertical(
   ];
 
   assertCanCreate(options.workspaceRoot, vertical.directory);
-  validateWorkspaceAppDescriptors(allApps);
-  validateUniqueWorkspaceAppDescriptors(allApps);
-  assertUniqueTailwindPrefixes(allApps);
+  for (const shell of [resolvedPrimaryShell, ...additionalShells]) {
+    assertSupportedRendererComposition(
+      shell,
+      shell.id === targetShell.id
+        ? targetVerticals
+        : resolveRemoteRefs(shell, existingVerticals),
+    );
+  }
+  assertValidWorkspaceMembership(allApps);
 
   return {
     name,
@@ -191,6 +262,66 @@ export function prepareAddUltramodernVertical(
     vertical,
     updatedVerticals,
   };
+}
+
+/** Keep source evaluation guards while directing all mutable output to stage. */
+export function stageAddUltramodernVerticalPreflight(
+  preflight: AddUltramodernVerticalPreflight,
+  stagingRoot: string,
+): AddUltramodernVerticalPreflight {
+  return {
+    ...preflight,
+    topologyPath: path.join(stagingRoot, TOPOLOGY_PATH),
+    ownershipPath: path.join(stagingRoot, OWNERSHIP_PATH),
+    overlayPath: path.join(stagingRoot, DEVELOPMENT_OVERLAY_PATH),
+    rootPackage: structuredClone(preflight.rootPackage),
+    topology: structuredClone(preflight.topology),
+    ownership: structuredClone(preflight.ownership),
+    overlay: structuredClone(preflight.overlay),
+  };
+}
+
+/** Validate paths and membership before resolving any application config. */
+export function assertValidWorkspaceMembership(apps: WorkspaceApp[]): void {
+  validateWorkspaceAppDescriptors(apps);
+  validateUniqueWorkspaceAppDescriptors(apps);
+  assertUniqueTailwindPrefixes(apps);
+}
+
+/** Composition must use selected adapters with matching renderer identities. */
+export function assertSupportedRendererComposition(
+  shell: WorkspaceApp,
+  verticals: readonly WorkspaceApp[],
+): void {
+  for (const vertical of verticals) {
+    if (
+      !appEmitsBrowserUi(vertical) &&
+      shell.verticalRefs?.includes(vertical.id)
+    ) {
+      throw new Error(
+        `Headless unit ${vertical.id} exposes API/backend capabilities, not UI, and cannot join shell ${shell.id} composition.`,
+      );
+    }
+  }
+  const uiVerticals = verticals.filter(appEmitsBrowserUi);
+  if (uiVerticals.length === 0) return;
+  const renderer = resolveWorkspaceRenderer(shell);
+  for (const vertical of uiVerticals) {
+    const remoteRenderer = resolveWorkspaceRenderer(vertical);
+    if (remoteRenderer !== renderer) {
+      throw new Error(
+        `Unsupported renderer composition: shell ${shell.id} uses ${renderer}, but vertical ${vertical.id} uses ${remoteRenderer}. Cross-renderer UI composition is not supported.`,
+      );
+    }
+  }
+  if (
+    !appSupportsFederation(shell) ||
+    uiVerticals.some(app => !appSupportsFederation(app))
+  ) {
+    throw new Error(
+      `Unsupported renderer capability: ${renderer} Module Federation UI composition is not certified for shell ${shell.id}.`,
+    );
+  }
 }
 
 export function readRequiredJsonObject(filePath: string): Record<string, any> {

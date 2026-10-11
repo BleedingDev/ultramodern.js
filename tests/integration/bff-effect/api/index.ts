@@ -1,8 +1,8 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import { defineEffectBff, OpenTelemetry } from '@modern-js/bff-effect/effect';
 import * as Effect from 'effect/Effect';
+import { HttpApiBuilder } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
-import { HttpApiBuilder } from 'effect/unstable/httpapi';
 import { bffEffectApi } from '../shared/effect-api';
 import { bffRpcGroup } from '../shared/effect-rpc';
 

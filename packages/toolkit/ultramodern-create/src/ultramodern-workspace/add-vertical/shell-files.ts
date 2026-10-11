@@ -14,6 +14,7 @@ import {
 } from '../demo-components';
 import {
   appEmitsBrowserUi,
+  appHasApi,
   appI18nNamespace,
   resolveRemoteRefs,
   shellApp,
@@ -24,6 +25,7 @@ import {
   createAppModernConfig,
   createShellModuleFederationConfig,
 } from '../module-federation';
+import { createNativeFederationArtifacts } from '../native-federation';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
@@ -34,8 +36,12 @@ import {
   createPublicWebAppArtifacts,
   rewriteWorkspaceAssetsForApp,
 } from '../public-surface';
+import { resolveWorkspaceRenderer } from '../renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from '../types';
-import { preserveConsumerWorkspaceArtifacts } from '../workspace-artifact-ownership';
+import {
+  type createCanonicalWorkspaceArtifactFormatter,
+  preserveConsumerWorkspaceArtifacts,
+} from '../workspace-artifact-ownership';
 
 export function updateRootWorkspaceScripts(
   workspaceRoot: string,
@@ -45,8 +51,9 @@ export function updateRootWorkspaceScripts(
   bridge?: UltramodernBridgeConfig,
   additionalShells: WorkspaceApp[] = [],
   previousRemotes: WorkspaceApp[] = remotes,
-  _primaryShell: WorkspaceApp = shellApp,
+  primaryShell: WorkspaceApp = shellApp,
   previousAdditionalShells: WorkspaceApp[] = additionalShells,
+  previousPrimaryShell: WorkspaceApp = primaryShell,
 ) {
   const packagePath = path.join(workspaceRoot, 'package.json');
   const rootPackage = readJsonFile(packagePath);
@@ -56,6 +63,7 @@ export function updateRootWorkspaceScripts(
     remotes,
     bridge,
     additionalShells,
+    primaryShell,
   ) as Record<string, any>;
   const previousRootPackage = createRootPackageJson(
     scope,
@@ -63,6 +71,7 @@ export function updateRootWorkspaceScripts(
     previousRemotes,
     bridge,
     previousAdditionalShells,
+    previousPrimaryShell,
   ) as Record<string, any>;
   const existingScripts = rootPackage.scripts ?? {};
   rootPackage.scripts = { ...generatedRootPackage.scripts, ...existingScripts };
@@ -77,17 +86,24 @@ export function updateRootWorkspaceScripts(
       rootPackage.scripts[name] = command;
     }
   }
+  for (const [name, command] of Object.entries(previousRootPackage.scripts)) {
+    if (
+      generatedRootPackage.scripts[name] === undefined &&
+      existingScripts[name] === command
+    ) {
+      delete rootPackage.scripts[name];
+    }
+  }
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
-function shellAppArtifacts(
+export function shellAppArtifacts(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
   remotes: WorkspaceApp[],
   bridge: UltramodernBridgeConfig | undefined,
   shell: WorkspaceApp,
-  devPorts?: number[],
 ) {
   const shellHost = {
     ...shell,
@@ -96,6 +112,48 @@ function shellAppArtifacts(
       remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
   };
   const shellRemotes = resolveRemoteRefs(shellHost, remotes);
+  if (resolveWorkspaceRenderer(shellHost) !== 'react') {
+    const files = {
+      [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
+        shellHost,
+        enableTailwind,
+      ),
+      [`${shellHost.directory}/tsconfig.json`]: `${JSON.stringify(
+        createAppTsConfig(shellHost, shellRemotes),
+        null,
+        2,
+      )}\n`,
+      ...Object.fromEntries(
+        createNativeFederationArtifacts(scope, shellHost, remotes).map(
+          artifact => [
+            `${shellHost.directory}/${artifact.path}`,
+            artifact.content,
+          ],
+        ),
+      ),
+      ...(remotes.some(appHasApi)
+        ? {
+            [`${shellHost.directory}/src/api/vertical-clients.ts`]:
+              createShellApiClient(scope, remotes),
+          }
+        : {}),
+    };
+    return {
+      shellHost,
+      packageJson: createAppPackage(
+        scope,
+        shellHost,
+        packageSource,
+        enableTailwind,
+        remotes,
+        bridge,
+      ) as Record<string, any>,
+      artifacts: Object.entries(files).map(([relativePath, content]) => ({
+        relativePath,
+        content,
+      })),
+    };
+  }
   const uiRemotes = shellRemotes.filter(appEmitsBrowserUi);
   const publicWeb = createPublicWebAppArtifacts(shellHost);
   const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -110,13 +168,6 @@ function shellAppArtifacts(
       shellHost,
       shellRemotes,
       scope,
-    ),
-    [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
-      scope,
-      shellHost,
-      shellRemotes,
-      enableTailwind,
-      devPorts,
     ),
     [publicWeb.jsonLdHelperFile.path]: publicWeb.jsonLdHelperFile.content,
     [publicWeb.routeMetadataFile.path]: publicWeb.routeMetadataFile.content,
@@ -179,13 +230,14 @@ export function rewriteShellAppFiles(
   remotes: WorkspaceApp[],
   bridge?: UltramodernBridgeConfig,
   shell: WorkspaceApp = shellApp,
-  devPorts?: number[],
   previous: {
     shell: WorkspaceApp;
     remotes: WorkspaceApp[];
-    devPorts?: number[];
     enableTailwind?: boolean;
-  } = { shell, remotes, devPorts },
+  } = { shell, remotes },
+  canonicalFormatter?: ReturnType<
+    typeof createCanonicalWorkspaceArtifactFormatter
+  >,
 ) {
   const before = shellAppArtifacts(
     scope,
@@ -194,7 +246,6 @@ export function rewriteShellAppFiles(
     previous.remotes,
     bridge,
     previous.shell,
-    previous.devPorts,
   );
   const next = shellAppArtifacts(
     scope,
@@ -203,11 +254,11 @@ export function rewriteShellAppFiles(
     remotes,
     bridge,
     shell,
-    devPorts,
   );
   const { io } = preserveConsumerWorkspaceArtifacts(
     workspaceRoot,
-    before.artifacts,
+    [...before.artifacts, ...next.artifacts],
+    canonicalFormatter,
   );
   for (const artifact of next.artifacts) {
     io.write(path.join(workspaceRoot, artifact.relativePath), artifact.content);
@@ -217,15 +268,19 @@ export function rewriteShellAppFiles(
   const packageJson = {
     ...next.packageJson,
     ...existing,
-    'zephyr:dependencies': {
-      ...next.packageJson['zephyr:dependencies'],
-      ...Object.fromEntries(
-        Object.entries(existing['zephyr:dependencies'] ?? {}).filter(
-          ([key, value]) =>
-            before.packageJson['zephyr:dependencies']?.[key] !== value,
-        ),
-      ),
-    },
+    ...(resolveWorkspaceRenderer(next.shellHost) === 'react'
+      ? {
+          'zephyr:dependencies': {
+            ...next.packageJson['zephyr:dependencies'],
+            ...Object.fromEntries(
+              Object.entries(existing['zephyr:dependencies'] ?? {}).filter(
+                ([key, value]) =>
+                  before.packageJson['zephyr:dependencies']?.[key] !== value,
+              ),
+            ),
+          },
+        }
+      : {}),
     dependencies: {
       ...next.packageJson.dependencies,
       ...existing.dependencies,
@@ -245,5 +300,7 @@ export function rewriteShellAppFiles(
     }
   }
   writeJsonFile(packagePath, packageJson as JsonValue);
-  rewriteWorkspaceAssetsForApp(workspaceRoot, next.shellHost);
+  if (resolveWorkspaceRenderer(next.shellHost) === 'react') {
+    rewriteWorkspaceAssetsForApp(workspaceRoot, next.shellHost);
+  }
 }

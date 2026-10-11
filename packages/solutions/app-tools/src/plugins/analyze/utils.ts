@@ -3,7 +3,7 @@ import {
   JS_EXTENSIONS,
   normalizeToPosixPath,
 } from '@modern-js/utils';
-import { parse } from 'es-module-lexer';
+import { init, parse } from 'es-module-lexer';
 import { transform } from 'esbuild';
 import fs from 'fs';
 import path from 'path';
@@ -64,7 +64,8 @@ export const parseModule = async ({
     content = result.code;
   }
 
-  return await parse(content);
+  await init();
+  return parse(content);
 };
 
 export const getServerCombinedModuleFile = (

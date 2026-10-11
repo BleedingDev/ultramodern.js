@@ -3,6 +3,8 @@ import { createRouterPrefetchPolicy } from './routerPrefetchPolicy';
 import {
   applyRouterRuntimeState,
   applyRouterServerPrepareResult,
+  getRouterRuntimeState,
+  getRouterServerSnapshot,
 } from './routerState';
 import type {
   RouterNavigationCapability,
@@ -23,6 +25,21 @@ type RouterLifecycleEvent = {
   basename?: string;
   router?: unknown;
 };
+
+type PreparedRequest<RuntimeContext extends object = object> = {
+  runtimeContext: RuntimeContext;
+  routerResult?: {
+    statusCode?: number;
+    errors?: Record<string, unknown> | null;
+  };
+};
+
+export const ROUTER_CLEANUP_ERROR =
+  'An error occurs during router runtime cleanup';
+
+// Provider wrappers and application composition may share the same native API.
+// Install their common request policy once for that runtime instance.
+const installedRouterPolicies = new WeakSet<object>();
 
 function createReactRouterNavigation(
   router: ReturnType<typeof createMemoryRouter>,
@@ -61,15 +78,55 @@ export function createRouterStatePlugin<Hooks extends Record<string, unknown>>({
     registryHooks,
     setup(api: {
       onBeforeRender: (callback: (context: object) => void) => unknown;
+      onRenderPrepared: (
+        callback: <RuntimeContext extends object>(
+          info: PreparedRequest<RuntimeContext>,
+        ) => PreparedRequest<RuntimeContext>,
+      ) => unknown;
+      onRequestEnd: (
+        callback: (info: { runtimeContext: object }) => Promise<void>,
+      ) => unknown;
       onAfterCreateRouter: (
         callback: (event: RouterLifecycleEvent) => void,
       ) => unknown;
     }) {
+      if (installedRouterPolicies.has(api)) {
+        return;
+      }
+      installedRouterPolicies.add(api);
       api.onBeforeRender(context => {
         const runtimeContext = context as {
           linkPrefetchPolicy?: ReturnType<typeof createRouterPrefetchPolicy>;
         };
         runtimeContext.linkPrefetchPolicy ??= createRouterPrefetchPolicy();
+      });
+      api.onRenderPrepared(info => {
+        const snapshot = getRouterServerSnapshot(info.runtimeContext);
+        if (!snapshot) {
+          return info;
+        }
+        return {
+          ...info,
+          routerResult: {
+            statusCode: snapshot.statusCode ?? info.routerResult?.statusCode,
+            errors: snapshot.errors ?? info.routerResult?.errors,
+          },
+        };
+      });
+      api.onRequestEnd(async ({ runtimeContext }) => {
+        try {
+          await getRouterRuntimeState(runtimeContext)?.cleanup?.();
+        } catch (error) {
+          const { ssrContext } = runtimeContext as {
+            ssrContext?: {
+              onError: (error: unknown, message: string) => void;
+            };
+          };
+          if (!ssrContext) {
+            throw error;
+          }
+          ssrContext.onError(error, ROUTER_CLEANUP_ERROR);
+        }
       });
       api.onAfterCreateRouter(event => {
         if (event.framework !== 'react-router') {

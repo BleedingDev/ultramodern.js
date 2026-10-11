@@ -37,7 +37,6 @@ import {
   slsaProvenanceV1,
   verifyRegistryProvenance,
 } from './provenance.mjs';
-import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 
 const { assertNonEmptyString, assertPlainObject } = validationKit;
@@ -662,6 +661,7 @@ const ultramodernVersionPattern = /^(\d+\.\d+\.\d+)-ultramodern\.([1-9]\d*)$/;
  * recovery cohort publishes at the next free revision instead.
  */
 function assertBaseRevisionReset(
+  semver,
   targetName,
   candidate,
   currentTag,
@@ -731,6 +731,7 @@ async function preflightRegistryPackages(
   },
 ) {
   const failures = [];
+  const { default: semver } = await import('semver');
   const states = new Map();
   const currentTags = new Map();
   const concurrency = resolveRegistryConcurrency(options);
@@ -860,6 +861,7 @@ async function preflightRegistryPackages(
             );
           }
           assertBaseRevisionReset(
+            semver,
             item.targetName,
             item.version,
             currentTag,

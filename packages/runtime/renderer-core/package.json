@@ -1,0 +1,172 @@
+{
+  "name": "@modern-js/renderer-core",
+  "version": "3.8.3",
+  "description": "UltraModern native renderer request, data and document contracts.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BleedingDev/ultramodern.js",
+    "directory": "packages/runtime/renderer-core"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "modern:source": "./src/index.ts",
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./identity": {
+      "modern:source": "./src/identity.ts",
+      "import": {
+        "types": "./dist/types/identity.d.ts",
+        "default": "./dist/esm/identity.mjs"
+      },
+      "require": {
+        "types": "./dist/types/identity.d.ts",
+        "default": "./dist/cjs/identity.js"
+      }
+    },
+    "./adapter": {
+      "modern:source": "./src/adapter.ts",
+      "import": {
+        "types": "./dist/types/adapter.d.ts",
+        "default": "./dist/esm/adapter.mjs"
+      },
+      "require": {
+        "types": "./dist/types/adapter.d.ts",
+        "default": "./dist/cjs/adapter.js"
+      }
+    },
+    "./package.json": "./package.json",
+    "./federation": {
+      "modern:source": "./src/federation.ts",
+      "import": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/esm/federation.mjs"
+      },
+      "require": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/cjs/federation.js"
+      }
+    },
+    "./data": {
+      "modern:source": "./src/data/index.ts",
+      "import": {
+        "types": "./dist/types/data/index.d.ts",
+        "default": "./dist/esm/data/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/data/index.d.ts",
+        "default": "./dist/cjs/data/index.js"
+      }
+    },
+    "./session": {
+      "modern:source": "./src/session/index.ts",
+      "import": {
+        "types": "./dist/types/session/index.d.ts",
+        "default": "./dist/esm/session/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/session/index.d.ts",
+        "default": "./dist/cjs/session/index.js"
+      }
+    },
+    "./document": {
+      "modern:source": "./src/document.ts",
+      "import": {
+        "types": "./dist/types/document.d.ts",
+        "default": "./dist/esm/document.mjs"
+      },
+      "require": {
+        "types": "./dist/types/document.d.ts",
+        "default": "./dist/cjs/document.js"
+      }
+    },
+    "./router": {
+      "modern:source": "./src/router.ts",
+      "import": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/esm/router.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/cjs/router.js"
+      }
+    },
+    "./server": {
+      "modern:source": "./src/server/index.ts",
+      "import": {
+        "types": "./dist/types/server/index.d.ts",
+        "default": "./dist/esm/server/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/server/index.d.ts",
+        "default": "./dist/cjs/server/index.js"
+      }
+    },
+    "./entry-client": {
+      "modern:source": "./src/entry-client.ts",
+      "import": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/esm/entry-client.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/cjs/entry-client.js"
+      }
+    },
+    "./entry-server": {
+      "modern:source": "./src/entry-server.ts",
+      "import": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/esm/entry-server.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/cjs/entry-server.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "rslib build",
+    "test": "rstest"
+  },
+  "engines": {
+    "node": ">=26.10.0"
+  },
+  "dependencies": {
+    "seroval": "1.6.8"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "2.2.11"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@modern-js/rslib": "workspace:*",
+    "@modern-js/tsconfig": "workspace:*",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^26.6.3"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

@@ -20,6 +20,9 @@ export function showHelp() {
   console.log(i18n.t(localeKeys.help.optionHelp));
   console.log(i18n.t(localeKeys.help.optionVersion));
   console.log(i18n.t(localeKeys.help.optionLang));
+  console.log(
+    '  --renderer <react|solid|octane>  Select the native application renderer.',
+  );
   console.log(i18n.t(localeKeys.help.optionTailwind));
   console.log(i18n.t(localeKeys.help.optionBff));
   console.log(i18n.t(localeKeys.help.optionBffRuntime));

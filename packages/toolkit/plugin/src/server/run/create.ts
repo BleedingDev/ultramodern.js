@@ -1,13 +1,18 @@
 import { createPluginManager } from '../../manager';
 import { initPluginAPI } from '../../server/api';
 import { createServerContext, initServerContext } from '../../server/context';
+import type { InternalServerContext } from '../../types/server/context';
 import type {
   ServerPlugin,
   ServerPluginExtends,
 } from '../../types/server/plugin';
 import type { ServerRunOptions } from './types';
 
-export const createServer = <Extends extends ServerPluginExtends>() => {
+export const createServer = <Extends extends ServerPluginExtends>(): {
+  run(options: ServerRunOptions): Promise<{
+    serverContext: InternalServerContext<Extends>;
+  }>;
+} => {
   let initOptions: ServerRunOptions;
   const pluginManager = createPluginManager();
 

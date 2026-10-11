@@ -28,6 +28,8 @@ export {
 export type {
   AddUltramodernShellOptions,
   AddUltramodernVerticalOptions,
+  ApplicationRenderer,
+  RendererGenerationCapabilities,
   UltramodernCodeSmithOverlay,
   UltramodernCodeSmithOverlayRuntimeConfig,
   UltramodernGeneratedAppDescriptor,
@@ -39,5 +41,8 @@ export type {
   UltramodernShellDependencyChange,
   UltramodernVerticalPlan,
   UltramodernWorkspaceOptions,
+  WorkspaceRenderer,
+  WorkspaceRendererIdentity,
+  WorkspaceRendererProfile,
 } from './types';
 export { generateUltramodernWorkspace } from './write-workspace';

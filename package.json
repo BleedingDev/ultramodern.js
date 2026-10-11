@@ -18,8 +18,9 @@
     "reset": "npx rimraf --glob ./**/node_modules",
     "test:framework": "cd tests && pnpm run test:framework",
     "test:builder": "cd tests && pnpm run test:builder",
-    "test:ut": "rstest",
-    "test:ut:update": "rstest -u",
+    "test:ut": "nx run @scripts/prebundle:bundle && rstest",
+    "test:ut:prepared": "node scripts/ci/run-prepared-unit-tests.mjs",
+    "test:ut:update": "nx run @scripts/prebundle:bundle && rstest -u",
     "lint:package-json": "cd ./scripts/lint-package-json && pnpm start",
     "prepare-build": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=4",
     "prepare-build:local": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=8",
@@ -27,7 +28,7 @@
     "build:required": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=4",
     "lint": "biome check",
     "change": "changeset add",
-    "bump": "changeset version",
+    "bump": "changeset version && pnpm install && oxfmt --write --no-error-on-unmatched-pattern \"packages/**/CHANGELOG.md\"",
     "pre:enter": "changeset pre enter",
     "pre:exit": "changeset pre exit",
     "change-status": "changeset status",
@@ -48,10 +49,11 @@
     "docs:v2-link": "echo '/v2/*  https://modernjs-v2.netlify.app/:splat  200' >> doc_output/_redirects",
     "build:docs": "pnpm --filter @modern-js/main-doc... build && npm run gen:docs && npm run docs:v2-link",
     "prebuild:main-doc-docs": "nx run @modern-js/main-doc:build",
+    "validate:native-compatibility": "node scripts/native-compatibility/run-native-compatibility.mjs",
     "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
     "validate:boundary-divergence": "node scripts/ultramodern-boundary-check/check-fork-import-boundary.js",
     "validate:boundary-check": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json; boundary_status=$?; node scripts/ultramodern-boundary-check/check-fork-import-boundary.js; divergence_status=$?; exit $((boundary_status || divergence_status))",
-    "validate:security-workflows": "node scripts/security/validate-github-workflows.mjs",
+    "validate:security-workflows": "pnpm --filter @scripts/prebundle start js-yaml && node scripts/security/validate-github-workflows.mjs",
     "validate:mf-contracts": "pnpm --dir tests run test:superapp-contracts",
     "validate:superapp-certification": "node scripts/superapp-certification/run-superapp-certification.js",
     "validate:superapp-certification:smoke": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke",
@@ -62,25 +64,21 @@
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
     "ultramodern:source-create-proof": "node scripts/ultramodern-publish/validate-source-create-proof.mjs",
-    "validate:tsgo": "node scripts/tsgo-critical.mjs",
-    "test:scripts:after-build": "node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js",
+    "ultramodern:renderer-release": "node scripts/ultramodern-renderers/release.mjs",
+    "validate:typescript": "node scripts/typescript-critical.mjs",
+    "test:scripts:after-build": "node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/ultramodern-supply/mf-split-chunks.test.mjs scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/native-compatibility/*.test.mjs scripts/ultramodern-production-readiness/__tests__/built-framework/*.test.js",
     "test:publish-tooling": "node --test scripts/lib/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js",
-    "test:scripts": "node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js",
+    "test:scripts": "pnpm --filter @scripts/prebundle start js-yaml && node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/ultramodern-supply/mf-split-chunks.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js scripts/native-compatibility/*.test.mjs scripts/ultramodern-renderers/*.test.mjs",
     "check-doc-bundle": "cd ./scripts/check-doc-bundle && pnpm start",
-    "test:build-consumers": "pnpm --dir scripts/rslib test && pnpm --filter ultramodern-sandpack-profile-smoke test",
+    "test:build-consumers": "pnpm --dir scripts/rslib test && pnpm --filter ultramodern-sandpack-profile-smoke test && node --test scripts/prebundle/ultramodern/packed-utils-consumer.test.mjs",
     "test:build-consumers:release": "pnpm run test:build-consumers && ULTRAMODERN_RELEASE_LANE=1 node scripts/prebundle/ultramodern/packed-runtime-consumer.test.mjs",
     "validate:supply": "node scripts/ultramodern-supply/sync-patches.mjs && node scripts/ultramodern-supply/verify-sidecars.mjs"
   },
   "engines": {
-    "node": ">=26.7.0",
-    "pnpm": ">=11"
+    "node": ">=26.10.0",
+    "pnpm": ">=12"
   },
-  "packageManager": "pnpm@11.27.1",
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ]
-  },
+  "packageManager": "pnpm@12.8.1",
   "lint-staged": {
     "!(*.gen).{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"
@@ -89,31 +87,37 @@
       "pnpm check-dependencies"
     ]
   },
+  "dependencies": {
+    "semver": "7.8.5",
+    "yaml": "2.9.1"
+  },
   "devDependencies": {
-    "@babel/core": "^8.0.6",
+    "@babel/core": "7.29.7",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
-    "@biomejs/biome": "2.5.3",
-    "@changesets/cli": "^2.31.1",
+    "@biomejs/biome": "2.5.15",
+    "@changesets/cli": "^3.0.3",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
+    "@effect/tsgo": "0.47.2",
+    "@modern-js/app-tools": "workspace:*",
+    "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rstest/core": "0.11.12",
+    "@modern-js/ultramodern-create": "workspace:*",
+    "@rstest/core": "0.12.3",
     "@scripts/build": "workspace:*",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "check-dependency-version-consistency": "6.0.0",
     "husky": "^9.1.7",
-    "lint-staged": "~17.5.1",
+    "lint-staged": "~17.6.0",
     "nx": "^23.2.1",
+    "oxfmt": "0.71.0",
     "rimraf": "^6.1.3",
-    "@effect/tsgo": "0.45.0",
-    "@modern-js/app-tools": "workspace:*",
-    "@modern-js/app-tools-extensions": "workspace:*",
-    "@modern-js/ultramodern-create": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "oxfmt": "0.66.0",
-    "semver": "7.8.5",
-    "typescript": "^7.0.2",
-    "yaml": "2.9.1"
+    "typescript": "7.0.2"
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
   }
 }

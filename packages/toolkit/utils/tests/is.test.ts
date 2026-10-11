@@ -1,4 +1,11 @@
-import { isEmpty, isSSGEntry, isSSR, isTest, isUseSSRBundle } from '../src';
+import {
+  isEmpty,
+  isSSGEntry,
+  isSSR,
+  isTest,
+  isUseRsc,
+  isUseSSRBundle,
+} from '../src';
 
 describe('validate', () => {
   afterEach(() => {
@@ -49,6 +56,33 @@ describe('validate', () => {
         server: { ssr: {} },
       }),
     ).toBeTruthy();
+  });
+
+  it.each([
+    { name: 'missing config', config: undefined, expected: false },
+    { name: 'missing RSC option', config: { server: {} }, expected: false },
+    {
+      name: 'disabled RSC',
+      config: { server: { rsc: false } },
+      expected: false,
+    },
+    { name: 'enabled RSC', config: { server: { rsc: true } }, expected: true },
+  ])('returns a literal boolean for $name', ({ config, expected }) => {
+    expect(isUseRsc(config)).toBe(expected);
+  });
+
+  it('enables native RSC options without changing their environment map', () => {
+    const environments = Object.freeze({
+      server: 'workerSSR',
+      client: 'client',
+    });
+    const rsc = Object.freeze({ environments });
+    const config = Object.freeze({ server: Object.freeze({ rsc }) });
+
+    expect(isUseRsc(config)).toBe(true);
+    expect(config.server.rsc).toBe(rsc);
+    expect(config.server.rsc.environments).toBe(environments);
+    expect(environments).toEqual({ server: 'workerSSR', client: 'client' });
   });
 
   it('should validate test env correctly', () => {

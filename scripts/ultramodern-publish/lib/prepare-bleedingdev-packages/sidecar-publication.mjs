@@ -19,8 +19,9 @@
 //
 // Nothing here publishes, packs, or mutates state; the CLI wires these
 // decisions to the npm buffer publisher.
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 import {
   npmRegistryOrigin,
@@ -68,13 +69,16 @@ const sidecarResolutionFields = Object.freeze([
   'sideEffects',
   'type',
   'types',
+  'typings',
   'typesVersions',
 ]);
 
 // Fields npm normalizes, rewrites, or drops on the registry copy (a string
 // `repository` becomes an object, `readme`/`gitHead`/`dist` are injected), so
 // they can never be compared byte-for-byte - and none of them changes
-// resolution. `name` and `version` are compared explicitly instead.
+// resolution. Explicit development metadata (packageManager, verb and
+// simple-git-hooks) is retained but does not affect installed resolution.
+// `name` and `version` are compared explicitly instead.
 const sidecarIgnoredFields = Object.freeze([
   'author',
   'browser',
@@ -92,20 +96,37 @@ const sidecarIgnoredFields = Object.freeze([
   'man',
   'mcpServer',
   'name',
+  'packageManager',
   'private',
   'publishConfig',
   'public',
   'readme',
   'repository',
   'scripts',
+  'simple-git-hooks',
   'support',
   'tags',
+  'verb',
   'version',
   'zshy',
 ]);
 
 const resolutionFieldSet = new Set(sidecarResolutionFields);
 const ignoredFieldSet = new Set(sidecarIgnoredFields);
+
+let npmSemver;
+function loadNpmSemver() {
+  if (!npmSemver) {
+    const globalRoot = execFileSync('npm', ['root', '--global'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    npmSemver = createRequire(path.join(globalRoot, 'npm', 'package.json'))(
+      'semver',
+    );
+  }
+  return npmSemver;
+}
 
 function canonicalJson(value) {
   if (value === null || typeof value !== 'object') {
@@ -387,7 +408,7 @@ function assertSidecarPublishOrder(sidecars) {
  *              re-run converges instead of failing on an immutable version.
  * throws     - any other registry state.
  */
-function sidecarRegistryDecision(
+async function sidecarRegistryDecision(
   sidecar,
   packument,
   { tag = sidecarPublishTag } = {},
@@ -437,6 +458,7 @@ function sidecarRegistryDecision(
       );
     }
     if (currentTag !== undefined) {
+      const semver = loadNpmSemver();
       if (!semver.valid(currentTag) || !semver.valid(version)) {
         throw new Error(
           `${name} cannot compare candidate ${version} with current ${tag} ${currentTag} as strict semantic versions`,

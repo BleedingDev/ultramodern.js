@@ -17,7 +17,7 @@ function appendText(workspaceDir: string, relativePath: string, text: string) {
   fs.appendFileSync(path.join(workspaceDir, relativePath), text, 'utf-8');
 }
 
-test('generated validator enforces the structural thin-shell gate', () => {
+test('generated validator enforces the structural thin-shell gate', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-thin-shell-'));
   const baselineDir = path.join(tempRoot, 'baseline');
   const scenarios: Array<{
@@ -89,9 +89,9 @@ test('generated validator enforces the structural thin-shell gate', () => {
   ];
 
   try {
-    createWorkspace(baselineDir);
+    await createWorkspace(baselineDir);
     linkInstalledCompiler(baselineDir);
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: baselineDir,
       name: 'admin',
       modernVersion: '3.2.1',

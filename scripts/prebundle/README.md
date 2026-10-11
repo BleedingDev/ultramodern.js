@@ -1,6 +1,12 @@
 # @scripts/prebundle
 
-This package is used to prebundle 3rd party dependencies, based on [ncc](https://github.com/vercel/ncc) and `dts-packer`.
+This package generates utils dependency bundles with ncc and rollup-plugin-dts.
+Generated `packages/toolkit/utils/compiled/` files are not tracked in Git.
+Nx runs the cacheable `@scripts/prebundle:bundle` target before compiling utils;
+standalone `pnpm --filter @modern-js/utils build` and `dev` run the same producer.
+Packing utils runs this build through `prepack` as well.
+The utils build copies code, declarations, licenses and lockfile provenance into
+`dist/compiled/`, which is included in packed releases.
 
 ## Command
 
@@ -18,6 +24,12 @@ pnpm start <pkgName>
 # For example, prebundle commander
 pnpm start commander
 ```
+
+Unknown dependency names and extra arguments fail. A single dependency run is
+for maintenance; package builds always generate the complete dependency set.
+After a clean install, run `pnpm --filter @scripts/prebundle start` before
+invoking a source typechecker directly. Root `prepare-build` and `build:required`
+already establish this ordering through Nx.
 
 ## Add a new dependency
 
@@ -140,9 +152,8 @@ dependencies: [
 
 ### ignoreDts
 
-Ignore the original .d.ts declaration file, then generate a fake .d.ts file.
-
-This can be used to reduce file size for the packages that do not require type definitions, such as webpack plugin.
+Override the original declaration metadata with `index.d.ts`. This flag does
+not generate fake declarations; `emitDts` controls declaration generation.
 
 ```ts
 dependencies: [

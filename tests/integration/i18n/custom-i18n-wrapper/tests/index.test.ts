@@ -128,25 +128,25 @@ describe('i18n-custom-i18n-wrapper', () => {
       query: '',
       headers: new Headers({ 'accept-language': 'zh-Hant-TW,zh;q=0.9' }),
     },
-  ])('detects $source language in the SSR response', async ({
-    query,
-    headers,
-  }) => {
-    // Read the server response directly so client rendering or redirects cannot
-    // hide a failed SSR language detection. Do not retry after an SSR fallback.
-    const response = await fetch(`http://localhost:${appPort}/${query}`, {
-      headers,
-      redirect: 'manual',
-    });
-    const html = await response.text();
+  ])(
+    'detects $source language in the SSR response',
+    async ({ query, headers }) => {
+      // Read the server response directly so client rendering or redirects cannot
+      // hide a failed SSR language detection. Do not retry after an SSR fallback.
+      const response = await fetch(`http://localhost:${appPort}/${query}`, {
+        headers,
+        redirect: 'manual',
+      });
+      const html = await response.text();
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('x-modernjs-render')).toBe('server');
-    expect(html).not.toContain('__modern_ssr_fallback_reason__');
-    expect(html).toContain(traditionalText);
-    expect(html).toContain('Current Language: <!-- -->zh-Hant-TW');
-    expect(html).toContain('"lng":"zh-Hant-TW"');
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-modernjs-render')).toBe('server');
+      expect(html).not.toContain('__modern_ssr_fallback_reason__');
+      expect(html).toContain(traditionalText);
+      expect(html).toContain('Current Language: <!-- -->zh-Hant-TW');
+      expect(html).toContain('"lng":"zh-Hant-TW"');
+    },
+  );
 
   test('keeps the SSR language after hydration', async () => {
     const response = await page.goto(

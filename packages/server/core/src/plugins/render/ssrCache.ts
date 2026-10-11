@@ -120,19 +120,13 @@ async function processCache({
         try {
           await container.set(key, JSON.stringify(cache), { ttl });
         } catch (error) {
-          if (onError) onError(error, 'render-cache');
-          else
-            console.error(
-              `[render-cache] set cache failed, key: ${key}`,
-              error,
-            );
+          (onError || console.error)('[render-cache] set cache failed');
         }
       } catch (error) {
         await Promise.allSettled([cancel(error), writer.abort(error)]);
         if (cacheStatus) {
           try {
-            if (onError) onError(error, 'render-cache');
-            else console.error('[render-cache] response stream failed', error);
+            (onError || console.error)('[render-cache] response stream failed');
           } catch {
             // Error reporting must not reject an unawaited background task.
           }
@@ -314,8 +308,7 @@ export async function getCacheResult(
         })
         .catch(error => {
           try {
-            if (onError) onError(error, 'render-cache');
-            else console.error('[render-cache] revalidation failed', error);
+            (onError || console.error)('[render-cache] revalidation failed');
           } catch {
             // Error reporting must not reject an unawaited background task.
           }

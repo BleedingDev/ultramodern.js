@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveRendererProfile } from '@modern-js/ultramodern-app-tools';
 import {
   createWorkspace,
   linkInstalledCompiler,
@@ -33,16 +34,17 @@ function declareReactRouter(workspaceDir: string) {
     'apps/shell-super-app/package.json',
   );
   const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
-  packageJson.dependencies['react-router'] = '7.18.2';
+  packageJson.dependencies['react-router'] =
+    resolveRendererProfile('react').dependencies['react-router'];
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
 
-test('bridge router gate consumes the declaration and dependency boundary', () => {
+test('bridge router gate consumes the declaration and dependency boundary', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-router-'));
   const baselineDir = path.join(tempRoot, 'baseline');
 
   try {
-    createWorkspace(baselineDir);
+    await createWorkspace(baselineDir);
     linkInstalledCompiler(baselineDir);
     const baseline = runValidation(baselineDir);
     assert.equal(baseline.status, 0, output(baseline));

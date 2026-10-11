@@ -4,11 +4,78 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { initializeGeneratedRendererIdentity } from '../../src/ultramodern-workspace/renderer-initial-identity';
+import { getRendererGenerationProfile } from '../../src/ultramodern-workspace/renderer-profile';
+import type { WorkspaceApp } from '../../src/ultramodern-workspace/types';
 import { runStableTypeScript } from './stable-typescript';
+
+export function createReactBuildFixtureApp(
+  scope: string,
+  app: WorkspaceApp,
+): WorkspaceApp {
+  if (app.surfaceProfile === 'api-only') {
+    return initializeGeneratedRendererIdentity(scope, {
+      ...app,
+      renderer: 'none',
+    });
+  }
+  const profile = getRendererGenerationProfile('react');
+  const provider = {
+    ...profile.profile.router,
+    framework: 'react-router' as const,
+  };
+  return initializeGeneratedRendererIdentity(scope, {
+    ...app,
+    renderer: 'react',
+    routerBindings: {
+      index: {
+        owner: '@modern-js/plugin-router',
+        evidence: 'owned-default',
+        defaultProvider: provider,
+        providers: [provider],
+      },
+    },
+  });
+}
+
+export function linkBuiltBackendFederationContracts(
+  nodeModulesDirectory: string,
+) {
+  const packageRoot = path.resolve(
+    __dirname,
+    '../../../backend-federation-contracts',
+  );
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
+  );
+  assert.equal(manifest.name, '@modern-js/backend-federation-contracts');
+  const entry = manifest.exports['.'];
+  for (const target of [
+    entry.types,
+    entry.node.import,
+    entry.node.require,
+    entry.import,
+  ]) {
+    assert.ok(
+      fs.existsSync(path.resolve(packageRoot, target)),
+      `Build @modern-js/backend-federation-contracts before fixtures: missing ${target}`,
+    );
+  }
+  const link = path.join(
+    nodeModulesDirectory,
+    '@modern-js/backend-federation-contracts',
+  );
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  fs.symlinkSync(
+    packageRoot,
+    link,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+}
 
 export function linkBuiltRuntimeExtensions(
   nodeModulesDirectory: string,
-  subpath: 'build-identity' | 'workspace-events',
+  subpath: 'workspace-events',
 ) {
   const packageRoot = path.resolve(
     __dirname,
@@ -47,10 +114,7 @@ export function evaluateBuildModule(
       path.join(tempRoot, 'package.json'),
       JSON.stringify({ type: 'module' }),
     );
-    linkBuiltRuntimeExtensions(
-      path.join(tempRoot, 'node_modules'),
-      'build-identity',
-    );
+    linkBuiltBackendFederationContracts(path.join(tempRoot, 'node_modules'));
     fs.writeFileSync(
       path.join(tempRoot, 'tsconfig.json'),
       JSON.stringify({

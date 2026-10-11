@@ -134,6 +134,124 @@ index f088941..f92b918 100644
  Object.defineProperty(exports, 'logger', {
    enumerable: true,
    get: function () {
+diff --git a/dist/DtsWorker-SBLpkK-D.d.ts b/dist/DtsWorker-SBLpkK-D.d.ts
+index 2abb580..172fa1c 100644
+--- a/dist/DtsWorker-SBLpkK-D.d.ts
++++ b/dist/DtsWorker-SBLpkK-D.d.ts
+@@ -90,6 +90,9 @@ declare class DTSManager {
+   extractRemoteTypes(options: ReturnType<typeof retrieveRemoteConfig>): Promise<void>;
+   generateTypes(): Promise<void>;
+   requestRemoteManifest(remoteInfo: RemoteInfo, hostOptions: Required<HostOptions>): Promise<Required<RemoteInfo>>;
++  prepareTypesArchive(hostOptions: Required<HostOptions>, remoteInfo: Required<RemoteInfo>, destinationPath: string, archiveBuffer: Buffer): "write" | "unchanged" | Promise<"write" | "unchanged">;
++  prepareTypeFile(filePath: string, content: string): "write" | "unchanged";
++  reportTypesApiError(error: unknown, remoteInfo: Required<RemoteInfo>, destinationPath: string, hostOptions: Required<HostOptions>): void;
+   consumeTargetRemotes(hostOptions: Required<HostOptions>, remoteInfo: Required<RemoteInfo>): Promise<[string, string] | undefined>;
+   downloadAPITypes(remoteInfo: Required<RemoteInfo>, destinationPath: string, hostOptions: Required<HostOptions>): Promise<boolean | undefined>;
+   consumeAPITypes(hostOptions: Required<HostOptions>): void;
+@@ -144,9 +147,10 @@ declare function wrapRpc<T extends (...args: any[]) => any>(childProcess: ChildP
+ //#region src/core/rpc/rpc-worker.d.ts
+ interface RpcWorkerBase {
+   connect(...args: unknown[]): any;
+-  terminate(): void;
++  terminate(): Promise<void>;
+   readonly connected: boolean;
+   readonly id: string;
++  readonly workerWitness: Readonly<{ pid: number; closed: Promise<void> }> | undefined;
+   readonly process: ChildProcess | undefined;
+ }
+ type RpcWorker<T extends RpcMethod = RpcMethod> = RpcWorkerBase & RpcRemoteMethod<T>;
+diff --git a/dist/consumeTypes-DhrUgkUW.js b/dist/consumeTypes-DhrUgkUW.js
+index a1e7f38..a8726b9 100644
+--- a/dist/consumeTypes-DhrUgkUW.js
++++ b/dist/consumeTypes-DhrUgkUW.js
+@@ -91,19 +91,49 @@ function createRpcWorker(modulePath, data, memoryLimit, once) {
+ 	};
+ 	if (memoryLimit) options.execArgv = [`--max-old-space-size=${memoryLimit}`];
+ 	let childProcess, remoteMethod;
++	let childClosedPromise = Promise.resolve();
++	let childClosed = true;
++	let terminated = false;
+ 	const id = (0, crypto.randomUUID)();
++	const stopOwnedChild = () => {
++		const ownedChild = childProcess;
++		const completion = childClosedPromise;
++		childProcess = void 0;
++		remoteMethod = void 0;
++		if (!ownedChild) return completion;
++		const stopDisconnectedChild = () => {
++			if (ownedChild.exitCode === null && ownedChild.signalCode === null) ownedChild.kill("SIGTERM");
++		};
++		try {
++			if (ownedChild.connected) ownedChild.send({
++				type: require_expose_rpc.RpcGMCallTypes.EXIT,
++				id
++			}, (err) => {
++				if (err) {
++					console.error("Error sending message:", err);
++					stopDisconnectedChild();
++				}
++			});
++			else stopDisconnectedChild();
++		} catch (error) {
++			if (error.code === "EPIPE") console.error("Pipe closed before message could be sent:", error);
++			else console.error("Unexpected error:", error);
++			stopDisconnectedChild();
++		}
++		return completion;
++	};
+ 	return {
+ 		connect(...args) {
+-			if (childProcess && !childProcess.connected) {
+-				childProcess.send({
+-					type: require_expose_rpc.RpcGMCallTypes.EXIT,
+-					id
+-				});
+-				childProcess = void 0;
+-				remoteMethod = void 0;
+-			}
++			if (terminated) return Promise.reject(/* @__PURE__ */ new Error("Worker is terminated - cannot perform RPC."));
++			if (childProcess && !childProcess.connected || !childProcess && !childClosed) return stopOwnedChild().then(() => this.connect(...args));
+ 			if (!childProcess?.connected) {
+ 				childProcess = child_process.fork(modulePath, options);
++				const ownedChild = childProcess;
++				childClosed = false;
++				childClosedPromise = new Promise((resolve) => ownedChild.once("close", () => {
++					childClosed = true;
++					resolve();
++				}));
+ 				remoteMethod = wrapRpc(childProcess, {
+ 					id,
+ 					once
+@@ -113,23 +143,16 @@ function createRpcWorker(modulePath, data, memoryLimit, once) {
+ 			return remoteMethod(...args);
+ 		},
+ 		terminate() {
+-			try {
+-				if (childProcess.connected) childProcess.send({
+-					type: require_expose_rpc.RpcGMCallTypes.EXIT,
+-					id
+-				}, (err) => {
+-					if (err) console.error("Error sending message:", err);
+-				});
+-			} catch (error) {
+-				if (error.code === "EPIPE") console.error("Pipe closed before message could be sent:", error);
+-				else console.error("Unexpected error:", error);
+-			}
+-			childProcess = void 0;
+-			remoteMethod = void 0;
++			terminated = true;
++			return stopOwnedChild();
+ 		},
+ 		get connected() {
+ 			return Boolean(childProcess?.connected);
+ 		},
++		get workerWitness() {
++			if (!childProcess || !Number.isInteger(childProcess.pid)) return void 0;
++			return Object.freeze({ pid: childProcess.pid, closed: childClosedPromise });
++		},
+ 		get process() {
+ 			return childProcess;
+ 		},
 diff --git a/dist/esm/Broker-BfFUcTHm.mjs b/dist/esm/Broker-BfFUcTHm.mjs
 index ea92548..8e8cd42 100644
 --- a/dist/esm/Broker-BfFUcTHm.mjs
@@ -251,8 +369,100 @@ index ea92548..8e8cd42 100644
 \ No newline at end of file
 +export { listen as a, logger$1 as c, getIdentifier as i, LogKind as l, UpdateKind as n, getIPV4 as o, fib as r, fileLog as s, Broker as t, APIKind as u };
 \ No newline at end of file
+diff --git a/dist/esm/consumeTypes-WKYNaS9i.mjs b/dist/esm/consumeTypes-WKYNaS9i.mjs
+index f19bd91..af82956 100644
+--- a/dist/esm/consumeTypes-WKYNaS9i.mjs
++++ b/dist/esm/consumeTypes-WKYNaS9i.mjs
+@@ -87,19 +87,49 @@ function createRpcWorker(modulePath, data, memoryLimit, once) {
+ 	};
+ 	if (memoryLimit) options.execArgv = [`--max-old-space-size=${memoryLimit}`];
+ 	let childProcess, remoteMethod;
++	let childClosedPromise = Promise.resolve();
++	let childClosed = true;
++	let terminated = false;
+ 	const id = randomUUID();
++	const stopOwnedChild = () => {
++		const ownedChild = childProcess;
++		const completion = childClosedPromise;
++		childProcess = void 0;
++		remoteMethod = void 0;
++		if (!ownedChild) return completion;
++		const stopDisconnectedChild = () => {
++			if (ownedChild.exitCode === null && ownedChild.signalCode === null) ownedChild.kill("SIGTERM");
++		};
++		try {
++			if (ownedChild.connected) ownedChild.send({
++				type: RpcGMCallTypes.EXIT,
++				id
++			}, (err) => {
++				if (err) {
++					console.error("Error sending message:", err);
++					stopDisconnectedChild();
++				}
++			});
++			else stopDisconnectedChild();
++		} catch (error) {
++			if (error.code === "EPIPE") console.error("Pipe closed before message could be sent:", error);
++			else console.error("Unexpected error:", error);
++			stopDisconnectedChild();
++		}
++		return completion;
++	};
+ 	return {
+ 		connect(...args) {
+-			if (childProcess && !childProcess.connected) {
+-				childProcess.send({
+-					type: RpcGMCallTypes.EXIT,
+-					id
+-				});
+-				childProcess = void 0;
+-				remoteMethod = void 0;
+-			}
++			if (terminated) return Promise.reject(/* @__PURE__ */ new Error("Worker is terminated - cannot perform RPC."));
++			if (childProcess && !childProcess.connected || !childProcess && !childClosed) return stopOwnedChild().then(() => this.connect(...args));
+ 			if (!childProcess?.connected) {
+ 				childProcess = child_process.fork(modulePath, options);
++				const ownedChild = childProcess;
++				childClosed = false;
++				childClosedPromise = new Promise((resolve) => ownedChild.once("close", () => {
++					childClosed = true;
++					resolve();
++				}));
+ 				remoteMethod = wrapRpc(childProcess, {
+ 					id,
+ 					once
+@@ -109,23 +139,16 @@ function createRpcWorker(modulePath, data, memoryLimit, once) {
+ 			return remoteMethod(...args);
+ 		},
+ 		terminate() {
+-			try {
+-				if (childProcess.connected) childProcess.send({
+-					type: RpcGMCallTypes.EXIT,
+-					id
+-				}, (err) => {
+-					if (err) console.error("Error sending message:", err);
+-				});
+-			} catch (error) {
+-				if (error.code === "EPIPE") console.error("Pipe closed before message could be sent:", error);
+-				else console.error("Unexpected error:", error);
+-			}
+-			childProcess = void 0;
+-			remoteMethod = void 0;
++			terminated = true;
++			return stopOwnedChild();
+ 		},
+ 		get connected() {
+ 			return Boolean(childProcess?.connected);
+ 		},
++		get workerWitness() {
++			if (!childProcess || !Number.isInteger(childProcess.pid)) return void 0;
++			return Object.freeze({ pid: childProcess.pid, closed: childClosedPromise });
++		},
+ 		get process() {
+ 			return childProcess;
+ 		},
 diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
-index 1692a3e..6e80b48 100644
+index 1692a3e..71c601b 100644
 --- a/dist/esm/expose-rpc-B0rqtOKP.mjs
 +++ b/dist/esm/expose-rpc-B0rqtOKP.mjs
 @@ -1,5 +1,5 @@
@@ -262,6 +472,24 @@ index 1692a3e..6e80b48 100644
  import { createRequire } from "node:module";
  import fs, { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "fs";
  import { fileURLToPath } from "url";
+@@ -91,7 +91,7 @@ var UpdatePublisherAction = class extends Action {
+ const __filename = fileURLToPath(import.meta.url);
+ const __dirname = path.dirname(__filename);
+ function createBroker() {
+-	const sub = fork(path.resolve(__dirname, "./start-broker.js"), [], {
++	const sub = fork(path.resolve(__dirname, "./start-broker.mjs"), [], {
+ 		detached: true,
+ 		stdio: "ignore",
+ 		env: process.env
+@@ -336,7 +336,7 @@ var ModuleFederationDevServer = class {
+ 	}
+ 	_exit() {
+ 		this._reconnect = false;
+-		if (this._publishWebSocket) {
++		if (this._publishWebSocket?.readyState === WebSocket.OPEN) {
+ 			const exitPublisher = new ExitPublisherAction({
+ 				name: this._name,
+ 				ip: this._ip
 @@ -408,7 +408,6 @@ var ModuleFederationDevServer = class {
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
@@ -306,7 +534,116 @@ index 1692a3e..6e80b48 100644
  	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
  	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
  	if (resolvedCompilerArgs[0] === "tsc") {
-@@ -1415,7 +1429,10 @@ const formatCompilerError = (error) => {
+@@ -691,7 +705,7 @@ const downloadErrorLogger = (destinationFolder, fileToDownload) => (reason) => {
+ const retrieveTypesArchiveDestinationPath = (hostOptions, destinationFolder) => {
+ 	return resolve(hostOptions.context, hostOptions.typesFolder, destinationFolder);
+ };
+-const downloadTypesArchive = (hostOptions) => {
++const downloadTypesArchive = (hostOptions, prepareTypesArchive) => {
+ 	let retries = 0;
+ 	return async ([destinationFolder, fileToDownload]) => {
+ 		const destinationPath = retrieveTypesArchiveDestinationPath(hostOptions, destinationFolder);
+@@ -703,6 +717,13 @@ const downloadTypesArchive = (hostOptions) => {
+ 				family: hostOptions.family
+ 			}).catch(downloadErrorLogger(destinationFolder, url));
+ 			if (typeof response.headers?.["content-type"] === "string" && response.headers["content-type"].includes("text/html")) throw new Error(`${url} receives invalid content-type: ${response.headers["content-type"]}`);
++			const archiveBuffer = Buffer.from(response.data);
++			const preparation = await prepareTypesArchive(destinationPath, archiveBuffer);
++			if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypesArchive must return "write" or "unchanged"');
++			if (preparation === "unchanged") {
++				fileLog(`types archive unchanged destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
++				return [destinationFolder, destinationPath];
++			}
+ 			try {
+ 				if (hostOptions.deleteTypesFolder) await rm(destinationPath, {
+ 					recursive: true,
+@@ -711,7 +732,7 @@ const downloadTypesArchive = (hostOptions) => {
+ 			} catch (error) {
+ 				fileLog(`Unable to remove types folder, ${error}`, "downloadTypesArchive", "error");
+ 			}
+-			new AdmZip(Buffer.from(response.data)).extractAllTo(destinationPath, true);
++			new AdmZip(archiveBuffer).extractAllTo(destinationPath, true);
+ 			fileLog(`zip.extractAllTo success destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
+ 			return [destinationFolder, destinationPath];
+ 		} catch (error) {
+@@ -968,26 +989,59 @@ var DTSManager = class {
+ 			return remoteInfo;
+ 		}
+ 	}
++	prepareTypesArchive(hostOptions, remoteInfo, destinationPath, archiveBuffer) {
++		return "write";
++	}
++	prepareTypeFile(filePath, content) {
++		return "write";
++	}
++	reportTypesApiError(error, remoteInfo, destinationPath, hostOptions) {
++	}
+ 	async consumeTargetRemotes(hostOptions, remoteInfo) {
+ 		if (!remoteInfo.zipUrl) throw new Error(`Can not get ${remoteInfo.name}'s types archive url!`);
+-		return downloadTypesArchive(hostOptions)([remoteInfo.alias, remoteInfo.zipUrl]);
++		return downloadTypesArchive(hostOptions, (destinationPath, archiveBuffer) => this.prepareTypesArchive(hostOptions, remoteInfo, destinationPath, archiveBuffer))([remoteInfo.alias, remoteInfo.zipUrl]);
+ 	}
+ 	async downloadAPITypes(remoteInfo, destinationPath, hostOptions) {
+ 		const { apiTypeUrl } = remoteInfo;
+ 		if (!apiTypeUrl) return;
++		if (!(hostOptions.maxRetries > 0)) return;
+ 		try {
+-			let apiTypeFile = (await nativeFetch(apiTypeUrl, {
+-				timeout: hostOptions.timeout,
+-				family: hostOptions.family
+-			})).data;
++			let response;
++			for (let attempt = 0; attempt < hostOptions.maxRetries; attempt++) {
++				try {
++					response = await nativeFetch(apiTypeUrl, {
++						timeout: hostOptions.timeout,
++						family: hostOptions.family
++					});
++					break;
++				} catch (error) {
++					let cause = error;
++					let connectionReset = false;
++					for (let depth = 0; depth < 8 && cause && typeof cause === "object"; depth++) {
++						const code = Object.getOwnPropertyDescriptor(cause, "code");
++						if (code && "value" in code && code.value === "ECONNRESET") {
++							connectionReset = true;
++							break;
++						}
++						const nextCause = Object.getOwnPropertyDescriptor(cause, "cause");
++						if (!nextCause || !("value" in nextCause)) break;
++						cause = nextCause.value;
++					}
++					if (!connectionReset || !(attempt + 1 < hostOptions.maxRetries)) throw error;
++				}
++			}
++			let apiTypeFile = response.data;
+ 			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
+ 			const filePath = path.join(destinationPath, REMOTE_API_TYPES_FILE_NAME);
+-			fs.writeFileSync(filePath, apiTypeFile);
++			const preparation = this.prepareTypeFile(filePath, apiTypeFile);
++			if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypeFile must return "write" or "unchanged"');
++			if (preparation === "write") fs.writeFileSync(filePath, apiTypeFile);
+ 			const existed = this.loadedRemoteAPIAlias.has(remoteInfo.alias);
+ 			this.loadedRemoteAPIAlias.add(remoteInfo.alias);
+ 			fileLog(`success`, "downloadAPITypes", "info");
+ 			return existed;
+ 		} catch (err) {
++			this.reportTypesApiError(err, remoteInfo, destinationPath, hostOptions);
+ 			fileLog(`Unable to download "${remoteInfo.name}" api types, ${err}`, "downloadAPITypes", "error");
+ 		}
+ 	}
+@@ -1026,7 +1080,9 @@ var DTSManager = class {
+     }`;
+ 		}).join("\n")}
+     `;
+-		fs.writeFileSync(path.join(hostOptions.context, hostOptions.typesFolder, HOST_API_TYPES_FILE_NAME), fileStr);
++		const preparation = this.prepareTypeFile(apiTypeFileName, fileStr);
++		if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypeFile must return "write" or "unchanged"');
++		if (preparation === "write") fs.writeFileSync(apiTypeFileName, fileStr);
+ 	}
+ 	async consumeArchiveTypes(options) {
+ 		const { hostOptions, mapRemotesToDownload } = retrieveHostConfig(options);
+@@ -1415,7 +1471,10 @@ const formatCompilerError = (error) => {
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);
@@ -318,6 +655,194 @@ index 1692a3e..6e80b48 100644
  	try {
  		const dependentFiles = execFileSync(process.execPath, [
  			typeScriptPackageInfo.tscBinPath,
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+index 1d514ed..126667b 100644
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -1,7 +1,7 @@
+ import { a as cloneDeepOptions, c as isTSProject, l as retrieveTypesAssetsInfo, n as RpcGMCallTypes, r as generateTypes, u as validateOptions } from "./expose-rpc-B0rqtOKP.mjs";
+ import { s as WEB_CLIENT_OPTIONS_IDENTIFIER } from "./Action-DNNg2YDh.mjs";
+ import { c as logger$1, o as getIPV4 } from "./Broker-BfFUcTHm.mjs";
+-import { a as createRpcWorker, n as generateTypesInChildProcess, t as consumeTypes } from "./consumeTypes-WKYNaS9i.mjs";
++import { a as createRpcWorker, i as rpc_exports, n as generateTypesInChildProcess, t as consumeTypes } from "./consumeTypes-WKYNaS9i.mjs";
+ import "./core.mjs";
+ import fs from "fs";
+ import { fileURLToPath } from "url";
+@@ -17,8 +17,9 @@ var DevWorker = class {
+ 	constructor(options) {
+ 		this._options = cloneDeepOptions(options);
+ 		this.removeUnSerializationOptions();
+-		this._rpcWorker = createRpcWorker(path.resolve(__dirname$1, "./fork-dev-worker.js"), {}, void 0, false);
++		this._rpcWorker = createRpcWorker(path.resolve(__dirname$1, "./fork-dev-worker.mjs"), {}, void 0, false);
+ 		this._res = this._rpcWorker.connect(this._options);
++		this._workerWitness = this._rpcWorker.workerWitness;
+ 	}
+ 	removeUnSerializationOptions() {
+ 		delete this._options.host?.moduleFederationConfig?.manifest;
+@@ -27,6 +28,9 @@ var DevWorker = class {
+ 	get controlledPromise() {
+ 		return this._res;
+ 	}
++	get workerWitness() {
++		return this._workerWitness;
++	}
+ 	update() {
+ 		this._rpcWorker.process?.send?.({
+ 			type: RpcGMCallTypes.CALL,
+@@ -35,7 +39,7 @@ var DevWorker = class {
+ 		});
+ 	}
+ 	exit() {
+-		this._rpcWorker?.terminate();
++		return this._rpcWorker?.terminate();
+ 	}
+ };
+ 
+@@ -88,42 +92,62 @@ function ensureTempDir(filePath) {
+ 	} catch (_err) {}
+ }
+ var DevPlugin = class DevPlugin {
+-	constructor(options, dtsOptions, generateTypesPromise, fetchRemoteTypeUrlsPromise) {
++	constructor(options, dtsOptions, generateTypesPromise, fetchRemoteTypeUrlsPromise, onDevWorkerCreated) {
+ 		this.name = "MFDevPlugin";
+ 		this._options = options;
+ 		this.generateTypesPromise = generateTypesPromise;
+ 		this.dtsOptions = dtsOptions;
+ 		this.fetchRemoteTypeUrlsPromise = fetchRemoteTypeUrlsPromise;
++		this._onDevWorkerCreated = onDevWorkerCreated;
+ 	}
+ 	static ensureLiveReloadEntry(options, filePath) {
+ 		ensureTempDir(filePath);
+-		const liveReloadEntryWithOptions = fs.readFileSync(path.join(__dirname, "./iife/launch-web-client.iife.js")).toString("utf-8").replace(WEB_CLIENT_OPTIONS_IDENTIFIER, JSON.stringify(options));
++		const liveReloadEntryWithOptions = fs.readFileSync(path.join(__dirname, "../iife/launch-web-client.iife.js")).toString("utf-8").replace(WEB_CLIENT_OPTIONS_IDENTIFIER, JSON.stringify(options));
+ 		fs.writeFileSync(filePath, liveReloadEntryWithOptions);
+ 	}
+ 	_stopWhenSIGTERMOrSIGINT() {
+-		process.on("SIGTERM", () => {
++		this._onSIGTERM = () => {
+ 			logger$1.info(`${this._options.name} Process(${process.pid}) SIGTERM, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
+-		process.on("SIGINT", () => {
++		};
++		process.on("SIGTERM", this._onSIGTERM);
++		this._onSIGINT = () => {
+ 			logger$1.info(`${this._options.name} Process(${process.pid}) SIGINT, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
++		};
++		process.on("SIGINT", this._onSIGINT);
+ 	}
+ 	_handleUnexpectedExit() {
+-		process.on("unhandledRejection", (error) => {
++		this._onUnhandledRejection = (error) => {
+ 			logger$1.error(error);
+ 			logger$1.error(`Process(${process.pid}) unhandledRejection, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-		process.on("uncaughtException", (error) => {
++		};
++		process.on("unhandledRejection", this._onUnhandledRejection);
++		this._onUncaughtException = (error) => {
+ 			logger$1.error(error);
+ 			logger$1.error(`Process(${process.pid}) uncaughtException, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
++		};
++		process.on("uncaughtException", this._onUncaughtException);
+ 	}
+-	_exit(exitCode = 0) {
+-		this._devWorker?.exit();
++	async _stop() {
++		this._closed = true;
++		try {
++			await this._devWorker?.exit();
++		} finally {
++			if (this._onSIGTERM) process.off("SIGTERM", this._onSIGTERM);
++			this._onSIGTERM = void 0;
++			if (this._onSIGINT) process.off("SIGINT", this._onSIGINT);
++			this._onSIGINT = void 0;
++			if (this._onUnhandledRejection) process.off("unhandledRejection", this._onUnhandledRejection);
++			this._onUnhandledRejection = void 0;
++			if (this._onUncaughtException) process.off("uncaughtException", this._onUncaughtException);
++			this._onUncaughtException = void 0;
++		}
++	}
++	async _exit(exitCode = 0) {
++		await this._stop();
+ 		process.exit(exitCode);
+ 	}
+ 	_afterEmit() {
+@@ -142,7 +166,7 @@ var DevPlugin = class DevPlugin {
+ 		if (!name) throw new Error("name is required if you want to enable dev server!");
+ 		if (!normalizedDev.disableDynamicRemoteTypeHints) {
+ 			if (!this._options.runtimePlugins) this._options.runtimePlugins = [];
+-			this._options.runtimePlugins.push(path.resolve(__dirname, "dynamic-remote-type-hints-plugin.js"));
++			this._options.runtimePlugins.push(path.resolve(__dirname, "dynamic-remote-type-hints-plugin.mjs"));
+ 		}
+ 		if (!normalizedDev.disableLiveReload) {
+ 			const TEMP_DIR$1 = path.join(`${process.cwd()}/node_modules`, TEMP_DIR);
+@@ -185,7 +209,11 @@ var DevPlugin = class DevPlugin {
+ 		const extraOptions = normalizedDtsOptions ? normalizedDtsOptions.extraOptions || {} : {};
+ 		if (!remote && !host && normalizedDev.disableLiveReload) return;
+ 		if (remote && !remote?.tsConfigPath && typeof normalizedDtsOptions === "object" && normalizedDtsOptions.tsConfigPath) remote.tsConfigPath = normalizedDtsOptions.tsConfigPath;
++		compiler.hooks.shutdown.tapPromise(this.name, async () => {
++			await this._stop();
++		});
+ 		Promise.all([this.generateTypesPromise, this.fetchRemoteTypeUrlsPromise]).then(([_, remoteTypeUrls]) => {
++			if (this._closed) return;
+ 			this._devWorker = createDevWorker({
+ 				name,
+ 				remote,
+@@ -198,6 +226,14 @@ var DevPlugin = class DevPlugin {
+ 				disableLiveReload: normalizedDev.disableHotTypesReload,
+ 				disableHotTypesReload: normalizedDev.disableHotTypesReload
+ 			});
++			this._devWorker.controlledPromise.catch((error) => {
++				if (this._closed && error instanceof rpc_exports.RpcExitError && (error.code === 0 || error.signal === "SIGTERM")) return;
++				logger$1.error(error);
++				logger$1.error(`Process(${process.pid}) DTS worker startup failed, mf server will exit...`);
++				return this._exit(PROCESS_EXIT_CODE.FAILURE);
++			});
++			const workerWitness = this._devWorker.workerWitness;
++			if (workerWitness) this._onDevWorkerCreated?.(workerWitness);
+ 		});
+ 		this._stopWhenSIGTERMOrSIGINT();
+ 		this._handleUnexpectedExit();
+@@ -230,7 +266,7 @@ const normalizeConsumeTypesOptions = ({ context, dtsOptions, pluginOptions }) =>
+ };
+ const consumeTypesAPI = async (dtsManagerOptions, cb) => {
+ 	return (typeof dtsManagerOptions.host.remoteTypeUrls === "function" ? dtsManagerOptions.host.remoteTypeUrls() : Promise.resolve(dtsManagerOptions.host.remoteTypeUrls)).then((remoteTypeUrls) => {
+-		consumeTypes({
++		return consumeTypes({
+ 			...dtsManagerOptions,
+ 			host: {
+ 				...dtsManagerOptions.host,
+@@ -468,6 +504,15 @@ var DtsPlugin = class {
+ 	}
+ 	apply(compiler) {
+ 		const { options, clonedOptions } = this;
++		let onDevWorkerCreated;
++		if (clonedOptions.dts && typeof clonedOptions.dts === "object") {
++			const callback = options.dts && typeof options.dts === "object" ? options.dts.onDevWorkerCreated : void 0;
++			const dtsOptions = { ...clonedOptions.dts };
++			delete dtsOptions.onDevWorkerCreated;
++			if (callback !== void 0 && typeof callback !== "function") throw new TypeError("dts.onDevWorkerCreated must be a function.");
++			onDevWorkerCreated = callback;
++			clonedOptions.dts = dtsOptions;
++		}
+ 		if (options.exposes && typeof options.exposes === "object") {
+ 			const cleanedExposes = {};
+ 			Object.entries(options.exposes).forEach(([key, value]) => {
+@@ -491,7 +536,7 @@ var DtsPlugin = class {
+ 		let generateTypesPromiseResolve;
+ 		new DevPlugin(clonedOptions, normalizedDtsOptions, new Promise((resolve) => {
+ 			generateTypesPromiseResolve = resolve;
+-		}), fetchRemoteTypeUrlsPromise).apply(compiler);
++		}), fetchRemoteTypeUrlsPromise, onDevWorkerCreated).apply(compiler);
+ 		new GenerateTypesPlugin(clonedOptions, normalizedDtsOptions, fetchRemoteTypeUrlsPromise, generateTypesPromiseResolve).apply(compiler);
+ 		new ConsumeTypesPlugin(clonedOptions, normalizedDtsOptions, fetchRemoteTypeUrlsResolve).apply(compiler);
+ 	}
 diff --git a/dist/esm/start-broker.mjs b/dist/esm/start-broker.mjs
 index baf5b42..ae8e9fc 100644
 --- a/dist/esm/start-broker.mjs
@@ -335,9 +860,18 @@ index baf5b42..ae8e9fc 100644
  }
  process.on("message", (message) => {
 diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
-index 55f07d8..ce200cf 100644
+index 55f07d8..380c1e4 100644
 --- a/dist/expose-rpc-jaGpsAVL.js
 +++ b/dist/expose-rpc-jaGpsAVL.js
+@@ -325,7 +325,7 @@ var ModuleFederationDevServer = class {
+ 	}
+ 	_exit() {
+ 		this._reconnect = false;
+-		if (this._publishWebSocket) {
++		if (this._publishWebSocket?.readyState === isomorphic_ws.default.OPEN) {
+ 			const exitPublisher = new ExitPublisherAction({
+ 				name: this._name,
+ 				ip: this._ip
 @@ -397,7 +397,6 @@ var ModuleFederationDevServer = class {
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
@@ -382,7 +916,116 @@ index 55f07d8..ce200cf 100644
  	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
  	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
  	if (resolvedCompilerArgs[0] === "tsc") {
-@@ -1404,7 +1418,10 @@ const formatCompilerError = (error) => {
+@@ -680,7 +694,7 @@ const downloadErrorLogger = (destinationFolder, fileToDownload) => (reason) => {
+ const retrieveTypesArchiveDestinationPath = (hostOptions, destinationFolder) => {
+ 	return (0, path.resolve)(hostOptions.context, hostOptions.typesFolder, destinationFolder);
+ };
+-const downloadTypesArchive = (hostOptions) => {
++const downloadTypesArchive = (hostOptions, prepareTypesArchive) => {
+ 	let retries = 0;
+ 	return async ([destinationFolder, fileToDownload]) => {
+ 		const destinationPath = retrieveTypesArchiveDestinationPath(hostOptions, destinationFolder);
+@@ -692,6 +706,13 @@ const downloadTypesArchive = (hostOptions) => {
+ 				family: hostOptions.family
+ 			}).catch(downloadErrorLogger(destinationFolder, url));
+ 			if (typeof response.headers?.["content-type"] === "string" && response.headers["content-type"].includes("text/html")) throw new Error(`${url} receives invalid content-type: ${response.headers["content-type"]}`);
++			const archiveBuffer = Buffer.from(response.data);
++			const preparation = await prepareTypesArchive(destinationPath, archiveBuffer);
++			if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypesArchive must return "write" or "unchanged"');
++			if (preparation === "unchanged") {
++				require_Broker.fileLog(`types archive unchanged destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
++				return [destinationFolder, destinationPath];
++			}
+ 			try {
+ 				if (hostOptions.deleteTypesFolder) await (0, fs_promises.rm)(destinationPath, {
+ 					recursive: true,
+@@ -700,7 +721,7 @@ const downloadTypesArchive = (hostOptions) => {
+ 			} catch (error) {
+ 				require_Broker.fileLog(`Unable to remove types folder, ${error}`, "downloadTypesArchive", "error");
+ 			}
+-			new adm_zip.default(Buffer.from(response.data)).extractAllTo(destinationPath, true);
++			new adm_zip.default(archiveBuffer).extractAllTo(destinationPath, true);
+ 			require_Broker.fileLog(`zip.extractAllTo success destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
+ 			return [destinationFolder, destinationPath];
+ 		} catch (error) {
+@@ -957,26 +978,59 @@ var DTSManager = class {
+ 			return remoteInfo;
+ 		}
+ 	}
++	prepareTypesArchive(hostOptions, remoteInfo, destinationPath, archiveBuffer) {
++		return "write";
++	}
++	prepareTypeFile(filePath, content) {
++		return "write";
++	}
++	reportTypesApiError(error, remoteInfo, destinationPath, hostOptions) {
++	}
+ 	async consumeTargetRemotes(hostOptions, remoteInfo) {
+ 		if (!remoteInfo.zipUrl) throw new Error(`Can not get ${remoteInfo.name}'s types archive url!`);
+-		return downloadTypesArchive(hostOptions)([remoteInfo.alias, remoteInfo.zipUrl]);
++		return downloadTypesArchive(hostOptions, (destinationPath, archiveBuffer) => this.prepareTypesArchive(hostOptions, remoteInfo, destinationPath, archiveBuffer))([remoteInfo.alias, remoteInfo.zipUrl]);
+ 	}
+ 	async downloadAPITypes(remoteInfo, destinationPath, hostOptions) {
+ 		const { apiTypeUrl } = remoteInfo;
+ 		if (!apiTypeUrl) return;
++		if (!(hostOptions.maxRetries > 0)) return;
+ 		try {
+-			let apiTypeFile = (await nativeFetch(apiTypeUrl, {
+-				timeout: hostOptions.timeout,
+-				family: hostOptions.family
+-			})).data;
++			let response;
++			for (let attempt = 0; attempt < hostOptions.maxRetries; attempt++) {
++				try {
++					response = await nativeFetch(apiTypeUrl, {
++						timeout: hostOptions.timeout,
++						family: hostOptions.family
++					});
++					break;
++				} catch (error) {
++					let cause = error;
++					let connectionReset = false;
++					for (let depth = 0; depth < 8 && cause && typeof cause === "object"; depth++) {
++						const code = Object.getOwnPropertyDescriptor(cause, "code");
++						if (code && "value" in code && code.value === "ECONNRESET") {
++							connectionReset = true;
++							break;
++						}
++						const nextCause = Object.getOwnPropertyDescriptor(cause, "cause");
++						if (!nextCause || !("value" in nextCause)) break;
++						cause = nextCause.value;
++					}
++					if (!connectionReset || !(attempt + 1 < hostOptions.maxRetries)) throw error;
++				}
++			}
++			let apiTypeFile = response.data;
+ 			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
+ 			const filePath = path.default.join(destinationPath, REMOTE_API_TYPES_FILE_NAME);
+-			fs.default.writeFileSync(filePath, apiTypeFile);
++			const preparation = this.prepareTypeFile(filePath, apiTypeFile);
++			if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypeFile must return "write" or "unchanged"');
++			if (preparation === "write") fs.default.writeFileSync(filePath, apiTypeFile);
+ 			const existed = this.loadedRemoteAPIAlias.has(remoteInfo.alias);
+ 			this.loadedRemoteAPIAlias.add(remoteInfo.alias);
+ 			require_Broker.fileLog(`success`, "downloadAPITypes", "info");
+ 			return existed;
+ 		} catch (err) {
++			this.reportTypesApiError(err, remoteInfo, destinationPath, hostOptions);
+ 			require_Broker.fileLog(`Unable to download "${remoteInfo.name}" api types, ${err}`, "downloadAPITypes", "error");
+ 		}
+ 	}
+@@ -1015,7 +1069,9 @@ var DTSManager = class {
+     }`;
+ 		}).join("\n")}
+     `;
+-		fs.default.writeFileSync(path.default.join(hostOptions.context, hostOptions.typesFolder, HOST_API_TYPES_FILE_NAME), fileStr);
++		const preparation = this.prepareTypeFile(apiTypeFileName, fileStr);
++		if (preparation !== "write" && preparation !== "unchanged") throw new TypeError('prepareTypeFile must return "write" or "unchanged"');
++		if (preparation === "write") fs.default.writeFileSync(apiTypeFileName, fileStr);
+ 	}
+ 	async consumeArchiveTypes(options) {
+ 		const { hostOptions, mapRemotesToDownload } = retrieveHostConfig(options);
+@@ -1404,7 +1460,10 @@ const formatCompilerError = (error) => {
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);
@@ -394,6 +1037,211 @@ index 55f07d8..ce200cf 100644
  	try {
  		const dependentFiles = (0, child_process.execFileSync)(process.execPath, [
  			typeScriptPackageInfo.tscBinPath,
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index bf5f797..a6afdb1 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3,14 +3,23 @@ import { d as isTSProject } from "./constant-C0QI9ddQ.js";
+ import { moduleFederationPlugin } from "@module-federation/sdk";
+ 
+ //#region src/plugins/DtsPlugin.d.ts
++interface NativeDtsWorkerWitness {
++  readonly pid: number;
++  readonly closed: Promise<void>;
++}
++type DtsPluginOptions = Omit<moduleFederationPlugin.ModuleFederationPluginOptions, "dts"> & {
++  dts?: boolean | (moduleFederationPlugin.PluginDtsOptions & {
++    onDevWorkerCreated?: (witness: Readonly<NativeDtsWorkerWitness>) => void;
++  });
++};
+ declare const normalizeDtsOptions: (options: moduleFederationPlugin.ModuleFederationPluginOptions, context: string, defaultOptions?: {
+   defaultGenerateOptions?: moduleFederationPlugin.DtsRemoteOptions;
+   defaultConsumeOptions?: moduleFederationPlugin.DtsHostOptions;
+ }) => any;
+ declare class DtsPlugin implements WebpackPluginInstance {
+-  options: moduleFederationPlugin.ModuleFederationPluginOptions;
+-  clonedOptions: moduleFederationPlugin.ModuleFederationPluginOptions;
+-  constructor(options: moduleFederationPlugin.ModuleFederationPluginOptions);
++  options: DtsPluginOptions;
++  clonedOptions: DtsPluginOptions;
++  constructor(options: DtsPluginOptions);
+   apply(compiler: Compiler): void;
+   addRuntimePlugins(): void;
+ }
+@@ -49,4 +58,4 @@ declare const generateTypesAPI: ({
+   dtsManagerOptions: DTSManagerOptions;
+ }) => Promise<void>;
+ //#endregion
+-export { DtsPlugin, consumeTypesAPI, generateTypesAPI, isTSProject, normalizeConsumeTypesOptions, normalizeDtsOptions, normalizeGenerateTypesOptions };
+\ No newline at end of file
++export { DtsPlugin, type DtsPluginOptions, type NativeDtsWorkerWitness, consumeTypesAPI, generateTypesAPI, isTSProject, normalizeConsumeTypesOptions, normalizeDtsOptions, normalizeGenerateTypesOptions };
+\ No newline at end of file
+diff --git a/dist/index.js b/dist/index.js
+index bf08cdf..78216bb 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -21,6 +21,7 @@ var DevWorker = class {
+ 		this.removeUnSerializationOptions();
+ 		this._rpcWorker = require_consumeTypes.createRpcWorker(path.default.resolve(__dirname$2, "./fork-dev-worker.js"), {}, void 0, false);
+ 		this._res = this._rpcWorker.connect(this._options);
++		this._workerWitness = this._rpcWorker.workerWitness;
+ 	}
+ 	removeUnSerializationOptions() {
+ 		delete this._options.host?.moduleFederationConfig?.manifest;
+@@ -29,6 +30,9 @@ var DevWorker = class {
+ 	get controlledPromise() {
+ 		return this._res;
+ 	}
++	get workerWitness() {
++		return this._workerWitness;
++	}
+ 	update() {
+ 		this._rpcWorker.process?.send?.({
+ 			type: require_expose_rpc.RpcGMCallTypes.CALL,
+@@ -37,7 +41,7 @@ var DevWorker = class {
+ 		});
+ 	}
+ 	exit() {
+-		this._rpcWorker?.terminate();
++		return this._rpcWorker?.terminate();
+ 	}
+ };
+ 
+@@ -90,12 +94,13 @@ function ensureTempDir(filePath) {
+ 	} catch (_err) {}
+ }
+ var DevPlugin = class DevPlugin {
+-	constructor(options, dtsOptions, generateTypesPromise, fetchRemoteTypeUrlsPromise) {
++	constructor(options, dtsOptions, generateTypesPromise, fetchRemoteTypeUrlsPromise, onDevWorkerCreated) {
+ 		this.name = "MFDevPlugin";
+ 		this._options = options;
+ 		this.generateTypesPromise = generateTypesPromise;
+ 		this.dtsOptions = dtsOptions;
+ 		this.fetchRemoteTypeUrlsPromise = fetchRemoteTypeUrlsPromise;
++		this._onDevWorkerCreated = onDevWorkerCreated;
+ 	}
+ 	static ensureLiveReloadEntry(options, filePath) {
+ 		ensureTempDir(filePath);
+@@ -103,29 +108,48 @@ var DevPlugin = class DevPlugin {
+ 		fs.default.writeFileSync(filePath, liveReloadEntryWithOptions);
+ 	}
+ 	_stopWhenSIGTERMOrSIGINT() {
+-		process.on("SIGTERM", () => {
++		this._onSIGTERM = () => {
+ 			require_Broker.logger.info(`${this._options.name} Process(${process.pid}) SIGTERM, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
+-		process.on("SIGINT", () => {
++		};
++		process.on("SIGTERM", this._onSIGTERM);
++		this._onSIGINT = () => {
+ 			require_Broker.logger.info(`${this._options.name} Process(${process.pid}) SIGINT, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
++		};
++		process.on("SIGINT", this._onSIGINT);
+ 	}
+ 	_handleUnexpectedExit() {
+-		process.on("unhandledRejection", (error) => {
++		this._onUnhandledRejection = (error) => {
+ 			require_Broker.logger.error(error);
+ 			require_Broker.logger.error(`Process(${process.pid}) unhandledRejection, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-		process.on("uncaughtException", (error) => {
++		};
++		process.on("unhandledRejection", this._onUnhandledRejection);
++		this._onUncaughtException = (error) => {
+ 			require_Broker.logger.error(error);
+ 			require_Broker.logger.error(`Process(${process.pid}) uncaughtException, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
++		};
++		process.on("uncaughtException", this._onUncaughtException);
+ 	}
+-	_exit(exitCode = 0) {
+-		this._devWorker?.exit();
++	async _stop() {
++		this._closed = true;
++		try {
++			await this._devWorker?.exit();
++		} finally {
++			if (this._onSIGTERM) process.off("SIGTERM", this._onSIGTERM);
++			this._onSIGTERM = void 0;
++			if (this._onSIGINT) process.off("SIGINT", this._onSIGINT);
++			this._onSIGINT = void 0;
++			if (this._onUnhandledRejection) process.off("unhandledRejection", this._onUnhandledRejection);
++			this._onUnhandledRejection = void 0;
++			if (this._onUncaughtException) process.off("uncaughtException", this._onUncaughtException);
++			this._onUncaughtException = void 0;
++		}
++	}
++	async _exit(exitCode = 0) {
++		await this._stop();
+ 		process.exit(exitCode);
+ 	}
+ 	_afterEmit() {
+@@ -187,7 +211,11 @@ var DevPlugin = class DevPlugin {
+ 		const extraOptions = normalizedDtsOptions ? normalizedDtsOptions.extraOptions || {} : {};
+ 		if (!remote && !host && normalizedDev.disableLiveReload) return;
+ 		if (remote && !remote?.tsConfigPath && typeof normalizedDtsOptions === "object" && normalizedDtsOptions.tsConfigPath) remote.tsConfigPath = normalizedDtsOptions.tsConfigPath;
++		compiler.hooks.shutdown.tapPromise(this.name, async () => {
++			await this._stop();
++		});
+ 		Promise.all([this.generateTypesPromise, this.fetchRemoteTypeUrlsPromise]).then(([_, remoteTypeUrls]) => {
++			if (this._closed) return;
+ 			this._devWorker = createDevWorker({
+ 				name,
+ 				remote,
+@@ -200,6 +228,14 @@ var DevPlugin = class DevPlugin {
+ 				disableLiveReload: normalizedDev.disableHotTypesReload,
+ 				disableHotTypesReload: normalizedDev.disableHotTypesReload
+ 			});
++			this._devWorker.controlledPromise.catch((error) => {
++				if (this._closed && error instanceof require_consumeTypes.rpc_exports.RpcExitError && (error.code === 0 || error.signal === "SIGTERM")) return;
++				require_Broker.logger.error(error);
++				require_Broker.logger.error(`Process(${process.pid}) DTS worker startup failed, mf server will exit...`);
++				return this._exit(PROCESS_EXIT_CODE.FAILURE);
++			});
++			const workerWitness = this._devWorker.workerWitness;
++			if (workerWitness) this._onDevWorkerCreated?.(workerWitness);
+ 		});
+ 		this._stopWhenSIGTERMOrSIGINT();
+ 		this._handleUnexpectedExit();
+@@ -232,7 +268,7 @@ const normalizeConsumeTypesOptions = ({ context, dtsOptions, pluginOptions }) =>
+ };
+ const consumeTypesAPI = async (dtsManagerOptions, cb) => {
+ 	return (typeof dtsManagerOptions.host.remoteTypeUrls === "function" ? dtsManagerOptions.host.remoteTypeUrls() : Promise.resolve(dtsManagerOptions.host.remoteTypeUrls)).then((remoteTypeUrls) => {
+-		require_consumeTypes.consumeTypes({
++		return require_consumeTypes.consumeTypes({
+ 			...dtsManagerOptions,
+ 			host: {
+ 				...dtsManagerOptions.host,
+@@ -470,6 +506,15 @@ var DtsPlugin = class {
+ 	}
+ 	apply(compiler) {
+ 		const { options, clonedOptions } = this;
++		let onDevWorkerCreated;
++		if (clonedOptions.dts && typeof clonedOptions.dts === "object") {
++			const callback = options.dts && typeof options.dts === "object" ? options.dts.onDevWorkerCreated : void 0;
++			const dtsOptions = { ...clonedOptions.dts };
++			delete dtsOptions.onDevWorkerCreated;
++			if (callback !== void 0 && typeof callback !== "function") throw new TypeError("dts.onDevWorkerCreated must be a function.");
++			onDevWorkerCreated = callback;
++			clonedOptions.dts = dtsOptions;
++		}
+ 		if (options.exposes && typeof options.exposes === "object") {
+ 			const cleanedExposes = {};
+ 			Object.entries(options.exposes).forEach(([key, value]) => {
+@@ -493,7 +538,7 @@ var DtsPlugin = class {
+ 		let generateTypesPromiseResolve;
+ 		new DevPlugin(clonedOptions, normalizedDtsOptions, new Promise((resolve) => {
+ 			generateTypesPromiseResolve = resolve;
+-		}), fetchRemoteTypeUrlsPromise).apply(compiler);
++		}), fetchRemoteTypeUrlsPromise, onDevWorkerCreated).apply(compiler);
+ 		new GenerateTypesPlugin(clonedOptions, normalizedDtsOptions, fetchRemoteTypeUrlsPromise, generateTypesPromiseResolve).apply(compiler);
+ 		new ConsumeTypesPlugin(clonedOptions, normalizedDtsOptions, fetchRemoteTypeUrlsResolve).apply(compiler);
+ 	}
 diff --git a/dist/start-broker.d.ts b/dist/start-broker.d.ts
 index 16342cd..f25745f 100644
 --- a/dist/start-broker.d.ts

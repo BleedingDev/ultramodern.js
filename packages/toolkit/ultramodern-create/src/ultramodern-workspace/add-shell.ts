@@ -6,30 +6,54 @@ import {
   OWNERSHIP_PATH,
   TOPOLOGY_PATH,
 } from './add-vertical/constants';
-import { readRequiredJsonObject } from './add-vertical/preflight';
+import {
+  assertSupportedRendererComposition,
+  assertValidWorkspaceMembership,
+  readRequiredJsonObject,
+} from './add-vertical/preflight';
 import { describeJsonChanges } from './add-vertical/preview';
 import { updateRootWorkspaceScripts } from './add-vertical/shell-files';
 import { ownershipEntry } from './add-vertical/topology';
-import { runWorkspaceTransaction } from './add-vertical/transaction';
+import {
+  recoverWorkspaceTransactions,
+  runWorkspaceTransaction,
+} from './add-vertical/transaction';
 import {
   assertGlobalPortUniqueness,
   nextAvailablePort,
   workspaceOperationSettings,
 } from './add-vertical/workspace-state';
-import { appEmitsBrowserUi, resolveRemoteRefs, shellApp } from './descriptors';
-import { formatGeneratedWorkspaceFiles, writeJsonFile } from './fs-io';
+import { stampDeliveryUnitIdentity } from './delivery-unit-stamp';
+import { appEmitsBrowserUi, resolveRemoteRefs } from './descriptors';
+import { projectAddedShellDevelopmentOverlay } from './development-overlay-projection';
 import {
+  formatGeneratedWorkspaceFiles,
+  writeFile,
+  writeFileReplacing,
+  writeJsonFile,
+} from './fs-io';
+import {
+  assertOverlayKeptExistingSource,
   createFileSnapshot,
   createGenerationResult,
   diffFileSnapshots,
 } from './generation-result';
-import { createAppModernConfig } from './module-federation';
+import { createUltramodernBuildArtifactJson } from './module-federation';
 import {
   assertUniqueTailwindPrefixes,
   packageName,
   toPackageScope,
 } from './naming';
+import { runCodeSmithOverlays } from './overlays';
 import { createCloudflareDeployContract } from './policy';
+import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
+import { reconcileWorkspaceRendererIdentities } from './renderer-identity';
+import { initializeGeneratedRendererIdentity } from './renderer-initial-identity';
+import {
+  appSupportsFederation,
+  getRendererGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import {
   assertValidShellName,
   createShellDescriptor,
@@ -48,7 +72,6 @@ import type {
 import {
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
-  workspaceDevelopmentPorts,
 } from './workspace-artifact-ownership';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
@@ -72,9 +95,9 @@ type AddUltramodernShellPreflight = {
   shell: WorkspaceApp;
 };
 
-function prepareAddUltramodernShell(
+async function prepareAddUltramodernShell(
   options: AddUltramodernShellOptions,
-): AddUltramodernShellPreflight {
+): Promise<AddUltramodernShellPreflight> {
   const name = assertValidShellName(options.name);
   const overlayPath = path.join(
     options.workspaceRoot,
@@ -82,7 +105,6 @@ function prepareAddUltramodernShell(
   );
   const topologyPath = path.join(options.workspaceRoot, TOPOLOGY_PATH);
   const ownershipPath = path.join(options.workspaceRoot, OWNERSHIP_PATH);
-
   const rootPackage = readRequiredJsonObject(
     path.join(options.workspaceRoot, 'package.json'),
   );
@@ -99,27 +121,38 @@ function prepareAddUltramodernShell(
     topology,
     overlay,
   });
+  assertValidWorkspaceMembership(workspace.apps);
   const { packageSource, enableTailwind, bridge } = workspaceOperationSettings(
     options,
     workspace.config,
   );
-  const {
-    primaryShell: resolvedPrimaryShell,
-    verticals: existingVerticals,
-    additionalShells: existingAdditionalShells,
-  } = workspace;
-  const primaryShell = resolvedPrimaryShell!;
-
   const shellId = `shell-${name}`;
   if (
     shellId === PRIMARY_SHELL_ID ||
-    existingAdditionalShells.some(existing => existing.id === shellId)
+    workspace.additionalShells.some(existing => existing.id === shellId)
   ) {
     throw new Error(`Shell "${shellId}" already exists in this workspace.`);
   }
   if (fs.existsSync(path.join(options.workspaceRoot, `apps/${shellId}`))) {
     throw new Error(`Refusing to overwrite existing path: apps/${shellId}`);
   }
+  const evaluations = await captureWorkspaceRendererEvaluations(
+    options.workspaceRoot,
+    workspace.apps,
+  );
+  const resolvedApps = await reconcileWorkspaceRendererIdentities(
+    options.workspaceRoot,
+    scope,
+    workspace.apps,
+    { evaluations },
+  );
+  const primaryShell = resolvedApps.find(
+    app => app.id === workspace.primaryShell!.id,
+  )!;
+  const existingVerticals = resolvedApps.filter(app => app.kind === 'vertical');
+  const existingAdditionalShells = resolvedApps.filter(
+    app => app.kind === 'shell' && app.id !== primaryShell.id,
+  );
 
   const portsWithPrimary = {
     ...overlay.ports,
@@ -134,10 +167,18 @@ function prepareAddUltramodernShell(
       FIRST_ADDITIONAL_SHELL_PORT,
     ),
   );
+  const renderer = resolveWorkspaceRenderer(primaryShell);
+  if (renderer === 'none') {
+    throw new Error(`Primary shell ${primaryShell.id} requires a UI renderer.`);
+  }
+  const generation = getRendererGenerationProfile(renderer);
+  shell.renderer = renderer;
+  shell.rendererProfile = generation.profile;
+  shell.rendererGenerationProfile = generation;
+  Object.assign(shell, initializeGeneratedRendererIdentity(scope, shell));
 
   // A shell composes only UI-emitting units by default (G2a): headless
-  // api-only verticals never join composition refs. An explicit list is
-  // still validated below but keeps the caller's intent.
+  // api-only verticals never join composition refs.
   const requestedVerticalIds =
     options.verticals ??
     existingVerticals.filter(appEmitsBrowserUi).map(vertical => vertical.id);
@@ -153,12 +194,24 @@ function prepareAddUltramodernShell(
         `Unknown vertical "${id}" for shell ${shellId}. Available verticals: ${available}.`,
       );
     }
+    if (!appEmitsBrowserUi(vertical)) {
+      throw new Error(
+        `Headless unit ${vertical.id} exposes API/backend capabilities, not UI, and cannot join shell ${shellId} composition.`,
+      );
+    }
     return vertical;
   });
   shell.verticalRefs = composedVerticals.map(vertical => vertical.id);
+  for (const existingShell of [primaryShell, ...existingAdditionalShells]) {
+    assertSupportedRendererComposition(
+      existingShell,
+      resolveRemoteRefs(existingShell, existingVerticals),
+    );
+  }
+  assertSupportedRendererComposition(shell, composedVerticals);
 
   assertUniqueTailwindPrefixes([
-    shellApp,
+    primaryShell,
     ...existingAdditionalShells,
     shell,
     ...existingVerticals,
@@ -183,14 +236,31 @@ function prepareAddUltramodernShell(
   };
 }
 
+function stageAddUltramodernShellPreflight(
+  preflight: AddUltramodernShellPreflight,
+  stagingRoot: string,
+): AddUltramodernShellPreflight {
+  return {
+    ...preflight,
+    topologyPath: path.join(stagingRoot, TOPOLOGY_PATH),
+    ownershipPath: path.join(stagingRoot, OWNERSHIP_PATH),
+    overlayPath: path.join(stagingRoot, DEVELOPMENT_OVERLAY_PATH),
+    topology: structuredClone(preflight.topology),
+    ownership: structuredClone(preflight.ownership),
+    overlay: structuredClone(preflight.overlay),
+  };
+}
+
 /**
  * Add an additional thin shell to an existing workspace (G28). Transactional:
  * the whole write-set is applied inside {@link runWorkspaceTransaction}; any
  * failure restores the workspace byte-identical to its pre-call state.
  */
-export function addUltramodernShell(
+export async function addUltramodernShell(
   options: AddUltramodernShellOptions,
-): UltramodernGenerationResult {
+): Promise<UltramodernGenerationResult> {
+  recoverWorkspaceTransactions(path.resolve(options.workspaceRoot));
+  const preflight = await prepareAddUltramodernShell(options);
   return runWorkspaceTransaction(options.workspaceRoot, stagingRoot =>
     executeAddUltramodernShell(
       {
@@ -198,16 +268,18 @@ export function addUltramodernShell(
         workspaceRoot: stagingRoot,
       },
       options.workspaceRoot,
+      stageAddUltramodernShellPreflight(preflight, stagingRoot),
     ),
   );
 }
 
-function executeAddUltramodernShell(
+async function executeAddUltramodernShell(
   options: AddUltramodernShellOptions,
   logicalWorkspaceRoot = options.workspaceRoot,
-): UltramodernGenerationResult {
+  prepared?: AddUltramodernShellPreflight,
+): Promise<UltramodernGenerationResult> {
+  const preflight = prepared ?? (await prepareAddUltramodernShell(options));
   const beforeFiles = createFileSnapshot(options.workspaceRoot);
-  const preflight = prepareAddUltramodernShell(options);
   const {
     scope,
     topologyPath,
@@ -225,11 +297,6 @@ function executeAddUltramodernShell(
   } = preflight;
 
   const allAdditionalShells = [...existingAdditionalShells, shell];
-  const configuredDevPorts = workspaceDevelopmentPorts(
-    [primaryShell, ...existingVerticals, ...allAdditionalShells],
-    preflight.overlay.ports,
-  );
-
   const previousApps = [
     primaryShell,
     ...existingVerticals,
@@ -237,12 +304,7 @@ function executeAddUltramodernShell(
   ];
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(
-      scope,
-      previousApps,
-      enableTailwind,
-      previousApps,
-    ),
+    workspaceArtifactCandidates(scope, previousApps),
   );
 
   writeApp(
@@ -253,39 +315,88 @@ function executeAddUltramodernShell(
     enableTailwind,
     existingVerticals,
     bridge,
-    configuredDevPorts,
   );
+
+  for (const app of previousApps) {
+    const entry =
+      app.id === primaryShell.id
+        ? topology.shell
+        : (app.kind === 'shell' ? topology.shells : topology.verticals)?.find(
+            (candidate: Record<string, any>) => candidate.id === app.id,
+          );
+    if (entry) {
+      stampDeliveryUnitIdentity(
+        entry,
+        scope,
+        app,
+        app.deliveryUnit?.version ?? '0.1.0',
+      );
+      if (!appSupportsFederation(app)) delete entry.moduleFederation;
+      if (
+        app.rendererGenerationProfile &&
+        !app.rendererGenerationProfile.capabilities.workers
+      ) {
+        delete entry.cloudflare;
+      }
+    }
+    writeFileReplacing(
+      options.workspaceRoot,
+      `${app.directory}/shared/ultramodern-build.json`,
+      createUltramodernBuildArtifactJson(scope, app),
+    );
+  }
 
   topology.shells ??= [];
   topology.shells.push({
     id: shell.id,
     kind: 'shell',
+    ...(shell.surfaceProfile ? { surfaceProfile: shell.surfaceProfile } : {}),
     package: packageName(scope, shell.packageSuffix),
     path: shell.directory,
     displayName: shell.displayName,
     portEnv: shell.portEnv,
     verticalRefs: shell.verticalRefs,
-    moduleFederation: {
-      role: 'host',
-      name: shell.mfName,
-      verticalRefs: shell.verticalRefs,
-      remotes: resolveRemoteRefs(shell, existingVerticals).map(remote => ({
-        id: remote.id,
-        name: remote.mfName,
-        manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
-      })),
-      ssr: true,
-      sharedContractVersion: 'mf-ssr-contract-v1',
-    },
+    ...(appSupportsFederation(shell)
+      ? {
+          moduleFederation: {
+            role: 'host',
+            name: shell.mfName,
+            verticalRefs: shell.verticalRefs,
+            remotes: resolveRemoteRefs(shell, existingVerticals).map(
+              remote => ({
+                id: remote.id,
+                name: remote.mfName,
+                manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+              }),
+            ),
+            ssr: true,
+            sharedContractVersion: 'mf-ssr-contract-v1',
+          },
+        }
+      : {}),
     deliveryUnit: shellDeliveryUnitBlock(scope, shell),
-    cloudflare: createCloudflareDeployContract(scope, shell),
+    ...(shell.rendererGenerationProfile?.capabilities.workers
+      ? {
+          cloudflare: createCloudflareDeployContract(scope, shell),
+        }
+      : {}),
     ownership: shell.ownership,
   });
+  stampDeliveryUnitIdentity(
+    topology.shells.at(-1),
+    scope,
+    shell,
+    shell.deliveryUnit?.version ?? '0.1.0',
+    'source-authoring',
+  );
   writeJsonFile(topologyPath, topology as JsonValue);
   ownership.owners ??= [];
   ownership.owners.push(ownershipEntry(scope, shell));
   writeJsonFile(ownershipPath, ownership as JsonValue);
-  preflight.overlay.ports[shell.id] = shell.port;
+  Object.assign(
+    preflight.overlay,
+    projectAddedShellDevelopmentOverlay(preflight.overlay, shell),
+  );
   writeJsonFile(preflight.overlayPath, preflight.overlay as JsonValue);
   const newPackagePath = path.join(
     options.workspaceRoot,
@@ -299,20 +410,6 @@ function executeAddUltramodernShell(
   };
   writeJsonFile(newPackagePath, newPackage as JsonValue);
 
-  for (const app of previousApps) {
-    ownedIo.write(
-      path.join(options.workspaceRoot, app.directory, 'modern.config.ts'),
-      createAppModernConfig(
-        scope,
-        app,
-        app.kind === 'shell'
-          ? resolveRemoteRefs(app, existingVerticals)
-          : existingVerticals,
-        enableTailwind,
-        configuredDevPorts,
-      ),
-    );
-  }
   updateRootWorkspaceScripts(
     options.workspaceRoot,
     scope,
@@ -323,6 +420,7 @@ function executeAddUltramodernShell(
     existingVerticals,
     primaryShell,
     existingAdditionalShells,
+    primaryShell,
   );
   ownedIo.write(
     path.join(options.workspaceRoot, 'tsconfig.json'),
@@ -331,6 +429,7 @@ function executeAddUltramodernShell(
 
   writeGeneratedWorkspaceScripts(options.workspaceRoot, {
     io: { writeGenerated: ownedIo.write },
+    renderer: primaryShell.rendererGenerationProfile!.renderer,
   });
 
   ownedIo.write(
@@ -342,12 +441,87 @@ function executeAddUltramodernShell(
     ])}\n`,
   );
 
+  const preliminaryAfterFiles = createFileSnapshot(options.workspaceRoot);
+  const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
+  const preliminaryResult = createGenerationResult({
+    phase: 'source-authoring',
+    operation: 'shell',
+    workspaceRoot: logicalWorkspaceRoot,
+    packageScope: scope,
+    packageSource,
+    createdApps: [shell],
+    createdPaths: preliminaryDiff.createdPaths,
+    rewrittenPaths: preliminaryDiff.rewrittenPaths,
+  });
+  const buildArtifactPath = `${shell.directory}/shared/ultramodern-build.json`;
+  runCodeSmithOverlays({
+    workspaceRoot: options.workspaceRoot,
+    deferredUiArtifactPaths: new Set([buildArtifactPath]),
+    overlays: options.overlays,
+    result: preliminaryResult,
+  });
+
   const afterOverlaysFiles = createFileSnapshot(options.workspaceRoot);
+  if (options.overlays?.length)
+    assertOverlayKeptExistingSource(
+      preliminaryAfterFiles,
+      afterOverlaysFiles,
+      shell.directory,
+    );
   const changedPaths = diffFileSnapshots(beforeFiles, afterOverlaysFiles);
   formatGeneratedWorkspaceFiles(options.workspaceRoot, [
     ...changedPaths.createdPaths,
     ...changedPaths.rewrittenPaths,
   ]);
+
+  const evaluations = await captureWorkspaceRendererEvaluations(
+    options.workspaceRoot,
+    [shell],
+    { command: 'generate', originalWorkspaceRoot: logicalWorkspaceRoot },
+  );
+  const finalRenderer = evaluations.get(shell.id)?.renderer;
+  if (finalRenderer !== shell.renderer) {
+    throw new Error(
+      `Generated application ${shell.id} uses ${shell.renderer} templates, but its final modern.config resolves ${finalRenderer}. Changing the renderer requires matching compiler and source templates.`,
+    );
+  }
+  const [resolvedShell] = await reconcileWorkspaceRendererIdentities(
+    options.workspaceRoot,
+    scope,
+    [shell],
+    { evaluations },
+  );
+  const version = resolvedShell?.deliveryUnit?.version;
+  if (!resolvedShell || typeof version !== 'string') {
+    throw new Error(
+      `Generated application ${shell.id} has no resolved delivery-unit version.`,
+    );
+  }
+  assertSupportedRendererComposition(
+    resolvedShell,
+    resolveRemoteRefs(resolvedShell, existingVerticals),
+  );
+  const finalTopology = readRequiredJsonObject(topologyPath);
+  const finalEntry = finalTopology.shells?.find(
+    (entry: Record<string, any>) => entry.id === resolvedShell.id,
+  );
+  if (!finalEntry) {
+    throw new Error(
+      `Generated application ${resolvedShell.id} is missing from the final topology.`,
+    );
+  }
+  stampDeliveryUnitIdentity(finalEntry, scope, resolvedShell, version);
+  writeFileReplacing(
+    options.workspaceRoot,
+    TOPOLOGY_PATH,
+    `${JSON.stringify(finalTopology, null, 2)}\n`,
+  );
+  writeFile(
+    options.workspaceRoot,
+    buildArtifactPath,
+    createUltramodernBuildArtifactJson(scope, resolvedShell),
+  );
+  Object.assign(shell, resolvedShell);
 
   const afterFiles = createFileSnapshot(options.workspaceRoot);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(
@@ -372,18 +546,26 @@ function executeAddUltramodernShell(
  * (created/rewritten paths, delivery-unit identity) without touching the real
  * workspace.
  */
-export function planUltramodernShell(
+export async function planUltramodernShell(
   options: AddUltramodernShellOptions,
-): UltramodernVerticalPlan {
-  const preflight = prepareAddUltramodernShell(options);
+): Promise<UltramodernVerticalPlan> {
+  const originalPreflight = await prepareAddUltramodernShell(options);
   let jsonMutations: UltramodernVerticalPlan['jsonMutations'] = [];
-  const plannedResult = runWorkspaceTransaction(
+  const { preflight, plannedResult } = await runWorkspaceTransaction(
     options.workspaceRoot,
-    stagingRoot =>
-      executeAddUltramodernShell(
-        { ...options, workspaceRoot: stagingRoot },
+    async stagingRoot => {
+      const stagedOptions = { ...options, workspaceRoot: stagingRoot };
+      const preflight = stageAddUltramodernShellPreflight(
+        originalPreflight,
+        stagingRoot,
+      );
+      const plannedResult = await executeAddUltramodernShell(
+        stagedOptions,
         options.workspaceRoot,
-      ),
+        preflight,
+      );
+      return { preflight, plannedResult };
+    },
     {
       mode: 'preview',
       inspectChanges: changes => {
@@ -398,11 +580,15 @@ export function planUltramodernShell(
     workspaceRoot: options.workspaceRoot,
     dryRun: true,
     selectedPort: shell?.port ?? 0,
-    moduleFederationRemote: {
-      id: shell?.id ?? '',
-      name: shell?.moduleFederationName ?? '',
-      manifestUrl: `http://localhost:${shell?.port ?? 0}/mf-manifest.json`,
-    },
+    ...(appSupportsFederation(preflight.shell)
+      ? {
+          moduleFederationRemote: {
+            id: shell?.id ?? '',
+            name: shell?.moduleFederationName ?? '',
+            manifestUrl: `http://localhost:${shell?.port ?? 0}/mf-manifest.json`,
+          },
+        }
+      : {}),
     jsonMutations,
     shellDependencyChanges: [],
     generatedContractChanges: [

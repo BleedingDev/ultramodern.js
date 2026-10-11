@@ -59,6 +59,17 @@ async function acquirePortAllocatorLock(packageDir) {
         await fs.promises.rm(lockDir, { recursive: true, force: true });
       };
     } catch (error) {
+      // Windows reports EPERM or EACCES while another process is still
+      // removing the same directory: the lock is being released, so wait.
+      const releasing =
+        process.platform === 'win32' &&
+        (error?.code === 'EPERM' || error?.code === 'EACCES');
+      if (releasing) {
+        await new Promise(resolve =>
+          setTimeout(resolve, kPortAllocatorLockPollInterval),
+        );
+        continue;
+      }
       if (error?.code !== 'EEXIST') {
         throw error;
       }
@@ -420,6 +431,39 @@ function runModernCommandDev(argv, stdOut, options = {}) {
       let readinessStarted = false;
       let stdoutOutput = '';
       let stderrOutput = '';
+      let closed = false;
+
+      function failStartup(error) {
+        if (didResolve) return;
+        didResolve = true;
+        clearBootupTimer();
+        error.stdout = stdoutOutput;
+        error.stderr = stderrOutput;
+        // A rejected startup never returns its child to the caller. Retire it
+        // here, preserving the startup failure if cleanup itself also fails.
+        void (async () => {
+          let finishClose;
+          let closeTimer;
+          const childClosed = new Promise(resolve => {
+            finishClose = () => {
+              clearTimeout(closeTimer);
+              instance.removeListener('close', finishClose);
+              resolve();
+            };
+            if (closed) return finishClose();
+            instance.once('close', finishClose);
+            closeTimer = setTimeout(finishClose, 10_000);
+            closeTimer.unref?.();
+          });
+          try {
+            if (!closed && instance.pid) await killApp(instance);
+          } catch (cleanupError) {
+            error.cleanupError = cleanupError;
+          }
+          await childClosed;
+          reject(error);
+        })();
+      }
 
       function handleStdout(data) {
         const message = data.toString();
@@ -431,13 +475,11 @@ function runModernCommandDev(argv, stdOut, options = {}) {
         const compileErrorMarker = /Compile error/i;
 
         if (rejectOnCompileError && compileErrorMarker.test(message)) {
-          if (!didResolve) {
-            didResolve = true;
-            reject(new Error(message));
-          }
+          failStartup(new Error(message));
         }
 
         if (
+          !didResolve &&
           !readinessStarted &&
           bootupMarkers[options.modernServe ? 'serve' : 'dev'].test(message)
         ) {
@@ -446,10 +488,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
           try {
             readyPort = resolveReadyPort(env.PORT, stdoutOutput);
           } catch (error) {
-            didResolve = true;
-            error.stdout = stdoutOutput;
-            error.stderr = stderrOutput;
-            reject(error);
+            failStartup(error);
             return;
           }
           void waitForTcpServer(readyPort)
@@ -461,12 +500,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
               }
             })
             .catch(error => {
-              if (!didResolve) {
-                didResolve = true;
-                error.stdout = stdoutOutput;
-                error.stderr = stderrOutput;
-                reject(error);
-              }
+              failStartup(error);
             });
         }
 
@@ -490,13 +524,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
 
         const compileErrorMarker = /Compile error/i;
         if (rejectOnCompileError && compileErrorMarker.test(message)) {
-          if (!didResolve) {
-            didResolve = true;
-            const error = new Error(message);
-            error.stdout = stdoutOutput;
-            error.stderr = stderrOutput;
-            reject(error);
-          }
+          failStartup(new Error(message));
         }
 
         if (options.stderr !== false) {
@@ -516,7 +544,6 @@ function runModernCommandDev(argv, stdOut, options = {}) {
         if (didResolve) {
           return;
         }
-        didResolve = true;
         const phase = options.modernServe ? 'serve' : 'dev';
         const output = [stdoutOutput.trim(), stderrOutput.trim()]
           .filter(Boolean)
@@ -526,37 +553,17 @@ function runModernCommandDev(argv, stdOut, options = {}) {
             `${bootupTimeoutMs}ms (pid ${instance.pid}).` +
             (output ? `\nOutput so far:\n${output}` : '\nIt emitted nothing.'),
         );
-        error.stdout = stdoutOutput;
-        error.stderr = stderrOutput;
-        // No caller can clean up a child whose startup never completed.
-        void (async () => {
-          try {
-            await killApp(instance);
-          } catch {
-            // Best effort: a child that cannot be killed must not mask the
-            // readiness failure being reported.
-          }
-          if (instance.exitCode === null && instance.signalCode === null) {
-            await new Promise(resolve => {
-              const done = () => resolve();
-              instance.once('close', done);
-              setTimeout(done, 10_000).unref?.();
-            });
-          }
-          reject(error);
-        })();
+        failStartup(error);
       }, bootupTimeoutMs);
       bootupTimer.unref?.();
       const clearBootupTimer = () => clearTimeout(bootupTimer);
 
       instance.on('error', error => {
-        clearBootupTimer();
-        error.stdout = stdoutOutput;
-        error.stderr = stderrOutput;
-        reject(error);
+        failStartup(error);
       });
 
       instance.on('close', code => {
+        closed = true;
         clearBootupTimer();
         instance.stdout.removeListener('data', handleStdout);
         if (!didResolve) {
@@ -569,10 +576,7 @@ function runModernCommandDev(argv, stdOut, options = {}) {
           const error = new Error(
             `modern ${phase} exited before readiness marker with code ${exitCode}.${detail}`,
           );
-          error.stdout = stdoutOutput;
-          error.stderr = stderrOutput;
-          didResolve = true;
-          reject(error);
+          failStartup(error);
         }
       });
     };
@@ -893,6 +897,7 @@ async function createIsolatedTestApp(sourceAppDir, options = {}) {
 }
 
 module.exports = {
+  acquirePortAllocatorLock,
   runModernCommand,
   runModernCommandDev,
   modernBuild,

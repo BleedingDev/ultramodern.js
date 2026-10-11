@@ -1,6 +1,7 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
-import type { AppToolsContext } from '@modern-js/app-tools';
+import type { AppTools } from '@modern-js/app-tools/cli-config';
+import type { CLIPluginAPI } from '@modern-js/plugin';
 import { makeLegalIdentifier } from '@modern-js/runtime/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { upath as path } from '@modern-js/utils';
@@ -32,7 +33,10 @@ type RouteExtras = {
 };
 
 export async function generateTanstackRouterTypesSourceForEntry(opts: {
-  appContext: AppToolsContext;
+  appContext: Pick<
+    ReturnType<CLIPluginAPI<AppTools>['getAppContext']>,
+    'srcDirectory' | 'internalSrcAlias'
+  >;
   entryName: string;
   generatedDirName?: string;
   routes: RouteForCli[];

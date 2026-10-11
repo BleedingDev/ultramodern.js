@@ -15,22 +15,17 @@ import tsgoInvocation from '../lib/tsgo-invocation.js';
 
 const { createTsgoInvocation, resolveTsgoBin } = tsgoInvocation;
 
-function createNativePreviewFixture(bin) {
+function createTypeScriptFixture(bin, version = '7.0.2') {
   const root = realpathSync(
     mkdtempSync(path.join(os.tmpdir(), 'tsgo invocation ')),
   );
-  const packageRoot = path.join(
-    root,
-    'node_modules',
-    '@typescript',
-    'native-preview',
-  );
+  const packageRoot = path.join(root, 'node_modules', 'typescript');
   mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
   writeFileSync(
     path.join(packageRoot, 'package.json'),
     JSON.stringify({
-      name: '@typescript/native-preview',
-      version: '0.0.0-test',
+      name: 'typescript',
+      version,
       ...(bin === undefined ? {} : { bin }),
     }),
   );
@@ -43,12 +38,11 @@ function createNativePreviewFixture(bin) {
 }
 
 for (const [label, bin, expectedEntry] of [
-  ['string bin', './bin/string-tsgo.js', './bin/string-tsgo.js'],
-  ['named tsgo bin', { tsgo: './bin/named-tsgo.js' }, './bin/named-tsgo.js'],
-  ['missing bin fallback', undefined, 'bin/tsgo.js'],
+  ['string bin', './bin/string-tsc.js', './bin/string-tsc.js'],
+  ['named tsc bin', { tsc: './bin/named-tsc.js' }, './bin/named-tsc.js'],
 ]) {
   test(`resolves ${label} from the requested package origin`, () => {
-    const fixture = createNativePreviewFixture(bin);
+    const fixture = createTypeScriptFixture(bin);
     try {
       assert.equal(
         resolveTsgoBin({ requireFrom: fixture.requireFrom }),
@@ -60,10 +54,41 @@ for (const [label, bin, expectedEntry] of [
   });
 }
 
+for (const [label, bin] of [
+  ['missing bin', undefined],
+  ['preview-only bin', { tsgo: './bin/tsgo.js' }],
+]) {
+  test(`rejects ${label} instead of inventing a compiler entry`, () => {
+    const fixture = createTypeScriptFixture(bin);
+    try {
+      assert.throws(
+        () => resolveTsgoBin({ requireFrom: fixture.requireFrom }),
+        /does not expose its tsc CLI/,
+      );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const version of ['5.9.3', '7.0.1', '7.0.0-dev.20260707.2']) {
+  test(`rejects unsupported compiler ${version}`, () => {
+    const fixture = createTypeScriptFixture({ tsc: './bin/tsc.js' }, version);
+    try {
+      assert.throws(
+        () => resolveTsgoBin({ requireFrom: fixture.requireFrom }),
+        /Native TypeScript 7\.0\.2 is required/,
+      );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+}
+
 test('executes the Windows-safe invocation with argv preserved exactly', () => {
-  const fixture = createNativePreviewFixture({ tsgo: './bin/tsgo.js' });
+  const fixture = createTypeScriptFixture({ tsc: './bin/tsc.js' });
   try {
-    const binPath = path.join(fixture.packageRoot, 'bin', 'tsgo.js');
+    const binPath = path.join(fixture.packageRoot, 'bin', 'tsc.js');
     writeFileSync(
       binPath,
       'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n',

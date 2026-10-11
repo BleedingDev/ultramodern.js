@@ -1,6 +1,7 @@
 import { ULTRAMODERN_WORKSPACE_MODERN_PACKAGES } from '../ultramodern-package-source';
 import { appEmitsBrowserUi, appHasApi, createShellHost } from './descriptors';
 import { packageName } from './naming';
+import { resolveAppGenerationProfile } from './renderer-profile';
 import type { WorkspaceApp } from './types';
 
 /** Inputs needed by lightweight validation; authored files remain authoritative. */
@@ -42,6 +43,13 @@ export function createWorkspaceValidationContract(
       packageName: packageName(scope, app.packageSuffix),
       emitsApi: appHasApi(app),
       emitsUi: appEmitsBrowserUi(app),
+      renderer: app.renderer,
+      rendererIdentity: app.rendererIdentity,
+      rendererIdentities: app.rendererIdentities,
+      rendererProfile: app.rendererProfile,
+      routerBindings: app.routerBindings,
+      validatesRendererProjection: app.rendererProfile !== undefined,
+      rendererCapabilities: resolveAppGenerationProfile(app)?.capabilities,
       exposes: app.exposes ?? {},
       verticalRefs: app.verticalRefs ?? [],
     })),

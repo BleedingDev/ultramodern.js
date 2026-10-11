@@ -1,12 +1,16 @@
 import path from 'path';
-import puppeteer, { type Browser, type Page } from 'puppeteer';
+import puppeteer, {
+  type Browser,
+  type ConsoleMessage,
+  type Page,
+} from 'puppeteer';
 import {
   getPort,
   killApp,
   launchApp,
   launchOptions,
 } from '../../../../utils/modernTestUtils';
-import { clearI18nTestState } from '../../test-utils';
+import { clearI18nTestState, waitForText } from '../../test-utils';
 
 const projectDir = path.resolve(__dirname, '..');
 
@@ -156,12 +160,12 @@ describe('router-csr-i18n', () => {
     await page.goto(`http://localhost:${appPort}/zh/about`, {
       waitUntil: ['networkidle0'],
     });
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await waitForText(page, '#about', '关于', 5000);
     const text = await page.$('#about');
     const targetText = await page.evaluate(el => el?.textContent, text);
     expect(targetText?.trim()).toEqual('关于');
     await page.click('#en-button');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await waitForText(page, '#about', 'About', 5000);
     const textEn = await page.$('#about');
     const targetTextEn = await page.evaluate(el => el?.textContent, textEn);
     expect(targetTextEn?.trim()).toEqual('About');
@@ -170,12 +174,12 @@ describe('router-csr-i18n', () => {
     await page.goto(`http://localhost:${appPort}/en/about`, {
       waitUntil: ['networkidle0'],
     });
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await waitForText(page, '#about', 'About', 5000);
     const text = await page.$('#about');
     const targetText = await page.evaluate(el => el?.textContent, text);
     expect(targetText?.trim()).toEqual('About');
     await page.click('#zh-button');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await waitForText(page, '#about', '关于', 5000);
     const textZh = await page.$('#about');
     const targetTextZh = await page.evaluate(el => el?.textContent, textZh);
     expect(targetTextZh?.trim()).toEqual('关于');
@@ -183,15 +187,20 @@ describe('router-csr-i18n', () => {
 
   test('console-log-mock-sdk-loader', async () => {
     const consoleMessages: string[] = [];
-    page.on('console', msg => {
+    const onConsole = (msg: ConsoleMessage) => {
       consoleMessages.push(msg.text());
-    });
-    await page.goto(`http://localhost:${appPort}/en`, {
-      waitUntil: ['networkidle0'],
-    });
-    // Wait a bit for async operations
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    expect(consoleMessages).toContain('mock sdk loader');
+    };
+    page.on('console', onConsole);
+    try {
+      await page.goto(`http://localhost:${appPort}/en`, {
+        waitUntil: ['networkidle0'],
+      });
+      await expect
+        .poll(() => consoleMessages, { timeout: 1000 })
+        .toContain('mock sdk loader');
+    } finally {
+      page.off('console', onConsole);
+    }
   });
 
   test('about-page-key-1-en', async () => {

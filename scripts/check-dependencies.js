@@ -1,4 +1,10 @@
-const ignoreDeps = ['fs-extra', 'tailwindcss'];
+// The published generator selects the Module Federation sidecar alias; the
+// monorepo resolves the same patched upstream through .pnpmfile.cjs.
+const ignoreDeps = [
+  'fs-extra',
+  'tailwindcss',
+  '@module-federation/modern-js-v3',
+];
 
 // Use the workspace-pinned version to avoid unexpected breaking changes from @latest.
 const command = `pnpm exec check-dependency-version-consistency . ${ignoreDeps

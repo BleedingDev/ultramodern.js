@@ -237,60 +237,64 @@ const api = HttpApi.make('ModuleApi').add(
     }
   });
 
-  test.each([
-    'commonjs',
-    'module',
-  ] as const)('published %s producer modules load with actual package exports', async moduleType => {
-    const appDirectory = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'bff-published-'),
-    );
-    try {
-      await fs.promises.writeFile(
-        path.join(appDirectory, 'package.json'),
-        JSON.stringify({ name: 'runtime-app', type: moduleType }),
+  test.each(['commonjs', 'module'] as const)(
+    'published %s producer modules load with actual package exports',
+    async moduleType => {
+      const appDirectory = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), 'bff-published-'),
       );
-      for (const name of [
-        'plugin-bff-build-extensions',
-        'plugin-bff-extensions',
-      ]) {
-        const target = path.join(appDirectory, 'node_modules/@modern-js', name);
-        await fs.promises.mkdir(path.dirname(target), { recursive: true });
-        await fs.promises.symlink(
-          path.resolve(__dirname, '../..', name),
-          target,
-          process.platform === 'win32' ? 'junction' : 'dir',
+      try {
+        await fs.promises.writeFile(
+          path.join(appDirectory, 'package.json'),
+          JSON.stringify({ name: 'runtime-app', type: moduleType }),
         );
+        for (const name of [
+          'plugin-bff-build-extensions',
+          'plugin-bff-extensions',
+        ]) {
+          const target = path.join(
+            appDirectory,
+            'node_modules/@modern-js',
+            name,
+          );
+          await fs.promises.mkdir(path.dirname(target), { recursive: true });
+          await fs.promises.symlink(
+            path.resolve(__dirname, '../..', name),
+            target,
+            process.platform === 'win32' ? 'junction' : 'dir',
+          );
+        }
+        const requestModule = path.join(appDirectory, 'request.mjs');
+        await fs.promises.writeFile(
+          requestModule,
+          'export const configure = options => options;',
+        );
+        const entries = await render(appDirectory, moduleType, requestModule);
+        if (moduleType === 'module')
+          expect(entries.runtime.code).toContain(
+            JSON.stringify(pathToFileURL(requestModule).href),
+          );
+        const runtimeFile = path.join(appDirectory, 'runtime.js');
+        const pluginFile = path.join(appDirectory, 'plugin.js');
+        await fs.promises.writeFile(runtimeFile, entries.runtime.code);
+        await fs.promises.writeFile(pluginFile, entries.plugin.code);
+        const runtime = await import(
+          /* webpackIgnore: true */ pathToFileURL(runtimeFile).href
+        );
+        const plugin = await import(
+          /* webpackIgnore: true */ pathToFileURL(pluginFile).href
+        );
+        expect(runtime.configure).toBe(runtime.initProducerClient);
+        expect(runtime.configure()).toMatchObject({
+          requestId: 'runtime-app',
+          requireEnvelope: true,
+        });
+        expect(plugin.crossProjectApiPlugin().name).toBe(
+          '@modern-js/plugin-independent-bff',
+        );
+      } finally {
+        await fs.promises.rm(appDirectory, { recursive: true, force: true });
       }
-      const requestModule = path.join(appDirectory, 'request.mjs');
-      await fs.promises.writeFile(
-        requestModule,
-        'export const configure = options => options;',
-      );
-      const entries = await render(appDirectory, moduleType, requestModule);
-      if (moduleType === 'module')
-        expect(entries.runtime.code).toContain(
-          JSON.stringify(pathToFileURL(requestModule).href),
-        );
-      const runtimeFile = path.join(appDirectory, 'runtime.js');
-      const pluginFile = path.join(appDirectory, 'plugin.js');
-      await fs.promises.writeFile(runtimeFile, entries.runtime.code);
-      await fs.promises.writeFile(pluginFile, entries.plugin.code);
-      const runtime = await import(
-        /* webpackIgnore: true */ pathToFileURL(runtimeFile).href
-      );
-      const plugin = await import(
-        /* webpackIgnore: true */ pathToFileURL(pluginFile).href
-      );
-      expect(runtime.configure).toBe(runtime.initProducerClient);
-      expect(runtime.configure()).toMatchObject({
-        requestId: 'runtime-app',
-        requireEnvelope: true,
-      });
-      expect(plugin.crossProjectApiPlugin().name).toBe(
-        '@modern-js/plugin-independent-bff',
-      );
-    } finally {
-      await fs.promises.rm(appDirectory, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 });

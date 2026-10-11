@@ -28,6 +28,8 @@ export type DeliveryUnitIdentityField =
 
 export const ULTRAMODERN_BUILD_ARTIFACT_FILE = 'ultramodern-build.json';
 
+export const ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION = 2;
+
 export const ULTRAMODERN_BUILD_ARTIFACT_PATH = `shared/${ULTRAMODERN_BUILD_ARTIFACT_FILE}`;
 
 export const ULTRAMODERN_BUILD_MODULE_FILE = 'ultramodern-build.ts';

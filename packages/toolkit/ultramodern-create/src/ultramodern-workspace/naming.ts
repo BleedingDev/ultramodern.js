@@ -50,14 +50,6 @@ export function toEnvSegment(value: string): string {
   return toKebabCase(value).replace(/-/g, '_').toUpperCase();
 }
 
-export function createRspackUniqueName(app: WorkspaceApp): string {
-  return app.mfName;
-}
-
-export function createRspackChunkLoadingGlobal(app: WorkspaceApp): string {
-  return `__ULTRAMODERN_${toEnvSegment(app.mfName)}_LOADED_CHUNKS__`;
-}
-
 export function packageName(scope: string, suffix: string): string {
   return `@${scope}/${suffix}`;
 }

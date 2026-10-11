@@ -1,5 +1,8 @@
 import type { BuilderConfig } from '@modern-js/builder';
-import type { SSGConfig, SSGMultiEntryOptions } from '@modern-js/types';
+import type {
+  SSGConfig,
+  SSGMultiEntryOptions,
+} from '@modern-js/types/cli/base';
 import type { UnwrapBuilderConfig } from '../utils';
 
 export interface OutputUserConfig
@@ -41,4 +44,4 @@ export type {
   SSGMultiEntryOptions,
   SSGRouteOptions,
   SSGSingleEntryOptions,
-} from '@modern-js/types';
+} from '@modern-js/types/cli/base';

@@ -63,8 +63,12 @@ const getErrorStatus = (error: unknown) => {
 };
 
 const isRetryableError = (error: unknown) => {
+  // Module Federation parses the manifest body without checking the HTTP
+  // status, so a 503 error page reaches this hook as a JSON SyntaxError.
+  // Recovery fetches again and reads the real status: a retryable status
+  // retries, and a successful response with malformed JSON stops there.
   if (error instanceof SyntaxError) {
-    return false;
+    return true;
   }
 
   const message = getErrorMessage(error);

@@ -30,6 +30,39 @@ trusted publishing. The publish workflow is intentionally tokenless: do not add
 - Keep Renovate enabled with dependency dashboard review, one-day release age,
   grouped updates, action digest pinning, and manual approval for major updates.
 
+## Independent sidecar publication
+
+`publish-bleedingdev.yml` has two explicit dispatch modes. `cohort` is the
+default and requires the framework `version`. It keeps source qualification,
+clean-room acceptance and the Tractor rehearsal before either npm publisher.
+Published acceptance and Tractor still precede the cohort outcome and change
+record.
+
+`sidecars` prepares only the reviewed recipe closure. Leave `version` and all
+recovery inputs empty. Preparation authenticates upstream archives and patches,
+then packs the exact sidecar bytes. A separate read-only job tests and probes
+that bundle, binds its source, tools, inputs and producer identity in a sidecar
+qualification receipt, and reconciles it against npm without publishing. The
+guarded `publish-sidecars` job downloads and verifies both artifacts before
+OIDC publication. No framework cohort, cohort receipt, cohort outcome or
+Tractor job runs in this mode.
+
+Both modes require the repository owner and triggering owner on
+`main-ultramodern`, use the same live-publication lock, and publish only `latest`
+through the hosted `npm-publish` job. `dry_run: true` never schedules an npm
+publisher. Sidecar artifacts and receipts are bound to the same run and attempt;
+sidecar recovery is unsupported. After a failed attempt, rerun all jobs or make
+a fresh dispatch rather than mixing artifacts from different attempts.
+
+New package names still require the explicitly authorized deprecated
+`0.0.0-bootstrap` placeholder and recorded registry chronology described in
+`scripts/ultramodern-supply/README.md`. Configure npm trust for
+`BleedingDev/ultramodern.js`, workflow filename `publish-bleedingdev.yml`, and
+environment `npm-publish`, with direct publication enabled. Configuration does
+not replace the workflow's authorization and qualification checks. Outside the
+release lanes, consumers retain the 24-hour release-age gate; activate exact
+first-party aliases only after the published sidecars have matured.
+
 ## Alert Review
 
 Security alerts are part of release readiness. Before a non-dry-run publish,

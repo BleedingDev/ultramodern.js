@@ -169,13 +169,6 @@ const PUBLIC_WEBSITE_POLICY = {
   },
 };
 
-export function formatTsJsonValue(value: JsonValue, indent: number): string {
-  return JSON.stringify(value, null, 2).replaceAll(
-    '\n',
-    `\n${' '.repeat(indent)}`,
-  );
-}
-
 function createPublicWebsiteQualityGateContract(): JsonValue {
   return PUBLIC_WEBSITE_POLICY.qualityGates;
 }
@@ -197,7 +190,15 @@ export function createCloudflareDeployContract(
     workerName: createCloudflareWorkerName(scope, app),
     publicUrlEnv: createCloudflarePublicUrlEnv(app),
     compatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
-    compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
+    // Required so a deployed Worker's `request.signal` actually fires on
+    // client disconnect (see CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS in
+    // app-tools-extensions/src/cloudflare-output-contract.ts, the generator's
+    // own output verifier).
+    compatibilityFlags: [
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+      'enable_request_signal',
+    ],
     assetsBinding: 'ASSETS',
     routes: createCloudflareProofRoute(app),
     security: createCloudflareSecurityContract(),
@@ -223,7 +224,7 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     packageManager: {
       name: 'pnpm',
       version: PNPM_VERSION,
-      engineRange: '>=11',
+      engineRange: '>=12',
     },
   },
   pnpm: {

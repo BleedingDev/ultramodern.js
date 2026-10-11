@@ -18,75 +18,24 @@ import {
   validateUltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
 
-export const REFERENCE_TOPOLOGY_PATH = 'topology/reference-topology.json';
-export const DEVELOPMENT_OVERLAY_PATH =
-  'topology/local-overlays/development.json';
+import {
+  DEVELOPMENT_OVERLAY_PATH,
+  type DevelopmentOverlay,
+  normalizeRelativePath,
+  REFERENCE_TOPOLOGY_PATH,
+  type ReferenceTopology,
+  type TopologyApp,
+} from '../workspace-topology';
 
-export type TopologyApp = {
-  id?: unknown;
-  domain?: unknown;
-  kind?: unknown;
-  path?: unknown;
-  package?: unknown;
-  portEnv?: unknown;
-  cloudflare?: { publicUrlEnv?: unknown };
-  api?: {
-    bff?: { prefix?: unknown };
-    protocol?: unknown;
-    rpcPath?: unknown;
-    rpcSerialization?: unknown;
-    stem?: unknown;
-  };
-  moduleFederation?: {
-    name?: unknown;
-    manifestUrl?: unknown;
-  };
-  backendFederation?: {
-    name?: unknown;
-    versionBoundary?: {
-      ui?: {
-        manifestUrl?: unknown;
-      };
-    };
-    executionSurfaces?: {
-      node?: {
-        remoteName?: unknown;
-        manifestUrl?: unknown;
-        containerEntry?: unknown;
-        remoteType?: unknown;
-      };
-    };
-  };
-  deliveryUnit?: {
-    unitId?: unknown;
-    buildMarker?: unknown;
-    sourceRevision?: unknown;
-    packageName?: unknown;
-    version?: unknown;
-  };
-};
-
-export type DevelopmentOverlay = {
-  ports?: Record<string, unknown>;
-  manifests?: Record<string, unknown>;
-  serverExecution?: Record<
-    string,
-    {
-      node?: {
-        remoteName?: unknown;
-        manifestUrl?: unknown;
-        containerEntry?: unknown;
-        remoteType?: unknown;
-      };
-    }
-  >;
-};
-
-export type ReferenceTopology = {
-  shell?: TopologyApp;
-  shells?: TopologyApp[];
-  verticals?: TopologyApp[];
-};
+export {
+  DEVELOPMENT_OVERLAY_PATH,
+  type DevelopmentOverlay,
+  findWorkspaceRoot,
+  normalizeRelativePath,
+  REFERENCE_TOPOLOGY_PATH,
+  type ReferenceTopology,
+  type TopologyApp,
+} from '../workspace-topology';
 
 export type BackendFederationApp = {
   id: string;
@@ -125,9 +74,6 @@ export type BackendFederationBuildIdentity = {
   sourceRevision?: string;
   artifact?: UltramodernBuildArtifact;
 };
-
-export const normalizeRelativePath = (value: string) =>
-  value.replace(/\\/gu, '/').replace(/^\.\/+/u, '');
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -220,22 +166,6 @@ const rebaseDefaultLocalUrl = (
     return value;
   }
   return `${publicOrigin}${url.pathname}${url.search}${url.hash}`;
-};
-
-export const findWorkspaceRoot = (appDirectory: string) => {
-  let current = appDirectory;
-
-  while (true) {
-    if (existsSync(path.join(current, REFERENCE_TOPOLOGY_PATH))) {
-      return current;
-    }
-
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return undefined;
-    }
-    current = parent;
-  }
 };
 
 export const resolveWorkspaceSourceRevision = async (workspaceRoot: string) => {

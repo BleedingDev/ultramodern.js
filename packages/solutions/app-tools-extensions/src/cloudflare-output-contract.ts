@@ -100,4 +100,11 @@ export const CLOUDFLARE_WORKER_PLATFORM_MODULES = [
 export const CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS = [
   'nodejs_compat',
   'global_fetch_strictly_public',
+  // Without this flag, a deployed Worker's `request.signal` never fires on
+  // client disconnect, so SSR keeps rendering and streaming after the client
+  // has gone away. The native request/session layer (see
+  // renderer-core/src/session/request.ts) already forwards `request.signal`
+  // into its render-abort `AbortController`; this flag is what makes the
+  // platform actually raise that signal in production.
+  'enable_request_signal',
 ] as const;

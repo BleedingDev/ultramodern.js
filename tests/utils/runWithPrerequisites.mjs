@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +11,7 @@ import {
   validateAliasConsistency,
   writeSidecarStagingManifest,
 } from '../../scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
+import { packProjects, runPackingCommand } from './packagePacking.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -26,8 +26,9 @@ export function runPnpm(args, options) {
   return result.stdout;
 }
 
-const sha256 = file =>
-  createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+export function runPnpmAsync(args, options) {
+  return runPackingCommand('pnpm', args, options, spawn);
+}
 
 /** Every edge onto a `@bleedingdev/*` package: an `npm:` alias or a direct name. */
 export function bleedingdevEdges(packageJson) {
@@ -73,6 +74,9 @@ export async function packTestSidecars(outputDir) {
 // after this phase finishes; no worker discovers or rebuilds stale packages.
 export async function packTestPackages(outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
+  const manifest = path.join(outputDir, 'packages.json');
+  // A failed refresh cannot leave an older successful manifest consumable.
+  fs.rmSync(manifest, { force: true });
   const projects = JSON.parse(
     runPnpm(['--filter', '@modern-js/*', 'list', '--depth', '-1', '--json'], {
       cwd: repoRoot,
@@ -81,20 +85,13 @@ export async function packTestPackages(outputDir) {
   ).filter(
     project =>
       !project.private &&
-      project.path.startsWith(path.join(repoRoot, 'packages') + path.sep),
+      path
+        .normalize(project.path)
+        .startsWith(path.join(repoRoot, 'packages') + path.sep),
   );
-  const packages = {};
-  for (const project of projects) {
-    const tarball = path.join(
-      outputDir,
-      `${project.name.replaceAll('/', '-').replace('@', '')}.tgz`,
-    );
-    runPnpm(['pack', '--out', tarball], {
-      cwd: project.path,
-      stdio: 'pipe',
-    });
-    packages[project.name] = { tarball, integrity: sha256(tarball) };
-  }
+  const packages = await packProjects(projects, outputDir, {
+    run: runPnpmAsync,
+  });
   const sidecars = await packTestSidecars(outputDir);
   // Edges inside packed manifests; generated workspaces add their own.
   const edges = [
@@ -105,13 +102,12 @@ export async function packTestPackages(outputDir) {
       JSON.parse(inspectNpmTarball(fs.readFileSync(tarball)).packageJsonBytes),
     ),
   );
-  const manifest = path.join(outputDir, 'packages.json');
-  const { allowBuilds } = yaml.load(
+  const { allowBuilds, minimumReleaseAgeExclude = [] } = yaml.load(
     fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
   );
   fs.writeFileSync(
     manifest,
-    `${JSON.stringify({ packages, sidecars, edges, allowBuilds }, null, 2)}\n`,
+    `${JSON.stringify({ packages, sidecars, edges, allowBuilds, minimumReleaseAgeExclude: minimumReleaseAgeExclude.filter(selector => !selector.includes('*')) }, null, 2)}\n`,
   );
   return manifest;
 }
@@ -129,7 +125,8 @@ async function main() {
       'Usage: runWithPrerequisites.mjs [--prepared] -- <command> [args]',
     );
   }
-  const inheritedManifest = process.env.MODERN_TEST_PACKAGE_MANIFEST;
+  const inheritedManifest =
+    process.env.MODERN_TEST_PACKAGE_MANIFEST || undefined;
   if (!prepared && !inheritedManifest) {
     runPnpm(['run', 'prepare-build'], {
       cwd: repoRoot,

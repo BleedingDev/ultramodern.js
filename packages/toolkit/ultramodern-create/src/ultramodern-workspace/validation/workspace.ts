@@ -7,6 +7,16 @@ import {
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
 import { assertCompilerArchitecture } from './architecture';
+import { sameJson } from './assertions';
+import {
+  assertNativeRendererSourceSurface,
+  assertRendererDependencies,
+  assertRendererProjection,
+  validateApiOnlySourceSurface,
+} from './renderer';
+
+export { validateApiOnlySourceSurface } from './renderer';
+
 import type { JsonRecord, WorkspaceValidationContract } from './types';
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -124,43 +134,6 @@ export function validateApiClientExports(
   }
 }
 
-export function validateApiOnlySourceSurface(
-  root: string,
-  app: JsonRecord,
-): void {
-  assert(
-    !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
-    `topology/reference-topology.json verticals.${app.id}.backendFederation must omit the UI boundary for an api-only unit`,
-  );
-  for (const relative of [
-    'module-federation.config.ts',
-    'src/federation-entry.tsx',
-    `src/components/${app.id}-widget.tsx`,
-    'src/routes/layout.tsx',
-    'src/routes/[lang]/page.tsx',
-    'src/routes/[lang]/route.meta.ts',
-    'src/routes/ultramodern-route-metadata.ts',
-    'src/routes/ultramodern-route-head.tsx',
-    'src/routes/index.css',
-  ]) {
-    assert(
-      !fs.existsSync(path.join(root, app.path, relative)),
-      `Unexpected ${app.path}/${relative} for a api-only unit`,
-    );
-  }
-  const mfTypesPath = path.join(root, app.path, 'tsconfig.mf-types.json');
-  if (fs.existsSync(mfTypesPath)) {
-    const mfTypes = record(
-      JSON.parse(fs.readFileSync(mfTypesPath, 'utf8')),
-      `${app.id} tsconfig.mf-types.json`,
-    );
-    assert(
-      !mfTypes.include?.includes('src/federation-entry.tsx'),
-      `${app.id}: restore the generated MicroVertical Module Federation DTS boundary`,
-    );
-  }
-}
-
 export function validateBackendFederationEntrypoints(
   root: string,
   appPath: string,
@@ -192,6 +165,10 @@ export function validateWorkspace(
     yaml.load(fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8')),
     'pnpm-workspace.yaml',
   );
+  const dependencyCatalogs = {
+    catalog: record(workspace.catalog ?? {}, 'workspace catalog'),
+    catalogs: record(workspace.catalogs ?? {}, 'workspace catalogs'),
+  };
   for (const [label, value] of [
     ['topology', topology],
     ['ownership', ownership],
@@ -255,6 +232,15 @@ export function validateWorkspace(
       app.kind === input.kind,
       `${app.id} kind disagrees with canonical inputs`,
     );
+    // Structural-only contracts do not certify a renderer. Installed workspace
+    // validation supplies the profile reconciled from the authored app config.
+    const generation =
+      input.validatesRendererProjection ||
+      input.renderer === 'none' ||
+      Object.hasOwn(app, 'rendererProfile')
+        ? assertRendererProjection(app, input)
+        : undefined;
+    const nativeRenderer = generation && generation.renderer !== 'react';
     assert(
       app.path === input.path,
       `${app.id} path disagrees with canonical inputs`,
@@ -272,6 +258,23 @@ export function validateWorkspace(
       manifest.modernjs?.appId === app.id,
       `${app.id} modernjs.appId contradicts topology`,
     );
+    if (generation || input.renderer === 'none') {
+      assertRendererDependencies(
+        manifest,
+        generation?.renderer ?? 'none',
+        generation,
+        dependencyCatalogs,
+      );
+    }
+    if (nativeRenderer) {
+      assertNativeRendererSourceSurface(root, app, generation, manifest);
+      if (!generation.capabilities.federation) {
+        assert(
+          !Object.hasOwn(overlay.manifests ?? {}, app.id),
+          `${app.id} renderer does not support a Module Federation manifest`,
+        );
+      }
+    }
     const owner = owners.find(candidate => candidate.id === app.id);
     assert(
       owner?.path === app.path && owner?.package === manifest.name,
@@ -289,17 +292,43 @@ export function validateWorkspace(
       JSON.stringify(refs) === JSON.stringify(input.verticalRefs),
       `${app.id} verticalRefs disagree with canonical inputs`,
     );
+    const nativeFederationConfigured =
+      nativeRenderer &&
+      (Boolean(app.moduleFederation) ||
+        refs.length > 0 ||
+        Object.keys(input.exposes).length > 0 ||
+        Object.hasOwn(overlay.manifests ?? {}, app.id));
+    if (nativeFederationConfigured && generation.capabilities.federation) {
+      requiredFile(
+        root,
+        `${app.path}/module-federation.config.ts`,
+        `${app.id} Module Federation config`,
+      );
+    }
     const port = overlay.ports?.[app.id];
     assert(
       Number.isInteger(port) && port > 0 && port < 65536,
       `${app.id} has no development port`,
     );
+    if (
+      nativeRenderer &&
+      generation.capabilities.federation &&
+      app.kind === 'shell' &&
+      Object.hasOwn(overlay.manifests ?? {}, app.id)
+    ) {
+      developmentUrl(
+        overlay.manifests[app.id],
+        port,
+        `${app.id} MF manifest URL`,
+        '/mf-manifest.json',
+      );
+    }
     requiredFile(
       root,
       `${app.path}/modern.config.ts`,
       `${app.id} Modern.js config`,
     );
-    if (input.emitsUi) {
+    if (input.emitsUi && !nativeRenderer) {
       requiredFile(
         root,
         `${app.path}/src/modern.runtime.ts`,
@@ -311,33 +340,40 @@ export function validateWorkspace(
       `${app.path}/shared/ultramodern-build.json`,
       `${app.id} build stamp`,
     );
-    const cloudflare = record(app.cloudflare, `${app.id} cloudflare`);
-    for (const field of ['workerName', 'publicUrlEnv'])
-      assert(
-        typeof cloudflare[field] === 'string' && cloudflare[field].length > 0,
-        `${app.id} cloudflare.${field} is required`,
+    if (!nativeRenderer) {
+      const cloudflare = record(app.cloudflare, `${app.id} cloudflare`);
+      for (const field of ['workerName', 'publicUrlEnv'])
+        assert(
+          typeof cloudflare[field] === 'string' && cloudflare[field].length > 0,
+          `${app.id} cloudflare.${field} is required`,
+        );
+      const cloudflareRoutes = record(
+        cloudflare.routes,
+        `${app.id} cloudflare.routes`,
       );
-    const cloudflareRoutes = record(
-      cloudflare.routes,
-      `${app.id} cloudflare.routes`,
-    );
-    record(cloudflare.security, `${app.id} cloudflare.security`);
-    record(cloudflare.qualityGates, `${app.id} cloudflare.qualityGates`);
-    if (app.kind === 'shell')
-      assert(
-        typeof cloudflareRoutes.ssr === 'string' &&
-          cloudflareRoutes.ssr.startsWith('/'),
-        `${app.id} cloudflare SSR route is required`,
-      );
-    if (input.emitsApi) {
-      const routeKey = app.api?.protocol === 'rpc' ? 'rpc' : 'apiReadiness';
-      assert(
-        typeof cloudflareRoutes[routeKey] === 'string' &&
-          cloudflareRoutes[routeKey].startsWith('/'),
-        `${app.id} cloudflare API ${routeKey} route is required`,
-      );
+      record(cloudflare.security, `${app.id} cloudflare.security`);
+      record(cloudflare.qualityGates, `${app.id} cloudflare.qualityGates`);
+      if (app.kind === 'shell')
+        assert(
+          typeof cloudflareRoutes.ssr === 'string' &&
+            cloudflareRoutes.ssr.startsWith('/'),
+          `${app.id} cloudflare SSR route is required`,
+        );
+      if (input.emitsApi) {
+        const routeKey = app.api?.protocol === 'rpc' ? 'rpc' : 'apiReadiness';
+        assert(
+          typeof cloudflareRoutes[routeKey] === 'string' &&
+            cloudflareRoutes[routeKey].startsWith('/'),
+          `${app.id} cloudflare API ${routeKey} route is required`,
+        );
+      }
     }
-    if (input.emitsUi && app.kind !== 'shell') {
+    if (
+      input.emitsUi &&
+      app.kind !== 'shell' &&
+      (!nativeRenderer ||
+        (generation.capabilities.federation && nativeFederationConfigured))
+    ) {
       assert(
         typeof overlay.manifests?.[app.id] === 'string',
         `${app.id} has no development MF manifest URL`,
@@ -348,11 +384,13 @@ export function validateWorkspace(
         `${app.id} MF manifest URL`,
         '/mf-manifest.json',
       );
-      requiredFile(
-        root,
-        `${app.path}/module-federation.config.ts`,
-        `${app.id} Module Federation config`,
-      );
+      if (!nativeRenderer) {
+        requiredFile(
+          root,
+          `${app.path}/module-federation.config.ts`,
+          `${app.id} Module Federation config`,
+        );
+      }
       for (const [expose, relative] of Object.entries(input.exposes)) {
         assert(
           typeof relative === 'string' && relative.startsWith('./src/'),
@@ -445,6 +483,13 @@ export function validateWorkspace(
           serverExecution.node?.containerEntry === node.containerEntry,
         `${app.id} server execution node endpoints contradict topology`,
       );
+      if (Object.hasOwn(serverExecution.node ?? {}, 'expected'))
+        assert(
+          serverExecution.node.expected?.unitId === app.deliveryUnit?.unitId &&
+            serverExecution.node.expected?.buildMarker ===
+              app.deliveryUnit?.buildMarker,
+          `${app.id} server execution node identity contradicts topology`,
+        );
     }
     if (app.kind === 'vertical' && !input.emitsUi) {
       validateApiOnlySourceSurface(root, app);
@@ -488,6 +533,19 @@ export function validateWorkspace(
         build.deliveryUnit?.buildMarker === delivery.buildMarker,
       `${app.id} build identity contradicts topology`,
     );
+    if (generation) {
+      assert(
+        sameJson(build.surfaces?.ui?.rendererProfile, app.rendererProfile) &&
+          sameJson(build.surfaces?.ui?.routerBindings, app.routerBindings) &&
+          sameJson(build.surfaces?.ui?.rendererIdentity, app.rendererIdentity),
+        `${app.id} build renderer profile/identity contradicts topology`,
+      );
+    } else if (input.renderer === 'none') {
+      assert(
+        !build.surfaces?.ui,
+        `${app.id} headless build must omit its UI surface`,
+      );
+    }
   }
   for (const pkg of shared) {
     const manifest = readJson(`${pkg.path}/package.json`);
@@ -525,8 +583,23 @@ export function validateWorkspace(
   );
   const members = [...apps, ...shared].map(app => `${app.path}/package.json`);
   members.push('package.json');
+  const selectedRenderers = new Set(
+    expected.apps
+      .filter(app => app.emitsUi)
+      .map(app => app.renderer)
+      .filter(renderer => renderer !== undefined),
+  );
+  const uniformRenderer =
+    selectedRenderers.size === 1 ? [...selectedRenderers][0] : undefined;
   for (const member of members) {
     const manifest = readJson(member);
+    if (uniformRenderer)
+      assertRendererDependencies(
+        manifest,
+        uniformRenderer,
+        undefined,
+        dependencyCatalogs,
+      );
     for (const group of [
       'dependencies',
       'devDependencies',

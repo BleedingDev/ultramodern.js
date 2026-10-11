@@ -18,13 +18,14 @@ test.each(requests)('$source falls back to a supported base language', req => {
   expect(detectLanguageFromRequest(req, ['en', 'zh'])).toBe('zh');
 });
 
-test.each(
-  requests,
-)('$source prefers the full tag when both are supported', req => {
-  expect(detectLanguageFromRequest(req, ['en', 'zh', 'zh-Hant-TW'])).toBe(
-    'zh-Hant-TW',
-  );
-});
+test.each(requests)(
+  '$source prefers the full tag when both are supported',
+  req => {
+    expect(detectLanguageFromRequest(req, ['en', 'zh', 'zh-Hant-TW'])).toBe(
+      'zh-Hant-TW',
+    );
+  },
+);
 
 test('skips an unsupported query language and matches the cookie base language', () => {
   expect(
