@@ -343,6 +343,13 @@ const defaultReact: UserConfigExport<AppUserConfig> = defineConfig({
   server: { ssr: { moduleFederationAppSSR: true } },
 });
 void defaultReact;
+
+const svgObject = defineConfig({ tools: { svgr: { parallel: true, query: /react/, svgrOptions: { exportType: 'default', icon: 24 } } } });
+const svgCallback = defineConfig({ tools: { svgr: options => { options.parallel = false; options.svgrOptions = { exportType: 'named' }; return options; } } });
+const svgArray = defineConfig({ tools: { svgr: [{ parallel: true }, options => ({ ...options, mixedImport: false })] } });
+// @ts-expect-error The native SVG export contract accepts named or default only.
+const invalidSvgExport = defineConfig({ tools: { svgr: { svgrOptions: { exportType: 'component' } } } });
+void svgObject; void svgCallback; void svgArray; void invalidSvgExport;
 `;
 
 const tanstackReactConsumer = `${sharedConsumer}
@@ -478,6 +485,13 @@ function verifyBaseRoutes(api: BaseAPI) {
   });
 }
 void base; void typedReactConfig; void inferredReactConfig; void verifyBaseRoutes;
+
+const svgObject = defineReactConfig({ tools: { svgr: { parallel: true, query: /react/, svgrOptions: { exportType: 'default', icon: 24 } } } });
+const svgCallback = defineReactConfig({ tools: { svgr: options => { options.parallel = false; options.svgrOptions = { exportType: 'named' }; return options; } } });
+const svgArray = defineReactConfig({ tools: { svgr: [{ parallel: true }, options => ({ ...options, mixedImport: false })] } });
+// @ts-expect-error The native SVG export contract accepts named or default only.
+const invalidSvgExport = defineReactConfig({ tools: { svgr: { svgrOptions: { exportType: 'component' } } } });
+void svgObject; void svgCallback; void svgArray; void invalidSvgExport;
 `;
 
 describe('installed renderer-neutral public declarations', () => {
@@ -489,6 +503,8 @@ describe('installed renderer-neutral public declarations', () => {
         graph.filter(
           file =>
             file.includes('/node_modules/@types/react/') ||
+            file.includes('/node_modules/@rsbuild/plugin-svgr/') ||
+            file.includes('/node_modules/@svgr/') ||
             file.includes('/node_modules/react/') ||
             file.endsWith('/packages/toolkit/types/cli/index.d.ts') ||
             file.includes('/packages/toolkit/plugin/dist/types/runtime/') ||

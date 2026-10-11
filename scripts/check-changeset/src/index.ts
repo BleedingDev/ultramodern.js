@@ -23,6 +23,7 @@ type NewChangeset = Changeset & {
 // (scripts/ultramodern-publish/gen-cohort-change-record.mjs) is what publishes
 // it. Do NOT replace this with a wildcard, and do NOT drop it on a sync merge.
 const FORK_ALLOWED_MAJOR_CHANGESET_IDS = new Set([
+  'adopt-stable-modern-cli-lifecycle',
   'remove-bff-event-contracts',
   'remove-runtime-tanstack-router-alias',
   'remove-redundant-i18n-composition',

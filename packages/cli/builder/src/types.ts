@@ -25,9 +25,16 @@ import type { PluginLessOptions } from '@rsbuild/plugin-less';
 import type { PluginRemOptions } from '@rsbuild/plugin-rem';
 import type { PluginSassOptions } from '@rsbuild/plugin-sass';
 import type { PluginSourceBuildOptions } from '@rsbuild/plugin-source-build';
-import type { PluginSvgrOptions } from '@rsbuild/plugin-svgr';
 import type { PluginTypeCheckerOptions } from '@rsbuild/plugin-type-check';
 import type { Options as AutoprefixerOptions } from 'autoprefixer';
+/** Renderer-owned SVG compiler options, registered by the selected React owner. */
+// biome-ignore lint/suspicious/noEmptyInterface: Renderer-owned type entries augment this registry.
+export interface BuilderSvgOptions {}
+
+type RegisteredSvgOptions = BuilderSvgOptions extends { options: infer Options }
+  ? Options
+  : never;
+
 export type CacheGroup = Rspack.OptimizationSplitChunksCacheGroup;
 
 export type Stats = Omit<
@@ -161,7 +168,9 @@ export type BuilderExtraConfig = {
      * such as `svgrOptions`, `parallel`, `exclude` and `query`.
      * Set to `false` to disable SVGR; all `.svg` files are then treated as static assets.
      */
-    svgr?: ConfigChain<PluginSvgrOptions> | false;
+    svgr?: [RegisteredSvgOptions] extends [never]
+      ? false
+      : ConfigChain<RegisteredSvgOptions> | false;
   };
   dev?: {
     /** Set the page URL to open when the server starts. */

@@ -176,7 +176,10 @@
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.11"
+    "@rsbuild/core": "2.2.11",
+    "@types/babel__core": "^7.20.5",
+    "@types/babel__template": "7.4.4",
+    "prettier": "~3.9.9"
   },
   "devDependencies": {
     "typescript": "7.0.2",
@@ -197,7 +200,8 @@
     "@octanejs/rspack-plugin": "0.1.55",
     "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
     "@modern-js/renderer-solid": "workspace:*",
-    "@modern-js/renderer-octane": "workspace:*"
+    "@modern-js/renderer-octane": "workspace:*",
+    "@rsbuild/plugin-svgr": "2.0.5"
   },
   "sideEffects": false,
   "publishConfig": {
@@ -254,7 +258,8 @@
     "@modern-js/i18n-integration": "workspace:^3.8.3",
     "@modern-js/runtime-renderer-extensions": "workspace:^3.8.3",
     "@modern-js/renderer-solid": "workspace:^3.8.3",
-    "@modern-js/renderer-octane": "workspace:^3.8.3"
+    "@modern-js/renderer-octane": "workspace:^3.8.3",
+    "@rsbuild/plugin-svgr": "2.0.5"
   },
   "peerDependenciesMeta": {
     "@modern-js/runtime": {
@@ -270,6 +275,9 @@
       "optional": true
     },
     "@modern-js/renderer-octane": {
+      "optional": true
+    },
+    "@rsbuild/plugin-svgr": {
       "optional": true
     }
   }
