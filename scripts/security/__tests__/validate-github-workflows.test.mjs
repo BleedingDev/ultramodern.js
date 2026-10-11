@@ -852,7 +852,7 @@ test('publication guards reject the wrong identity, ref, mode, and dry-run type'
         ),
       );
     }
-    for (const inputMode of [undefined, '', 'unknown', 'SIDECARS']) {
+    for (const inputMode of [undefined, '', 'unknown', 'sidecars-invalid']) {
       for (const jobId of [...cohortJobs, ...sidecarJobs, 'publish-sidecars']) {
         assert.equal(
           schedules(jobId, {
@@ -865,6 +865,26 @@ test('publication guards reject the wrong identity, ref, mode, and dry-run type'
           [jobId, 'mode', inputMode ?? 'missing'].join(' '),
         );
       }
+    }
+    // Expression comparisons ignore case; the input-validation job rejects
+    // uppercase modes before any downstream publication job can run.
+    for (const jobId of [...oidcJobs, 'record-publish-outcome']) {
+      assert.equal(
+        schedules(jobId, {
+          context: {
+            ...context,
+            inputs: { ...context.inputs, mode: mode.toUpperCase() },
+          },
+          results: {
+            ...publicationResults(workflow, mode),
+            'publish-security': 'failure',
+          },
+        }),
+        false,
+        [jobId, 'invalid uppercase mode cannot pass input validation'].join(
+          ' ',
+        ),
+      );
     }
     for (const dryRun of [true, undefined, 'false', 'true']) {
       for (const jobId of [...oidcJobs, 'publish-change-record']) {
