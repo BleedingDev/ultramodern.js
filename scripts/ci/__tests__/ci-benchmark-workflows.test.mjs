@@ -109,10 +109,7 @@ test('cold measurements bypass project caches and clean only the owned temporary
     );
     const cleanup = step(job, 'Remove owned benchmark caches');
     assert.equal(cleanup.if, 'always()');
-    assert.match(
-      cleanup.run,
-      /"\$RUNNER_TEMP"\/ci-benchmark\.\?{8}\)/u,
-    );
+    assert.match(cleanup.run, /"\$RUNNER_TEMP"\/ci-benchmark\.\?{8}\)/u);
     assert.match(cleanup.run, /rm -rf -- "\$CI_BENCHMARK_TEMP"/u);
     assert.doesNotMatch(cleanup.run, /rm[^\n]*"\$RUNNER_TEMP"/u);
   }

@@ -16,7 +16,9 @@ The separate `ci-benchmark.yml` workflow runs only when requested for a comparis
 Connect the repository with the Depot Code Access GitHub App. Depot offers a
 [seven-day trial without a credit card](https://depot.dev/docs/ci/overview).
 Limited validation can use that trial after the account page confirms it is
-active and has enough quota. Wait for Pedro to confirm billing is disabled for
+active and has enough quota. Code Access can run pull-request workflows before
+the files merge into the default branch, so connecting it also enables branch
+validation. Wait for Pedro to confirm billing is disabled for
 organization `882f0kcw25` before permanent activation or merging these workflows
 into the default branch.
 
