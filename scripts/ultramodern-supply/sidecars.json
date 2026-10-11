@@ -1,27 +1,5 @@
 [
   {
-    "id": "rsbuild-core",
-    "upstream": {
-      "name": "@rsbuild/core",
-      "version": "2.2.11",
-      "tarball": "https://registry.npmjs.org/@rsbuild/core/-/core-2.2.11.tgz",
-      "integrity": "sha512-avPW0j6RaEbtV2mfl0AzTAJEimPX4Xj0pCcZyxNCrE9vkS91HmweM5V7XQj3kI5iTYfHRp9Y6To8RRHYLEvG7A=="
-    },
-    "fork": {
-      "name": "@bleedingdev/rsbuild-core",
-      "version": "2.2.11"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": {
-      "inventory": "@rsbuild/core@2.2.11"
-    },
-    "manifestChanges": {},
-    "provenance": {
-      "grandfatheredVersions": []
-    }
-  },
-  {
     "id": "mf-bridge-react",
     "upstream": {
       "name": "@module-federation/bridge-react",
