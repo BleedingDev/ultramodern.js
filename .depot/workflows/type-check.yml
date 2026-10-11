@@ -49,6 +49,12 @@ jobs:
           version: 2026.9.18
           cache_save: false
 
+      - name: Record CI benchmark evidence
+        shell: bash
+        run: |
+          pnpm_version="$(mise exec -- pnpm --version)"
+          mise exec -- node scripts/ci/record-runner-evidence.mjs "$pnpm_version"
+
       - name: Install Dependencies
         run: mise exec -- pnpm install --frozen-lockfile
 

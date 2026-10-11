@@ -185,6 +185,12 @@ jobs:
           pnpm_version="$(pnpm --version)"
           node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
 
+      - name: Record CI benchmark evidence
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/record-runner-evidence.mjs "$pnpm_version"
+
       - name: Resolve pnpm store path
         id: pnpm-store
         shell: bash
