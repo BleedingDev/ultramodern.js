@@ -1,3 +1,5 @@
 self-hosted-runner:
   labels:
-    - namespace-profile-testing
+    - depot-ubuntu-24.04-8
+    - depot-windows-2025-8
+    - depot-macos-26

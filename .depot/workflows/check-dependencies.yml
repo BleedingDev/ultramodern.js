@@ -1,0 +1,77 @@
+# Depot CI Migration
+# Source: .github/workflows/check-dependencies.yml
+#
+# Linux jobs use Depot runners. GitHub workflows stay active during validation.
+
+name: Check Dependency Version Consistency
+
+on:
+  push:
+    branches:
+      - main
+      - main-ultramodern
+  pull_request:
+    branches:
+      - main
+      - main-ultramodern
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: depot-ubuntu-24.04-8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+
+      - name: Install dependencies
+        run: mise exec -- pnpm install
+
+      - name: Check dependency version consistency
+        run: mise exec -- pnpm run check-dependencies
+
+      - name: Check pnpm overrides are live
+        run: mise exec -- pnpm run check-overrides
+
+  advisories:
+    runs-on: depot-ubuntu-24.04-8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+
+      - name: Install the frozen production graph
+        run: mise exec -- pnpm install --prod --frozen-lockfile --ignore-scripts
+
+      - name: Fail on high or critical advisories
+        run: mise exec -- node scripts/security/advisory-gate.mjs

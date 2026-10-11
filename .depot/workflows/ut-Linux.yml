@@ -1,0 +1,104 @@
+# Depot CI Migration
+# Source: .github/workflows/ut-Linux.yml
+#
+# Changes made:
+# - Rewrote .github/ path references to .depot/
+
+name: Unit Test (Linux)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Controls when the action will run.
+on:
+  # Triggers the workflow on pull request events but only for the main branch
+  pull_request:
+    branches: [main, main-ultramodern]
+
+  merge_group:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  ut-linux:
+    # The type of runner that the job will run on
+    runs-on: depot-ubuntu-24.04-8
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+          install: true
+
+      - name: Verify pinned test toolchain
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.depot/actions/restore-build-cache
+
+      - name: Build Required Pkg
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: pnpm run build:required
+
+      - name: Test release browser contracts
+        run: node --test scripts/ultramodern-production-readiness/__tests__/built-framework/*.test.js
+
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
+
+      - name: Test
+        run: pnpm run test:ut:prepared
+
+      - name: Test build consumers
+        run: pnpm run test:build-consumers

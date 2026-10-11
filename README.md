@@ -16,6 +16,18 @@
 
 English | [简体中文](./README.zh-CN.md)
 
+## Ultramodern.js sponsors
+
+[Depot](https://depot.dev) sponsors Ultramodern.js CI infrastructure.
+See the [CI setup and comparison method](./docs/depot-ci.md).
+
+<a href="https://depot.dev">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/sponsors/depot-on-dark.svg" />
+    <img src="./assets/sponsors/depot-on-light.svg" width="180" alt="Depot" />
+  </picture>
+</a>
+
 ## Introduction
 
 The Modern.js framework is a progressive web framework based on React. At ByteDance, we use Modern.js to build upper-level frameworks that have supported the development of thousands of web applications.

@@ -149,7 +149,7 @@ const publicationContext = (mode, dryRun = false) => ({
   github: {
     actor: 'BleedingDev',
     triggering_actor: 'BleedingDev',
-    repository_owner: 'BleedingDev',
+    repository_owner: 'ultramodernjs',
     ref: 'refs/heads/main-ultramodern',
     run_id: '42',
   },
@@ -556,7 +556,7 @@ test('release qualification overlaps integration and issues no receipt before bo
     github: {
       actor: 'BleedingDev',
       triggering_actor: 'BleedingDev',
-      repository_owner: 'BleedingDev',
+      repository_owner: 'ultramodernjs',
       ref: 'refs/heads/main-ultramodern',
     },
     inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
@@ -645,8 +645,8 @@ const requiredPublicationNeeds = {
   'tractor-downstream': ['prepare-release', 'publish'],
 };
 const identityGuards = [
-  'github.actor == github.repository_owner',
-  'github.triggering_actor == github.repository_owner',
+  "github.actor == 'BleedingDev'",
+  "github.triggering_actor == 'BleedingDev'",
   "github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')",
 ];
 const publicationSchedules = (workflow, mode, dryRun = false) => {
@@ -1880,8 +1880,11 @@ test('integration include-only matrix runs every core, generator and side suite 
     ]);
   const expected = [];
   for (const [platform, runner] of [
-    ['Linux', 'ubuntu-24.04'],
-    ['Windows', 'windows-latest'],
+    ['Linux', githubExpression("vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'")],
+    [
+      'Windows',
+      githubExpression("vars.DEPOT_WINDOWS_RUNNER || 'windows-latest'"),
+    ],
   ]) {
     for (let shard = 1; shard <= 6; shard++) {
       expected.push({
@@ -1902,7 +1905,11 @@ test('integration include-only matrix runs every core, generator and side suite 
     }
     expected.push({ platform, runner, suite: 'rstest-adapter' });
   }
-  expected.push({ platform: 'Linux', runner: 'ubuntu-24.04', suite: 'utils' });
+  expected.push({
+    platform: 'Linux',
+    runner: githubExpression("vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'"),
+    suite: 'utils',
+  });
   assert.equal(matrix.include.length, 19);
   assert.deepEqual(
     matrix.include.map(identity).sort(),
@@ -1938,7 +1945,9 @@ test('integration include-only matrix runs every core, generator and side suite 
     for (const [field, value] of [
       [
         'runner',
-        entry.platform === 'Linux' ? 'windows-latest' : 'ubuntu-24.04',
+        entry.platform === 'Linux'
+          ? githubExpression("vars.DEPOT_WINDOWS_RUNNER || 'windows-latest'")
+          : githubExpression("vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'"),
       ],
       ['platform', 'macOS'],
       ['framework_suite', 'full'],
@@ -1953,11 +1962,19 @@ test('integration include-only matrix runs every core, generator and side suite 
     }
   }
   for (const extra of [
-    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'unrecognized' },
-    { platform: 'Windows', runner: 'windows-latest', suite: 'utils' },
     {
       platform: 'Linux',
-      runner: 'ubuntu-24.04',
+      runner: githubExpression("vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'"),
+      suite: 'unrecognized',
+    },
+    {
+      platform: 'Windows',
+      runner: githubExpression("vars.DEPOT_WINDOWS_RUNNER || 'windows-latest'"),
+      suite: 'utils',
+    },
+    {
+      platform: 'Linux',
+      runner: githubExpression("vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'"),
       suite: 'framework',
       framework_suite: 'core',
       shard: '7/6',
