@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   e2e-test:
-    runs-on: namespace-profile-testing
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
