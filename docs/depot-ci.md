@@ -17,11 +17,20 @@ Depot has disabled billing for the sponsored organization before running jobs
 or merging these workflows into the default branch. Test the migration with
 `depot ci run --workflow .depot/workflows/workflow-security.yml --repo <owner>/ultramodern.js --org 882f0kcw25`.
 
-The GitHub workflows remain active during validation. After the same commit
-passes on both providers, switch the required Linux checks to Depot and remove
-the duplicate GitHub triggers. Keep a GitHub path for external fork pull
-requests, which [Depot CI does not yet support](https://depot.dev/docs/ci/compatibility).
+The GitHub workflows remain active during validation. Their required checks
+are pinned to the GitHub Actions app, so Depot's own checks cannot replace them
+directly. External fork pull requests also need the GitHub path because
+[Depot CI does not yet support them](https://depot.dev/docs/ci/compatibility).
 GitHub reusable workflows remain available to release jobs.
+
+[`scripts/ci/run-depot-workflow.mjs`](../scripts/ci/run-depot-workflow.mjs)
+provides a bridge for a GitHub job to request a Depot workflow at its exact
+commit. It requires `DEPOT_TOKEN` and the GitHub Actions repository, repository
+ID, SHA, and ref environment variables. It checks the returned organization,
+repository, commit, workflow, and all job results before succeeding, and cancels
+its own run on failure or timeout. Validate the API response and matrix coverage
+with a live run before replacing any required GitHub job's compute steps with
+the bridge. The bridge is not wired into automatic workflows yet.
 
 ## Windows, macOS, and GitHub-only jobs
 
@@ -52,9 +61,18 @@ on GitHub-hosted compute, selected by the trusted base workflow.
 
 Release dispatches require both the actor and the triggering actor to be the
 maintainer `BleedingDev`, including after organization ownership changes.
-Before transferring the repository to `ultramodernjs`, update each npm
-package's trusted publisher and the release tooling's pinned repository identity.
-Keep the `npm-publish` environment and the existing workflow file name.
+The release tooling accepts the two exact repository paths and verifies the
+permanent GitHub repository ID `1151231350`. Historical npm provenance also
+requires that signed repository ID. Package metadata follows the verified active
+repository path before and after the transfer.
+
+Before transferring the repository to `ultramodernjs`, add each existing npm
+package's new trusted publisher alongside its old connection. Keep the
+`npm-publish` environment and `publish-bleedingdev.yml` workflow file name.
+New unvalidated connections expire after 48 hours, so add or refresh them when
+the transfer and next publish are ready. Existing validated connections remain
+in place. A future short npm scope needs a separate organization and new package
+names because npm organizations cannot be renamed.
 
 Run **Workflow Security**, Linux, Windows, macOS, and integration tests after
 activation. Run **CI Cache** on `main-ultramodern` to seed the new runner caches.
