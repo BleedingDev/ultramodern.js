@@ -9,18 +9,16 @@ import {
   trustedPublishOidcIssuer,
   trustedPublishRef,
   trustedPublishRepository,
+  trustedPublishRepositoryId,
+  trustedPublishRepositories,
   trustedPublishWorkflowPath,
 } from './constants.mjs';
 import validationKit from '../../../lib/validation-kit.js';
 import { normalizeRepositoryIdentity } from './release-artifacts.mjs';
 import { registryOriginRequestInit } from './registry-read.mjs';
 
-const {
-  assertNonEmptyString,
-  assertPlainObject,
-  escapeRegExp,
-  isPlainObject,
-} = validationKit;
+const { assertNonEmptyString, assertPlainObject, escapeRegExp, isPlainObject } =
+  validationKit;
 
 // Only an absent attestation endpoint is a registry propagation state.
 class RegistryProvenancePendingError extends Error {}
@@ -33,6 +31,13 @@ const slsaProvenanceV1 = 'https://slsa.dev/provenance/v1';
 const fulcioSourceCommitOid = '1.3.6.1.4.1.57264.1.3';
 const fulcioSourceRepositoryOid = '1.3.6.1.4.1.57264.1.5';
 const fulcioSourceRefOid = '1.3.6.1.4.1.57264.1.6';
+const fulcioSourceRepositoryIdOid = '1.3.6.1.4.1.57264.1.15';
+// Fulcio's generic OIDs contain DER UTF8String bytes, unlike the legacy raw
+// GitHub-specific OIDs. Sigstore compares certificateOIDs as exact bytes.
+const fulcioSourceRepositoryIdValue = Buffer.concat([
+  Buffer.from([0x0c, trustedPublishRepositoryId.length]),
+  Buffer.from(trustedPublishRepositoryId, 'utf8'),
+]);
 
 let cachedNpmSigstoreVerifier;
 
@@ -69,8 +74,9 @@ function sha512HexFromIntegrity(integrity, label) {
 }
 
 function encodePurlComponent(value) {
-  return encodeURIComponent(value).replace(/[!'()*]/gu, character =>
-    `%${character.codePointAt(0).toString(16).toUpperCase()}`,
+  return encodeURIComponent(value).replace(
+    /[!'()*]/gu,
+    character => `%${character.codePointAt(0).toString(16).toUpperCase()}`,
   );
 }
 
@@ -172,7 +178,9 @@ function parseGithubInvocationId(value, label) {
     segments[4] !== 'runs' ||
     segments[6] !== 'attempts'
   ) {
-    throw new Error(`${label} must be a canonical GitHub Actions invocation URL`);
+    throw new Error(
+      `${label} must be a canonical GitHub Actions invocation URL`,
+    );
   }
   if (segments.slice(1).some(segment => segment.includes('%'))) {
     throw new Error(`${label} must not contain encoded path segments`);
@@ -182,10 +190,7 @@ function parseGithubInvocationId(value, label) {
     `${label} repository`,
   );
   return {
-    attempt: assertCanonicalPositiveDecimal(
-      segments[7],
-      `${label} attempt`,
-    ),
+    attempt: assertCanonicalPositiveDecimal(segments[7], `${label} attempt`),
     repository,
     runId: assertCanonicalPositiveDecimal(segments[5], `${label} run ID`),
   };
@@ -217,10 +222,7 @@ function assertProvenanceExpectation(
       'Registry provenance source and workflow repositories must match',
     );
   }
-  if (
-    expectation.source.commit === undefined &&
-    allowMissingSourceCommit
-  ) {
+  if (expectation.source.commit === undefined && allowMissingSourceCommit) {
     // The source commit is discovered from the signed statement and then
     // rebound into Fulcio OID verification before evidence is accepted.
   } else if (
@@ -364,10 +366,7 @@ function assertInvocationBinding(statement, expectation, packageLabel) {
     `${packageLabel} SLSA runDetails.metadata.invocationId`,
   );
   if (
-    !repositoriesMatch(
-      invocation.repository,
-      expectation.invocation.repository,
-    )
+    !repositoriesMatch(invocation.repository, expectation.invocation.repository)
   ) {
     throw new Error(
       `${packageLabel} SLSA invocation repository ${invocation.repository} does not match trusted repository ${expectation.invocation.repository}`,
@@ -386,9 +385,7 @@ function assertInvocationBinding(statement, expectation, packageLabel) {
       `${packageLabel} SLSA invocation attempt ${invocation.attempt} does not match fresh producer attempt ${expectation.invocation.runAttempt}`,
     );
   }
-  if (
-    BigInt(invocation.attempt) > BigInt(expectation.invocation.runAttempt)
-  ) {
+  if (BigInt(invocation.attempt) > BigInt(expectation.invocation.runAttempt)) {
     throw new Error(
       `${packageLabel} SLSA invocation attempt ${invocation.attempt} is newer than current run attempt ${expectation.invocation.runAttempt}`,
     );
@@ -457,7 +454,11 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
     manifest.source.repository,
     'Release manifest source.repository',
   );
-  if (!repositoriesMatch(sourceRepository, trustedPublishRepository)) {
+  if (
+    !trustedPublishRepositories.some(repository =>
+      repositoriesMatch(sourceRepository, repository),
+    )
+  ) {
     throw new Error(
       `Release source repository ${sourceRepository} does not match trusted publish repository ${trustedPublishRepository}`,
     );
@@ -466,7 +467,7 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
     env.GITHUB_REPOSITORY !== undefined &&
     !repositoriesMatch(
       normalizedRepository(env.GITHUB_REPOSITORY, 'Trusted publish repository'),
-      trustedPublishRepository,
+      sourceRepository,
     )
   ) {
     throw new Error(
@@ -474,9 +475,14 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
     );
   }
   if (
-    env.GITHUB_REF !== undefined &&
-    env.GITHUB_REF !== trustedPublishRef
+    env.GITHUB_REPOSITORY_ID !== undefined &&
+    env.GITHUB_REPOSITORY_ID !== trustedPublishRepositoryId
   ) {
+    throw new Error(
+      `Trusted publish repository ID must be ${trustedPublishRepositoryId}`,
+    );
+  }
+  if (env.GITHUB_REF !== undefined && env.GITHUB_REF !== trustedPublishRef) {
     throw new Error(
       `Trusted publish ref ${env.GITHUB_REF} does not match ${trustedPublishRef}`,
     );
@@ -491,24 +497,24 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
 
   const expectation = {
     certificateIdentity: trustedCertificateIdentity(
-      trustedPublishRepository,
+      sourceRepository,
       trustedPublishWorkflowPath,
       trustedPublishRef,
     ),
     issuer: trustedPublishOidcIssuer,
     source: {
       commit: manifest.source.commit,
-      repository: trustedPublishRepository,
+      repository: sourceRepository,
     },
     workflow: {
       path: trustedPublishWorkflowPath,
       ref: trustedPublishRef,
-      repository: trustedPublishRepository,
+      repository: sourceRepository,
     },
   };
   if (hasRunId) {
     expectation.invocation = {
-      repository: trustedPublishRepository,
+      repository: sourceRepository,
       runAttempt: assertCanonicalPositiveDecimal(
         env.GITHUB_RUN_ATTEMPT,
         'GITHUB_RUN_ATTEMPT',
@@ -518,6 +524,41 @@ function createRegistryProvenanceExpectation(manifest, env = process.env) {
   }
   assertProvenanceExpectation(expectation);
   return expectation;
+}
+
+// Each historical candidate still requires its exact SAN, signed source/ref,
+// package digest, and the same immutable repository ID. An old GitHub path
+// reclaimed by another repository cannot authenticate earlier publications.
+function historicalRegistryProvenanceExpectations(expectation) {
+  assertProvenanceExpectation(expectation, { allowMissingSourceCommit: true });
+  const repository = normalizedRepository(
+    expectation.source.repository,
+    'Historical source repository',
+  );
+  if (
+    !trustedPublishRepositories.some(candidate =>
+      repositoriesMatch(repository, candidate),
+    )
+  ) {
+    throw new Error(
+      'Historical source repository is outside the pinned transfer identities',
+    );
+  }
+  return [
+    repository,
+    ...trustedPublishRepositories.filter(
+      candidate => !repositoriesMatch(repository, candidate),
+    ),
+  ].map(candidate => ({
+    certificateIdentity: trustedCertificateIdentity(
+      candidate,
+      expectation.workflow.path,
+      expectation.workflow.ref,
+    ),
+    issuer: expectation.issuer,
+    source: { repository: candidate },
+    workflow: { ...expectation.workflow, repository: candidate },
+  }));
 }
 
 function loadNpmSigstoreVerifier(runner = execFileSync) {
@@ -547,10 +588,7 @@ function loadNpmSigstoreVerifier(runner = execFileSync) {
     if (typeof sigstore?.verify !== 'function') {
       throw new Error('sigstore.verify is unavailable');
     }
-    assertNonEmptyString(
-      packageJson?.version,
-      'npm-bundled Sigstore version',
-    );
+    assertNonEmptyString(packageJson?.version, 'npm-bundled Sigstore version');
     const verifier = Object.freeze({
       verify: sigstore.verify,
       version: packageJson.version,
@@ -585,6 +623,7 @@ async function verifySigstoreBundle(
       [fulcioSourceCommitOid]: expectation.source.commit,
       [fulcioSourceRefOid]: expectation.workflow.ref,
       [fulcioSourceRepositoryOid]: expectation.source.repository,
+      [fulcioSourceRepositoryIdOid]: fulcioSourceRepositoryIdValue,
     },
     ctLogThreshold: 1,
     tlogThreshold: 1,
@@ -674,7 +713,9 @@ async function verifyRegistryProvenance(
     );
   }
   if (typeof response.json !== 'function') {
-    throw new Error(`${packageLabel} registry provenance response is malformed`);
+    throw new Error(
+      `${packageLabel} registry provenance response is malformed`,
+    );
   }
 
   let document;
@@ -816,6 +857,7 @@ export {
   RegistryProvenancePendingError,
   createRegistryProvenanceExpectation,
   githubActionsBuildType,
+  historicalRegistryProvenanceExpectations,
   inTotoStatementV1,
   loadNpmSigstoreVerifier,
   npmPackagePurl,

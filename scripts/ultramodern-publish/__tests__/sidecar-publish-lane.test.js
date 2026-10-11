@@ -510,6 +510,7 @@ test('a sidecar that never propagates fails after the whole shared schedule', as
 const withTrustedPublishEnv = t => {
   const trustedEnv = {
     GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY_ID: '1151231350',
     GITHUB_REF: 'refs/heads/main-ultramodern',
     GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
     GITHUB_RUN_ID: '12345',
@@ -1659,3 +1660,39 @@ for (const state of ['missing tag', 'unindexed tagged version']) {
     );
   });
 }
+
+test('organization-owned releases can reuse authenticated sidecars published before the transfer', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const sidecar = {
+    ...stagedMfCli(),
+    integrity: `sha512-${crypto.createHash('sha512').update('transfer-sidecar').digest('base64')}`,
+  };
+  const source = {
+    ...releaseSource,
+    repository: 'ultramodernjs/ultramodern.js',
+  };
+  const options = { env: {}, policy: { grandfatheredVersions: [] }, source };
+  for (const repository of [source.repository, releaseSource.repository]) {
+    await assertSidecarReuseProvenance(
+      sidecar,
+      chronologyPackument(sidecar, { attested: true }),
+      options,
+      {
+        bundleVerifier: acceptingBundleVerifier,
+        fetchImpl: attestationFetch(sidecar, repository),
+      },
+    );
+  }
+  await assert.rejects(
+    assertSidecarReuseProvenance(
+      sidecar,
+      chronologyPackument(sidecar, { attested: true }),
+      options,
+      {
+        bundleVerifier: acceptingBundleVerifier,
+        fetchImpl: attestationFetch(sidecar, 'attacker/ultramodern.js'),
+      },
+    ),
+    /accepted source repository exactly once/u,
+  );
+});

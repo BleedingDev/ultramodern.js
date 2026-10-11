@@ -516,3 +516,72 @@ test('Rsbuild reconstruction preserves the complete public package and applies i
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('stable sidecar reconstruction keeps identical manifests and packed bytes across the GitHub transfer', async () => {
+  const directory = fs.mkdtempSync(
+    path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'sidecar-transfer-'),
+  );
+  const keys = ['GITHUB_REPOSITORY', 'GITHUB_REPOSITORY_ID'];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    const recipe = JSON.parse(
+      fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
+    ).find(item => item.id === 'braces');
+    const response = await fetch(recipe.upstream.tarball, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    assert.ok(response.ok);
+    fs.writeFileSync(
+      path.join(directory, `${recipe.id}.tgz`),
+      Buffer.from(await response.arrayBuffer()),
+    );
+    const outputs = [];
+    for (const [index, repository] of [
+      'BleedingDev/ultramodern.js',
+      'ultramodernjs/ultramodern.js',
+    ].entries()) {
+      process.env.GITHUB_REPOSITORY = repository;
+      process.env.GITHUB_REPOSITORY_ID = '1151231350';
+      const packageDir = path.join(directory, `package-${index}`);
+      await verifySidecar(recipe.id, {
+        artifactsDir: directory,
+        materializeTo: packageDir,
+      });
+      const manifest = fs.readFileSync(path.join(packageDir, 'package.json'));
+      const published = JSON.parse(manifest);
+      assert.equal(published.name, recipe.fork.name);
+      assert.equal(published.version, recipe.fork.version);
+      assert.equal(
+        published.repository.url,
+        'git+https://github.com/BleedingDev/ultramodern.js.git',
+      );
+      const packDir = path.join(directory, `packed-${index}`);
+      fs.mkdirSync(packDir);
+      const [packed] = JSON.parse(
+        execFileSync(
+          'npm',
+          ['pack', '--ignore-scripts', '--json', '--pack-destination', packDir],
+          {
+            cwd: packageDir,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          },
+        ),
+      );
+      outputs.push({
+        manifest,
+        tarball: fs.readFileSync(path.join(packDir, packed.filename)),
+        integrity: packed.integrity,
+      });
+    }
+    assert.deepEqual(outputs[0].manifest, outputs[1].manifest);
+    assert.deepEqual(outputs[0].tarball, outputs[1].tarball);
+    assert.equal(outputs[0].integrity, outputs[1].integrity);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

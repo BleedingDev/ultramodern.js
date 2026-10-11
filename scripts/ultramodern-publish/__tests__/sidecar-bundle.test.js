@@ -22,6 +22,7 @@ async function fixture(t, profile = 'parser') {
   // These are synthetic unit-test invocation IDs, never uploaded as production receipts.
   const env = {
     GITHUB_ACTIONS: 'true',
+    GITHUB_REPOSITORY_ID: '1151231350',
     GITHUB_REPOSITORY: source.repository,
     GITHUB_SHA: source.commit,
     GITHUB_RUN_ID: '12345',
