@@ -3,12 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { modernBuild } from '../../../../utils/modernTestUtils';
-import { acquireTestLock } from '../../test-utils';
-
-rstest.setConfig({ testTimeout: 240_000 });
 
 test('split SSR initializes every entry in a cold Node process', async () => {
-  const release = await acquireTestLock('i18n-mf');
   const app = path.resolve(__dirname, '../mf-app-provider');
   const cli = path.resolve(
     __dirname,
@@ -82,6 +78,5 @@ const path = require('node:path');
     }
   } finally {
     await fs.rm(inspection, { recursive: true, force: true });
-    await release();
   }
 });

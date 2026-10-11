@@ -1,3 +1,6 @@
+// Register the cold build in this file so it runs before the browser suite
+// against the same fixture, without competing test-file workers.
+import './ssr-startup';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { collectBrowserErrors } from '../../../../utils/browserErrors';
