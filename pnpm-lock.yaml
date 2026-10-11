@@ -3117,9 +3117,6 @@ importers:
       '@types/babel__core':
         specifier: ^7.20.5
         version: 7.20.5
-      '@types/babel__template':
-        specifier: 7.4.4
-        version: 7.4.4
       compression-webpack-plugin:
         specifier: ^12.0.0
         version: 12.0.0(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
@@ -3350,9 +3347,6 @@ importers:
       '@types/babel__core':
         specifier: ^7.20.5
         version: 7.20.5
-      '@types/babel__template':
-        specifier: 7.4.4
-        version: 7.4.4
       prettier:
         specifier: ~3.9.9
         version: 3.9.9

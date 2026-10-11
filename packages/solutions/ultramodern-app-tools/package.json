@@ -178,7 +178,6 @@
     "@modern-js/utils": "workspace:*",
     "@rsbuild/core": "2.2.11",
     "@types/babel__core": "^7.20.5",
-    "@types/babel__template": "7.4.4",
     "prettier": "~3.9.9"
   },
   "devDependencies": {
