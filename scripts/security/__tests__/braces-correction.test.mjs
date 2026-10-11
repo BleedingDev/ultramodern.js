@@ -33,7 +33,7 @@ const now = new Date('2026-10-07T00:00:00Z');
 async function owned(run) {
   const directory = fs.mkdtempSync(
     path.join(
-      process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+      fs.realpathSync(process.env.OWNED_TEMP_DIR ?? os.tmpdir()),
       'braces-correction-test-',
     ),
   );

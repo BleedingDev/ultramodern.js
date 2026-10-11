@@ -3,7 +3,12 @@ packages:
   - verticals/*
   - packages/*
 
-{{workspacePackageLinkingYaml}}minimumReleaseAge: 1440
+{{workspacePackageLinkingYaml}}# Use corrected artifacts for vulnerable native transitive dependencies.
+overrides:
+  'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@{{bracesForkVersion}}'
+  'sharp@>=0.35.0 <0.35.5': '{{sharpVersion}}'
+
+minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
 trustPolicy: no-downgrade

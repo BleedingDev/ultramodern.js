@@ -52,10 +52,15 @@ function fixture() {
   fs.writeFileSync(
     path.join(root, 'package.json'),
     `${JSON.stringify({
+      packageManager: 'pnpm@11.24.0',
       dependencies: {
         '@modern-js/runtime': 'catalog:ultramodern',
       },
     })}\n`,
+  );
+  fs.writeFileSync(
+    path.join(root, '.mise.toml'),
+    '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',
   );
   fs.writeFileSync(
     path.join(root, 'pnpm-workspace.yaml'),
@@ -85,6 +90,7 @@ const release = {
   aliases: {
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   },
+  tools: { node: process.version, pnpm: '12.8.1' },
   release: {
     version: '3.5.0-ultramodern.50',
   },
@@ -380,6 +386,86 @@ test('runner CLI has no bypass flag and builds a hermetic package-manager env', 
     'true',
   );
   assert.equal(packageManager.env.pnpm_config_trust_policy_exclude, undefined);
+});
+
+test('Tractor children use the acceptance Node despite an older mise Node on PATH', async t => {
+  const { createTractorPackageManagerContext } = await runnerPromise;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-node-path-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const staleBin = path.join(root, 'baseline-bin');
+  fs.mkdirSync(staleBin);
+  fs.writeFileSync(
+    path.join(staleBin, 'node'),
+    '#!/bin/sh\nprintf "v26.7.0\\n"\n',
+    { mode: 0o755 },
+  );
+  const { env } = createTractorPackageManagerContext({
+    createPackage: packageManagerOptions().createPackage,
+    expectedPnpmVersion: '12.8.1',
+    environment: {
+      ...process.env,
+      PATH: `${staleBin}${path.delimiter}${process.env.PATH}`,
+    },
+    minimumReleaseAgeExclude: bootstrapExclude,
+    packageManagerRoot: root,
+    registryEnv: { npm_config_registry: 'https://registry.npmjs.org/' },
+    resolveExactPnpmExecutableImpl: () => exactPnpmExecutable,
+  });
+  const child = runCommand('node', ['--version'], {
+    env,
+    stdio: 'pipe',
+    encoding: 'utf8',
+  });
+  assert.equal(child.exitCode, 0);
+  assert.equal(child.stdout.trim(), process.version);
+});
+
+test('Tractor obtains native policy from the exact generator and cleans its temporary workspace', async t => {
+  const { readTractorProducerOverrides } = await runnerPromise;
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'tractor-producer-policy-'),
+  );
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const env = {
+    PATH: '/accepted/node/bin',
+    npm_config_registry: 'https://registry.npmjs.org/',
+  };
+  const options = {
+    createPackage: packageManagerOptions().createPackage,
+    minimumReleaseAgeExclude: bootstrapExclude,
+    packageManager: { pnpmExecutable: exactPnpmExecutable, env },
+    packageManagerRoot: root,
+  };
+  const overrides = readTractorProducerOverrides({
+    ...options,
+    runImpl(command, args, childOptions) {
+      assert.equal(command, exactPnpmExecutable);
+      assert.equal(childOptions.env, env);
+      assert.equal(args[args.indexOf('dlx') + 2], bootstrapSpecifier);
+      const workspace = args[args.indexOf('dlx') + 3];
+      fs.mkdirSync(workspace);
+      fs.writeFileSync(
+        path.join(workspace, 'pnpm-workspace.yaml'),
+        "overrides:\n  'braces@>=3.0.0 <3.0.4': npm:@bleedingdev/braces@3.0.4\n  'sharp@>=0.35.0 <0.35.5': 0.35.5\n",
+      );
+    },
+  });
+  assert.deepEqual(overrides, {
+    'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
+    'sharp@>=0.35.0 <0.35.5': '0.35.5',
+  });
+  assert.deepEqual(fs.readdirSync(root), []);
+  assert.throws(
+    () =>
+      readTractorProducerOverrides({
+        ...options,
+        runImpl() {
+          throw new Error('generator failed');
+        },
+      }),
+    /generator failed/u,
+  );
+  assert.deepEqual(fs.readdirSync(root), []);
 });
 
 test('Tractor CLI accepts an absolute shared store and rejects invalid paths', async () => {
@@ -1002,7 +1088,7 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
   assert.equal(driftedStarts, 0);
 });
 
-test('cohort installation updates native catalog to exact bundle without changing authored Tractor source', async () => {
+test('cohort installation adopts exact bundle and toolchain without changing authored Tractor UI', async () => {
   const { prepareTractorCohortInstallation } = await import(
     '../tractor-downstream/cohort-install.mjs'
   );
@@ -1082,6 +1168,7 @@ test('cohort installation updates native catalog to exact bundle without changin
         { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
         { name: '@bleedingdev/zod', version: '4.6.5' },
         { name: '@bleedingdev/ipx', version: '3.2.2' },
+        { name: '@bleedingdev/braces', version: '3.0.4' },
       ],
     };
     const shellManifestFile = path.join(
@@ -1107,7 +1194,13 @@ test('cohort installation updates native catalog to exact bundle without changin
       path.join(root, 'pnpm-workspace.yaml'),
       'catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
     );
-    const result = prepareTractorCohortInstallation(root, next);
+    const pnpmOverrides = {
+      'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
+      'sharp@>=0.35.0 <0.35.5': '0.35.5',
+    };
+    const result = prepareTractorCohortInstallation(root, next, {
+      pnpmOverrides,
+    });
     assert.equal(result.dependencyCount, 1);
     const policyText = fs.readFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
@@ -1117,6 +1210,11 @@ test('cohort installation updates native catalog to exact bundle without changin
       policyText,
       /npm:@bleedingdev\/modern-js-runtime@3\.9\.0-ultramodern\.6/u,
     );
+    assert.match(
+      policyText,
+      /braces@>=3\.0\.0 <3\.0\.4.*npm:@bleedingdev\/braces@3\.0\.4/u,
+    );
+    assert.match(policyText, /sharp@>=0\.35\.0 <0\.35\.5.*0\.35\.5/u);
     assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
     assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);
     assert.match(
@@ -1133,9 +1231,13 @@ test('cohort installation updates native catalog to exact bundle without changin
     );
     fs.rmSync(shellManifestFile);
     assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')),
+      { ...JSON.parse(beforeManifest), packageManager: 'pnpm@12.8.1' },
+    );
     assert.equal(
-      fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
-      beforeManifest,
+      fs.readFileSync(path.join(root, '.mise.toml'), 'utf8'),
+      `[tools]\nnode = "${process.version.slice(1)}"\npnpm = "12.8.1"\n`,
     );
     assert.equal(
       fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
@@ -1144,6 +1246,36 @@ test('cohort installation updates native catalog to exact bundle without changin
     assert.equal(
       fs.existsSync(path.join(root, '.modernjs/release-cohort.json')),
       false,
+    );
+    const selectedPolicy = fs.readFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'utf8',
+    );
+    assert.throws(
+      () =>
+        prepareTractorCohortInstallation(root, next, {
+          pnpmOverrides: {
+            'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.5',
+          },
+        }),
+      /differs from the exact sidecar bundle/u,
+    );
+    const selectedMise = fs.readFileSync(path.join(root, '.mise.toml'), 'utf8');
+    assert.throws(
+      () =>
+        prepareTractorCohortInstallation(root, {
+          ...next,
+          tools: { ...next.tools, node: '>=26' },
+        }),
+      /exact release node version/u,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      selectedPolicy,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, '.mise.toml'), 'utf8'),
+      selectedMise,
     );
     fs.appendFileSync(artifactPath, 'tampered');
     assert.throws(

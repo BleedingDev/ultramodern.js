@@ -11,6 +11,7 @@ import {
   parseUltramodernReleaseCohort,
 } from '../src/ultramodern-release-cohort';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../src/ultramodern-workspace/policy';
 
 function cohort() {
   return parseUltramodernReleaseCohort({
@@ -65,6 +66,14 @@ test('local source generation uses native workspace requests without copied rele
       false,
     );
     assert.equal(fs.existsSync(path.join(workspaceDir, 'patches')), false);
+    assert.deepEqual(policy.overrides, {
+      'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
+      'sharp@>=0.35.0 <0.35.5': '0.35.5',
+    });
+    assert.deepEqual(
+      policy.overrides,
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -218,6 +227,10 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     assert.deepEqual(
       policy.minimumReleaseAgeExclude,
       names.map(name => `@bleedingdev/modern-js-${name}@${version}`).sort(),
+    );
+    assert.deepEqual(
+      policy.overrides,
+      ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
     );
     assert.equal(policy.minimumReleaseAge, 1440);
     assert.equal(policy.minimumReleaseAgeStrict, true);

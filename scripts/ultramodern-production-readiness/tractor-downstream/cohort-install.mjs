@@ -17,7 +17,11 @@ const dependencyBlocks = [
 ];
 
 /** Select the exact supplied bundle through the consumer's native pnpm catalog. */
-export function prepareTractorCohortInstallation(workspace, release) {
+export function prepareTractorCohortInstallation(
+  workspace,
+  release,
+  { pnpmOverrides = {} } = {},
+) {
   const cohort = expectedReleaseCohort(release);
   const version = release.release.version;
   const create = release.createPackage;
@@ -117,11 +121,69 @@ export function prepareTractorCohortInstallation(workspace, release) {
       .some(Boolean);
     return changed ? [[file, manifest]] : [];
   });
+  for (const specifier of Object.values(pnpmOverrides)) {
+    if (typeof specifier !== 'string') {
+      throw new Error(
+        'Producer pnpm overrides must be native string selections',
+      );
+    }
+    if (!specifier.startsWith('npm:@bleedingdev/')) continue;
+    const separator = specifier.lastIndexOf('@');
+    const name = specifier.slice('npm:'.length, separator);
+    if (sidecars.get(name) !== specifier.slice(separator + 1)) {
+      throw new Error(
+        `Producer pnpm override ${specifier} differs from the exact sidecar bundle`,
+      );
+    }
+  }
+  policy.overrides = { ...policy.overrides, ...pnpmOverrides };
+  const toolchain = prepareTractorToolchain(workspace, release.tools);
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
+  fs.writeFileSync(toolchain.miseFile, toolchain.mise);
+  fs.writeFileSync(
+    toolchain.manifestFile,
+    `${JSON.stringify(toolchain.manifest, null, 2)}\n`,
+  );
   for (const [file, manifest] of manifestUpdates) {
+    if (file === toolchain.manifestFile) {
+      manifest.packageManager = toolchain.manifest.packageManager;
+    }
     fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
   }
   return { catalogCount: Object.keys(cohort.aliases).length, dependencyCount };
+}
+
+// Adopt the release's exact tools alongside its dependency catalog, so the
+// committed consumer snapshot and its future mise-driven CI use the same tools.
+function prepareTractorToolchain(workspace, tools) {
+  const node =
+    typeof tools?.node === 'string' ? tools.node.replace(/^v/u, '') : undefined;
+  const pnpm = tools?.pnpm;
+  for (const [name, version] of Object.entries({ node, pnpm })) {
+    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/u.test(version)) {
+      throw new Error(`Tractor requires an exact release ${name} version`);
+    }
+  }
+  const miseFile = path.join(workspace, '.mise.toml');
+  const mise = fs.readFileSync(miseFile, 'utf8');
+  // Tractor's native toolchain file contains just these two pinned tools.
+  // Reject an unfamiliar shape rather than silently deleting custom settings.
+  if (
+    !/^\[tools\]\r?\nnode = "[^"\r\n]+"\r?\npnpm = "[^"\r\n]+"\r?\n?$/u.test(
+      mise,
+    )
+  ) {
+    throw new Error('Tractor requires its native two-tool .mise.toml');
+  }
+  const manifestFile = path.join(workspace, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+  manifest.packageManager = `pnpm@${pnpm}`;
+  return {
+    manifestFile,
+    manifest,
+    miseFile,
+    mise: `[tools]\nnode = "${node}"\npnpm = "${pnpm}"\n`,
+  };
 }
 
 /** Point every `npm:<sidecar>@<version>` selection at the bundle's version. */

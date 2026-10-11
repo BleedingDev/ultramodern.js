@@ -124,9 +124,8 @@ jobs:
       # through the exact-artifact publisher, whose accepted-toolchain guard
       # refuses to publish under any Node.js or npm other than the one the
       # accepted manifest recorded - and that manifest was written under this
-      # exact version. Deliberately placed before the mise setup below, so the
-      # Tractor checkout's own toolchain still wins the PATH for the workspace
-      # commands and the published lane behaves exactly as it did.
+      # exact version. The acceptance runner projects the manifest's Node.js
+      # and pnpm versions into Tractor before installing the cohort.
       - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -173,8 +172,8 @@ jobs:
       # The acceptance process itself is launched from the pinned interpreter
       # bound above, because in source mode this process is also the one that
       # seeds the registry and must satisfy the publisher's accepted-toolchain
-      # guard. It still runs inside `mise exec`, so the Tractor workspace
-      # commands it spawns resolve the baseline's own toolchain unchanged.
+      # guard. The runner also binds workspace child commands to the accepted
+      # interpreter and checks their Node.js version before installation.
       - name: Run exact-cohort Tractor acceptance
         working-directory: tractor
         env:
