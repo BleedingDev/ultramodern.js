@@ -28,12 +28,14 @@ function fixture(overrides = {}) {
     status: 'finished',
     workflows: [
       {
-        workflowPath: workflow,
+        workflowId: 'owned-workflow',
+        workflowPath: 'type-check.yml',
         status: 'finished',
         jobs: [
           {
             jobId: 'job-1',
-            jobKey: 'type-check',
+            jobKey: 'type-check.yml:type-check',
+            jobDisplayName: 'type-check',
             status: 'finished',
             attempts: [{ attempt: 1, status: 'finished' }],
           },
@@ -96,6 +98,51 @@ test('dispatches one committed workflow with the exact GitHub SHA and no overrid
     { method: 'GetRunStatus', body: { runId } },
   ]);
   assert.equal(api.logs.join('\n').includes(options.token), false);
+  assert.equal(api.logs[0], `Depot run ${runId}`);
+  assert.equal(
+    api.logs[1],
+    `Depot workflow: https://depot.dev/orgs/${orgId}/workflows/owned-workflow`,
+  );
+  assert.equal(api.logs.join('\n').includes('/ci/runs/'), false);
+});
+
+test('accepts only the exact full workflow path or basename and exact job key forms', async () => {
+  for (const workflowPath of [workflow, 'type-check.yml']) {
+    for (const jobKey of ['type-check', 'type-check.yml:type-check']) {
+      const api = fixture();
+      api.snapshot.workflows[0].workflowPath = workflowPath;
+      api.snapshot.workflows[0].jobs[0].jobKey = jobKey;
+      await api.run();
+      assert.equal(
+        api.calls.some(call => call.method === 'CancelRun'),
+        false,
+      );
+      assert.equal(api.calls[0].body.workflow, workflow);
+    }
+  }
+});
+
+test('does not invent a workflow URL before its validated ID is available', async () => {
+  const api = fixture();
+  delete api.snapshot.workflows[0].workflowId;
+  await api.run();
+  assert.equal(
+    api.logs.some(value => value.includes('https://')),
+    false,
+  );
+});
+
+test('rejects malformed workflow IDs before logging a URL', async () => {
+  for (const workflowId of ['', null, '../other', 'other/thing', 'x?job=y']) {
+    const api = fixture();
+    api.snapshot.workflows[0].workflowId = workflowId;
+    await assert.rejects(api.run(), /Invalid Depot workflow ID/);
+    assert.equal(
+      api.logs.some(value => value.includes('https://')),
+      false,
+    );
+    assert.equal(api.calls.at(-1).method, 'CancelRun');
+  }
 });
 
 test('waits for both the run and every job, even if the run reports finished first', async () => {
@@ -114,6 +161,28 @@ test('waits for both the run and every job, even if the run reports finished fir
   assert.equal(polls, 2);
   assert.equal(
     api.calls.some(call => call.method === 'CancelRun'),
+    false,
+  );
+});
+
+test('rejects a workflow ID that changes while waiting for jobs', async () => {
+  let polls = 0;
+  const api = fixture({
+    GetRunStatus: () => {
+      const snapshot = structuredClone(api.snapshot);
+      if (polls++ === 0) {
+        snapshot.workflows[0].jobs[0].status = 'running';
+        snapshot.workflows[0].jobs[0].attempts[0].status = 'running';
+      } else {
+        snapshot.workflows[0].workflowId = 'another-workflow';
+      }
+      return snapshot;
+    },
+  });
+  await assert.rejects(api.run(), /workflow ID changed/);
+  assert.equal(api.calls.at(-1).method, 'CancelRun');
+  assert.equal(
+    api.logs.some(value => value.includes('/another-workflow')),
     false,
   );
 });
@@ -170,6 +239,23 @@ test('rejects nested status from a different run and a different workflow', asyn
       method: 'CancelRun',
       body: { runId },
     });
+  }
+});
+
+test('rejects workflow path aliases, traversal and an alternate basename', async () => {
+  for (const workflowPath of [
+    'other.yml',
+    'type-check.yaml',
+    '../type-check.yml',
+    './type-check.yml',
+    '.github/workflows/type-check.yml',
+    '.depot/workflows/nested/type-check.yml',
+    '.depot/workflows/../workflows/type-check.yml',
+  ]) {
+    const api = fixture();
+    api.snapshot.workflows[0].workflowPath = workflowPath;
+    await assert.rejects(api.run(), /workflow path does not match/);
+    assert.equal(api.calls.at(-1).method, 'CancelRun');
   }
 });
 
@@ -259,6 +345,21 @@ test('rejects a successful workflow whose required job key is missing', async ()
   assert.equal(api.calls.at(-1).method, 'CancelRun');
 });
 
+test('rejects required keys prefixed with another workflow or a path alias', async () => {
+  for (const jobKey of [
+    'other.yml:type-check',
+    'type-check.yaml:type-check',
+    '../type-check.yml:type-check',
+    '.github/workflows/type-check.yml:type-check',
+    '.depot/workflows/type-check.yml:type-check',
+  ]) {
+    const api = fixture();
+    api.snapshot.workflows[0].jobs[0].jobKey = jobKey;
+    await assert.rejects(api.run(), /Required Depot job keys/);
+    assert.equal(api.calls.at(-1).method, 'CancelRun');
+  }
+});
+
 test('dependency checks require both the dependency and advisory jobs', async () => {
   for (const keys of [
     ['check'],
@@ -270,7 +371,7 @@ test('dependency checks require both the dependency and advisory jobs', async ()
     selected.workflowPath = '.depot/workflows/check-dependencies.yml';
     selected.jobs = keys.map((jobKey, index) => ({
       jobId: `job-${index}`,
-      jobKey,
+      jobKey: `check-dependencies.yml:${jobKey}`,
       status: 'finished',
       attempts: [{ attempt: 1, status: 'finished' }],
     }));

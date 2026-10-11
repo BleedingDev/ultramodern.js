@@ -85,8 +85,10 @@ function finishedJobs(snapshot, workflow, required) {
   }
   assert(workflows.length === 1, 'Unexpected Depot workflows');
   const selected = workflows[0];
+  const workflowBasename = path.basename(workflow);
   assert(
-    selected.workflowPath === workflow,
+    selected.workflowPath === workflow ||
+      selected.workflowPath === workflowBasename,
     'Depot workflow path does not match',
   );
   const workflowFinished = checkStatus(selected.status, 'workflow');
@@ -138,7 +140,9 @@ function finishedJobs(snapshot, workflow, required) {
   if (snapshot.status === 'finished' && workflowFinished && allFinished) {
     assert(jobs.length >= required.count, 'Required Depot jobs are missing');
     assert(
-      required.keys.every(key => keys.has(key)),
+      required.keys.every(
+        key => keys.has(key) || keys.has(`${workflowBasename}:${key}`),
+      ),
       'Required Depot job keys are missing',
     );
     assert(
@@ -197,6 +201,7 @@ export async function runDepotWorkflow({
   const deadline = AbortSignal.timeout(timeoutMs);
   const lifetime = signal ? AbortSignal.any([signal, deadline]) : deadline;
   let ownedRun;
+  let linkedWorkflowId;
   let completed = false;
 
   async function request(method, body, requestSignal = lifetime) {
@@ -245,9 +250,7 @@ export async function runDepotWorkflow({
     );
     ownedRun = created.runId;
     assert(created.orgId === orgId, 'Depot organization does not match');
-    log(
-      `Depot run ${ownedRun}: https://depot.dev/orgs/${orgId}/ci/runs/${ownedRun}`,
-    );
+    log(`Depot run ${ownedRun}`);
 
     while (true) {
       const identity = await request('GetRun', { runId: ownedRun });
@@ -258,10 +261,26 @@ export async function runDepotWorkflow({
       const snapshot = await request('GetRunStatus', { runId: ownedRun });
       checkIdentity(snapshot, ownedRun);
       lifetime.throwIfAborted();
-      if (
-        finishedJobs(snapshot, workflow, required) &&
-        identity.status === 'finished'
-      ) {
+      const finished = finishedJobs(snapshot, workflow, required);
+      const workflowId = snapshot.workflows?.[0]?.workflowId;
+      if (workflowId !== undefined) {
+        assert(
+          typeof workflowId === 'string' &&
+            /^[a-zA-Z0-9_-]+$/u.test(workflowId),
+          'Invalid Depot workflow ID',
+        );
+        assert(
+          !linkedWorkflowId || linkedWorkflowId === workflowId,
+          'Depot workflow ID changed',
+        );
+        if (!linkedWorkflowId) {
+          linkedWorkflowId = workflowId;
+          log(
+            `Depot workflow: https://depot.dev/orgs/${orgId}/workflows/${workflowId}`,
+          );
+        }
+      }
+      if (finished && identity.status === 'finished') {
         completed = true;
         log(`Depot run ${ownedRun} finished successfully`);
         return { runId: ownedRun, orgId };
