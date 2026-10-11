@@ -15,7 +15,18 @@ const requiredJobs = new Map([
   ['check-dependencies', { count: 2, keys: ['check', 'advisories'] }],
   ['ci-cache', { count: 1, keys: ['seed'] }],
   // JobStatus.jobDisplayName is the resolved YAML `name:`. Matrix jobKey
-  // suffixes are unspecified, so use the explicit names from integration-test.
+  // suffixes are unspecified, so use the explicit matrix job names.
+  [
+    'ci-benchmark',
+    {
+      count: 2,
+      keys: [],
+      names: [
+        'ci-benchmark (type-check)',
+        'ci-benchmark (unit-build-consumers)',
+      ],
+    },
+  ],
   [
     'integration-test',
     {

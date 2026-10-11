@@ -15,7 +15,18 @@ test('Depot workflows keep pinned actions, read permissions, and Linux runners',
   const files = fs
     .readdirSync(workflowDirectory)
     .filter(name => name.endsWith('.yml'));
-  assert.equal(files.length, 9);
+  assert.deepEqual(files.sort(), [
+    'check-dependencies.yml',
+    'ci-benchmark.yml',
+    'ci-cache.yml',
+    'integration-test.yml',
+    'lint-Linux.yml',
+    'native-compatibility.yml',
+    'test-builder-e2e.yml',
+    'type-check.yml',
+    'ut-Linux.yml',
+    'workflow-security.yml',
+  ]);
   for (const name of files) {
     const content = fs.readFileSync(new URL(name, workflowDirectory), 'utf8');
     assert.deepEqual(
