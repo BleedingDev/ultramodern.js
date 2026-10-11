@@ -51,6 +51,7 @@ jobs:
             echo "MISE_DATA_DIR=$benchmark_root/mise"
             echo "MISE_CACHE_DIR=$benchmark_root/mise-cache"
             echo "npm_config_cache=$benchmark_root/npm-cache"
+            echo "pnpm_config_store_dir=$benchmark_root/pnpm-store"
             echo "PLAYWRIGHT_BROWSERS_PATH=$benchmark_root/playwright"
             echo "NX_CACHE_DIRECTORY=$benchmark_root/nx-cache"
             echo "NX_WORKSPACE_DATA_DIRECTORY=$benchmark_root/nx-workspace-data"

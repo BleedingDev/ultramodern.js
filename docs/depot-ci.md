@@ -92,7 +92,8 @@ Delete the three runner variables to return to GitHub-hosted compute.
 
 ## Compare CI times
 
-The paired comparison is pending validation. Use verified trial quota for
+The first paired Linux comparison is recorded below; warm-cache measurements
+remain pending. Use verified trial quota for
 limited validation, or confirmed sponsored billing after activation, as described
 above. Trial availability does not establish that sponsored billing is disabled.
 
@@ -140,7 +141,9 @@ above. Trial availability does not establish that sponsored billing is disabled.
 The manual `ci-benchmark.yml` workflows on both providers run matching type-check
 and Linux unit/build-consumer jobs with fresh project caches. They disable cache
 restores, prepared-build restores, and Nx task caches, and isolate the pnpm store,
-mise data, and browser downloads per job. Provider image caches remain outside
+mise data, and browser downloads per job. They export `pnpm_config_store_dir`
+so package-consumer installs in temporary projects also use the fresh job store.
+Provider image and OS package caches remain outside
 this control. GitHub must register the workflow on the default branch before
 manual dispatch. These workflows establish cold samples; they do not establish
 warm-cache results.
@@ -169,13 +172,66 @@ The current Linux migration changes GitHub's public `ubuntu-24.04` runner
 Disclose that hardware change with the result; it measures this migration, not
 provider performance at equal hardware. Keep Windows and macOS results separate.
 See the [GitHub runner specifications](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-and [Depot runner specifications](https://depot.dev/docs/github-actions/runner-types).
+and [Depot CI sandboxes](https://depot.dev/docs/ci/overview).
+
+## Measured Linux comparison
+
+On 2026-10-11 UTC, five pairs ran the same two Linux workloads at frozen commit
+[`a22d580e82f1845504bf15b6e1520b1d920178ba`](https://github.com/BleedingDev/ultramodern.js/commit/a22d580e82f1845504bf15b6e1520b1d920178ba).
+All 20 jobs passed on their first attempt, with no failures, cancellations, or
+retries. These are results for GitHub's 4-CPU/16-GB configuration and Depot's
+8-CPU/32-GB configuration, including their hardware-dependent default test
+parallelism.
+
+| Job execution, including setup and cleanup | GitHub median and range | Depot median and range | Ratio of medians |
+| --- | --- | --- | --- |
+| Type checks | 2m 04s; 1m 49s to 2m 13s | 46s; 43s to 52s | 2.70x |
+| Unit tests, build and consumers | 16m 45s; 9m 45s to 16m 57s | 3m 55s; 3m 45s to 4m 06s | 4.28x |
+
+Median elapsed time from each provider's API run creation to the last selected
+job completion was 16m 49s on GitHub and 4m 00s on Depot. The ranges were 9m 49s
+to 17m 02s and 3m 50s to 4m 10s. The median sum of both job execution times was
+18m 36s on GitHub and 4m 42s on Depot, with ranges of 11m 49s to 19m 10s and
+4m 34s to 4m 49s. Median job waiting time was 2s on GitHub, 2s for Depot type
+checks, and 3s for Depot unit/build checks; ranges were 2s to 3s on GitHub and
+Depot type checks, and 2s to 4s for Depot unit/build checks. These durations do
+not measure completion of every repository check or money spent.
+
+The committed benchmark commands matched after accounting for the runner label.
+The comparison branch reused GitHub's registered `ut-Linux.yml` filename for
+manual dispatch; the native Depot request selected the committed
+`.depot/workflows/ci-benchmark.yml` without inline content or job overrides.
+Every job's logs verified the actual checkout, repository ID `1151231350`,
+Node 26.10.0, pnpm 12.8.1, and matching lockfile/mise input hashes. Depot reported
+EPYC 9R45 CPUs; GitHub reported several CPU models.
+
+**Cache limit:** these runs isolated the workspace pnpm store, mise, browser,
+and Nx directories and used no cache restore/save actions. One package-consumer
+install used the runner's default pnpm store because the frozen workflow passed
+`--store-dir` only to the workspace install. Its cache state is unknown, so the
+unit/build result is not a verified fully cold-cache comparison. Provider image
+and OS package caches and network conditions were also uncontrolled. The later
+workflow fix exports `pnpm_config_store_dir` for future runs; it does not change
+these measurements. No warm-cache or equal-hardware result is claimed.
+
+Pairs were independent jobs launched concurrently with normal repository CI.
+Request order alternated, with GitHub first for pairs 1, 3, and 5. The linked
+runs retain checkout, toolchain, hardware, cache configuration, and result evidence.
+Each cell below lists type-check seconds / unit-build-consumer seconds.
+
+| Pair | GitHub Actions | Native Depot CI |
+| --- | --- | --- |
+| 1 | [109s / 951s](https://github.com/BleedingDev/ultramodern.js/actions/runs/38181307367) | [52s / 235s](https://depot.dev/orgs/882f0kcw25/workflows/vt86nhjjkn) |
+| 2 | [124s / 585s](https://github.com/BleedingDev/ultramodern.js/actions/runs/38181421114) | [45s / 233s](https://depot.dev/orgs/882f0kcw25/workflows/13h85561wm) |
+| 3 | [111s / 1005s](https://github.com/BleedingDev/ultramodern.js/actions/runs/38181427929) | [43s / 246s](https://depot.dev/orgs/882f0kcw25/workflows/ss3h7bdhdw) |
+| 4 | [133s / 1017s](https://github.com/BleedingDev/ultramodern.js/actions/runs/38181434097) | [49s / 225s](https://depot.dev/orgs/882f0kcw25/workflows/q34z7crvhw) |
+| 5 | [128s / 1015s](https://github.com/BleedingDev/ultramodern.js/actions/runs/38181439392) | [46s / 236s](https://depot.dev/orgs/882f0kcw25/workflows/h844tr2x19) |
 
 The [historical GitHub pilot](https://github.com/BleedingDev/ultramodern.js/actions/runs/38171642118)
 is uncontrolled: its commit and cache state do not establish a paired baseline.
 It cannot support a before/after speedup claim. Publish results only with the
 paired run links, tested commit, cache and runner evidence, selected job coverage,
-and complete failure/retry ledger. No Depot speedup has been measured yet.
+and complete failure/retry ledger.
 
 See Depot's [runner setup guide](https://depot.dev/docs/github-actions/quickstart)
 and [runner types](https://depot.dev/docs/github-actions/runner-types), plus the
