@@ -6,13 +6,12 @@ import {
   trustedPublishRepositories,
   trustedPublishRepositoryId,
 } from '../lib/prepare-bleedingdev-packages/constants.mjs';
+import { parseArgs } from '../lib/prepare-bleedingdev-packages/options.mjs';
 import {
   createRegistryProvenanceExpectation,
   historicalRegistryProvenanceExpectations,
   verifySigstoreBundle,
 } from '../lib/prepare-bleedingdev-packages/provenance.mjs';
-
-import { parseArgs } from '../lib/prepare-bleedingdev-packages/options.mjs';
 
 const commit = 'a'.repeat(40);
 const ref = 'refs/heads/main-ultramodern';

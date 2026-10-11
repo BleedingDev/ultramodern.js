@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
 import {
+  isTrustedPublishRepository,
+  isTrustedPublishRepositoryContext,
   repoRoot,
   sidecarManifestFile,
   sidecarTarballsDirectory,
-  isTrustedPublishRepository,
-  isTrustedPublishRepositoryContext,
 } from './lib/prepare-bleedingdev-packages/constants.mjs';
 import {
   canonicalJson,
@@ -153,7 +153,10 @@ export function assertSidecarProducerContext(env, source) {
       'Sidecar producer receipt requires this repository GitHub workflow',
     );
   const producer = producerIdentity(env);
-  if (env.GITHUB_SHA !== source.commit || env.GITHUB_REPOSITORY !== source.repository)
+  if (
+    env.GITHUB_SHA !== source.commit ||
+    env.GITHUB_REPOSITORY !== source.repository
+  )
     throw new Error('Sidecar producer must stage its exact workflow source');
   return producer;
 }
