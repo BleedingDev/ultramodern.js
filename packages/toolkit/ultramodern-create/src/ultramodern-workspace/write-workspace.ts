@@ -54,6 +54,7 @@ import {
   resolvePackageSource,
   resolveWorkspacePackageLinkingPolicy,
 } from './package-source';
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
 import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
 import { reconcileWorkspaceRendererIdentities } from './renderer-identity';
 import { initializeGeneratedRendererIdentity } from './renderer-initial-identity';
@@ -72,12 +73,10 @@ import type {
 import { isForeignRendererPackage } from './validation/renderer';
 import { validateWorkspace } from './validation/workspace';
 import {
-  BRACES_FORK_VERSION,
   EFFECT_VERSION,
   I18NEXT_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
-  SHARP_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { createWorkspaceValidationContract } from './workspace-validation-contract';
@@ -291,8 +290,14 @@ async function generateUltramodernWorkspaceInPlace(
       packageScope: scope,
       nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
-      bracesForkVersion: BRACES_FORK_VERSION,
-      sharpVersion: SHARP_VERSION,
+      dependencyOverridesYaml: `overrides:\n${Object.entries(
+        ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+      )
+        .map(
+          ([selector, specifier]) =>
+            `  ${JSON.stringify(selector)}: ${JSON.stringify(specifier)}`,
+        )
+        .join('\n')}\n\n`,
       effectVersion: EFFECT_VERSION,
       i18nextVersion: I18NEXT_VERSION,
       workspacePackageLinkingYaml: Object.entries(workspacePackageLinkingPolicy)

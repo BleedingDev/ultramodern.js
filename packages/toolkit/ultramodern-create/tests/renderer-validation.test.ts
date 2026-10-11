@@ -8,6 +8,7 @@ import {
   captureOverlayBaselineSnapshot,
   OverlayBaselineRelaxationError,
 } from '../src/ultramodern-workspace/overlay-baseline-guard';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../src/ultramodern-workspace/policy';
 import { getRendererGenerationProfile } from '../src/ultramodern-workspace/renderer-profile';
 import {
   assertAuthoredRendererDependencyPins,
@@ -762,7 +763,13 @@ test('authored native workspace federation validates discovery, exposes and rend
     };
     try {
       write('package.json', { name: scope });
-      write('pnpm-workspace.yaml', 'packages:\n  - apps/*\n  - verticals/*\n');
+      write(
+        'pnpm-workspace.yaml',
+        JSON.stringify({
+          packages: ['apps/*', 'verticals/*'],
+          overrides: ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+        }),
+      );
       write('topology/reference-topology.json', {
         schemaVersion: 1,
         shell: apps[0],

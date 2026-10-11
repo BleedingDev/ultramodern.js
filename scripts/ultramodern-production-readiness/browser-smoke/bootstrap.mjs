@@ -149,6 +149,7 @@ export function startServer(
 
 export async function startWorkerdProof({
   artifactDir,
+  pnpmExecutable = 'pnpm',
   processEnv = {},
   projectDir,
   requireTargetUrls = false,
@@ -157,7 +158,7 @@ export async function startWorkerdProof({
   const logPath = path.join(artifactDir, 'shell-workerd-proof.log');
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const logStream = fs.createWriteStream(logPath, { flags: 'w' });
-  const child = spawn('pnpm', ['run', 'cloudflare:ssr-proof'], {
+  const child = spawn(pnpmExecutable, ['run', 'cloudflare:ssr-proof'], {
     cwd: projectDir,
     detached: process.platform !== 'win32',
     env: createProcessEnv({

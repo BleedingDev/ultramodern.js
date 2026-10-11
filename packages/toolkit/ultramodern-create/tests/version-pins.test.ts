@@ -12,6 +12,8 @@ import {
 } from '../src/ultramodern-release-cohort';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { ULTRAMODERN_WORKSPACE_POLICY } from '../src/ultramodern-workspace/policy';
+import { assertWorkspaceDependencyOverrides } from '../src/ultramodern-workspace/validation/workspace';
+import { BRACES_FORK_VERSION } from '../src/ultramodern-workspace/versions';
 
 function cohort() {
   return parseUltramodernReleaseCohort({
@@ -251,5 +253,79 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
     fs.rmSync(installRoot, { recursive: true, force: true });
+  }
+});
+
+test('Braces producer policy matches the canonical reviewed sidecar', () => {
+  const sidecars = JSON.parse(
+    fs.readFileSync(
+      new URL(
+        '../../../../scripts/ultramodern-supply/sidecars.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const braces = sidecars.find(
+    (sidecar: { id: string }) => sidecar.id === 'braces',
+  );
+  assert.equal(braces.fork.version, BRACES_FORK_VERSION);
+  assert.equal(
+    ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides['braces@>=3.0.0 <3.0.4'],
+    `npm:${braces.fork.name}@${braces.fork.version}`,
+  );
+});
+
+test('workspace validation requires both reviewed dependency corrections', () => {
+  const required = ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides;
+  assert.throws(
+    () => assertWorkspaceDependencyOverrides({}),
+    /must be an object/u,
+  );
+  for (const selector of Object.keys(required)) {
+    const overrides: Record<string, string> = { ...required };
+    delete overrides[selector];
+    assert.throws(
+      () => assertWorkspaceDependencyOverrides({ overrides }),
+      /must be/u,
+    );
+    overrides[selector] = '3.0.3';
+    assert.throws(
+      () => assertWorkspaceDependencyOverrides({ overrides }),
+      /must be/u,
+    );
+  }
+});
+
+test('workspace validation rejects competing selectors but permits unrelated overrides', () => {
+  const required = ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides;
+  assert.doesNotThrow(() =>
+    assertWorkspaceDependencyOverrides({
+      overrides: {
+        ...required,
+        'axios@<1.20.0': '1.20.0',
+        'braces@3>foo': '1.0.0',
+        'sharp@>=0.35.0 > unrelated': '2.0.0',
+      },
+    }),
+  );
+  for (const selector of [
+    'braces',
+    'braces@3',
+    'braces@>3.0.0',
+    'braces@>v3.0.0',
+    'foo > braces@>=3.0.0',
+    'micromatch@4>braces',
+    'micromatch@4>braces@3',
+    'sharp',
+    'minimizer-webpack-plugin>sharp@0.35.4',
+  ]) {
+    assert.throws(
+      () =>
+        assertWorkspaceDependencyOverrides({
+          overrides: { ...required, [selector]: '3.0.3' },
+        }),
+      /conflicts with the producer policy/u,
+    );
   }
 });

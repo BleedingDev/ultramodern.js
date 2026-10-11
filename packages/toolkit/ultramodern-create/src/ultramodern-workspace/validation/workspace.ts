@@ -6,6 +6,7 @@ import {
   isCreatePackageSourceCheckout,
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../policy';
 import { assertCompilerArchitecture } from './architecture';
 import { sameJson } from './assertions';
 import {
@@ -147,6 +148,36 @@ export function validateBackendFederationEntrypoints(
     requiredFile(root, `${appPath}/${relative}`, `${appId} API surface`);
 }
 
+/** Keep every native dependency path on the producer's reviewed corrections. */
+export function assertWorkspaceDependencyOverrides(
+  workspace: JsonRecord,
+): void {
+  const overrides = record(
+    workspace.overrides,
+    'Workspace dependency overrides',
+  );
+  const required = ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides;
+  for (const [selector, specifier] of Object.entries(required)) {
+    assert(
+      overrides[selector] === specifier,
+      `Workspace dependency override ${selector} must be ${specifier}`,
+    );
+  }
+  const managed = Object.keys(required).map(selector => selector.split('@')[0]);
+  // Match the final dependency target, allowing > inside semver ranges.
+  // A managed parent such as braces@3>foo still targets unrelated foo.
+  const managedSelector = new RegExp(
+    `(?:^|>)\\s*(?:${managed.map(name => RegExp.escape(name)).join('|')})(?:@(?:[^>]|>(?=\\s*(?:=|\\d|v\\d)))*)?\\s*$`,
+    'u',
+  );
+  for (const selector of Object.keys(overrides)) {
+    assert(
+      Object.hasOwn(required, selector) || !managedSelector.test(selector),
+      `Workspace dependency override ${selector} conflicts with the producer policy`,
+    );
+  }
+}
+
 /** Validate authored workspace relationships without evaluating application config. */
 export function validateWorkspace(
   root: string,
@@ -165,6 +196,7 @@ export function validateWorkspace(
     yaml.load(fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8')),
     'pnpm-workspace.yaml',
   );
+  assertWorkspaceDependencyOverrides(workspace);
   const dependencyCatalogs = {
     catalog: record(workspace.catalog ?? {}, 'workspace catalog'),
     catalogs: record(workspace.catalogs ?? {}, 'workspace catalogs'),

@@ -240,7 +240,7 @@ async function runTractorAcceptanceFixture({
     if (command === pnpmExecutable && args.includes('--no-frozen-lockfile')) {
       installReleaseCohort(workspace, release);
     }
-    if (command === 'pnpm' && args[0] === 'node:proof') {
+    if (command === pnpmExecutable && args[0] === 'node:proof') {
       writeJson(
         path.join(
           workspace,

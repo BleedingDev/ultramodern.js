@@ -369,13 +369,13 @@ test('runner CLI has no bypass flag and builds a hermetic package-manager env', 
       },
     }),
   );
-  // The resolved pnpm wins over anything already on PATH, the install stays
+  // Accepted Node and pnpm win over inherited PATH entries; the install stays
   // aged and strict, and no trust-policy escape hatch reaches the child.
   assert.equal(packageManager.pnpmExecutable, exactPnpmExecutable);
-  assert.equal(
-    packageManager.env.PATH.split(path.delimiter)[0],
+  assert.deepEqual(packageManager.env.PATH.split(path.delimiter).slice(0, 2), [
+    path.dirname(process.execPath),
     path.dirname(exactPnpmExecutable),
-  );
+  ]);
   assert.equal(
     packageManager.env.pnpm_config_minimum_release_age_exclude,
     JSON.stringify(bootstrapExclude),
@@ -409,7 +409,7 @@ test('Tractor children use the acceptance Node despite an older mise Node on PAT
     minimumReleaseAgeExclude: bootstrapExclude,
     packageManagerRoot: root,
     registryEnv: { npm_config_registry: 'https://registry.npmjs.org/' },
-    resolveExactPnpmExecutableImpl: () => exactPnpmExecutable,
+    resolveExactPnpmExecutableImpl: () => path.join(staleBin, 'pnpm'),
   });
   const child = runCommand('node', ['--version'], {
     env,
@@ -443,6 +443,9 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
       assert.equal(childOptions.env, env);
       assert.equal(args[args.indexOf('dlx') + 2], bootstrapSpecifier);
       const workspace = args[args.indexOf('dlx') + 3];
+      assert.equal(path.isAbsolute(workspace), true);
+      assert.equal(path.dirname(workspace), childOptions.cwd);
+      assert.equal(path.dirname(childOptions.cwd), root);
       fs.mkdirSync(workspace);
       fs.writeFileSync(
         path.join(workspace, 'pnpm-workspace.yaml'),
@@ -854,6 +857,56 @@ test('Tractor stops on formatter failure without reporting format or running che
   );
 });
 
+test('Tractor command execution uses the exact pnpm executable after toolchain adoption', async () => {
+  const { executeTractorCommands } = await runnerPromise;
+  const commands = [];
+  Array.from(
+    executeTractorCommands({
+      workspace: os.tmpdir(),
+      env: {},
+      report: { checks: [] },
+      pnpmExecutable: exactPnpmExecutable,
+      runImpl(command) {
+        commands.push(command);
+      },
+    }),
+  );
+  assert.equal(commands.length > 0, true);
+  assert.equal(
+    commands.every(command => command === exactPnpmExecutable),
+    true,
+  );
+});
+
+test('workerd proof launches the accepted pnpm executable without consulting PATH', async t => {
+  const { startWorkerdProof } = await import('../browser-smoke/bootstrap.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-workerd-pnpm-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const executable = path.join(root, 'accepted-pnpm');
+  const receipt = path.join(root, 'args.json');
+  fs.writeFileSync(
+    executable,
+    `#!${process.execPath}\nimport fs from 'node:fs';\nfs.writeFileSync(${JSON.stringify(receipt)}, JSON.stringify(process.argv.slice(2)));\nprocess.stdout.write('WORKERD_URL=http://127.0.0.1:8787\\n');\nsetInterval(() => {}, 1000);\n`,
+    { mode: 0o755 },
+  );
+  const runtime = await startWorkerdProof({
+    artifactDir: path.join(root, 'reports'),
+    pnpmExecutable: executable,
+    processEnv: { PATH: '/unavailable-package-manager-path' },
+    projectDir: root,
+    timeoutMs: 5000,
+  });
+  try {
+    assert.equal(runtime.baseUrl, 'http://127.0.0.1:8787');
+    assert.deepEqual(JSON.parse(fs.readFileSync(receipt, 'utf8')), [
+      'run',
+      'cloudflare:ssr-proof',
+    ]);
+  } finally {
+    await runtime.stop();
+  }
+});
+
 test('source-candidate rehearsal is bound to a loopback ephemeral registry', async () => {
   const {
     assertAcceptanceRegistry,
@@ -1192,7 +1245,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     );
     fs.appendFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
-      'catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
+      "catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n  braces: 3.0.3\n  braces@^3: 3.0.3\n  fast-glob>braces@3: 3.0.3\n  sharp: 0.35.4\n  other>sharp: 0.35.4\n  parent > braces@>=3.0.0: 3.0.3\n  braces@3>foo: 1.2.3\n  sharp@>=0.35.0 > unrelated: 2.0.0\n  '@scope/other@^1': 1.2.3\n",
     );
     const pnpmOverrides = {
       'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
@@ -1214,6 +1267,15 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       policyText,
       /braces@>=3\.0\.0 <3\.0\.4.*npm:@bleedingdev\/braces@3\.0\.4/u,
     );
+    const { parse: parseYaml } = await import('yaml');
+    assert.deepEqual(parseYaml(policyText).overrides, {
+      zod: 'npm:@bleedingdev/zod@4.6.5',
+      effect: 'npm:@bleedingdev/effect@4.0.0-rc.117',
+      '@scope/other@^1': '1.2.3',
+      'braces@3>foo': '1.2.3',
+      'sharp@>=0.35.0 > unrelated': '2.0.0',
+      ...pnpmOverrides,
+    });
     assert.match(policyText, /sharp@>=0\.35\.0 <0\.35\.5.*0\.35\.5/u);
     assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
     assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);

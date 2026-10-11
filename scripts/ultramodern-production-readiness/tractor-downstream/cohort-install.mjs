@@ -136,7 +136,27 @@ export function prepareTractorCohortInstallation(
       );
     }
   }
-  policy.overrides = { ...policy.overrides, ...pnpmOverrides };
+  const managedPackages = Object.keys(pnpmOverrides).map(selector => {
+    const versionSeparator = selector.indexOf('@', 1);
+    return versionSeparator === -1
+      ? selector
+      : selector.slice(0, versionSeparator);
+  });
+  const managedSelector =
+    managedPackages.length > 0
+      ? new RegExp(
+          `(?:^|>)\\s*(?:${managedPackages.map(RegExp.escape).join('|')})(?:@(?:[^>]|>(?=\\s*(?:=|\\d|v\\d)))*)?\\s*$`,
+          'u',
+        )
+      : undefined;
+  policy.overrides = {
+    ...Object.fromEntries(
+      Object.entries(policy.overrides ?? {}).filter(
+        ([selector]) => !managedSelector?.test(selector),
+      ),
+    ),
+    ...pnpmOverrides,
+  };
   const toolchain = prepareTractorToolchain(workspace, release.tools);
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
   fs.writeFileSync(toolchain.miseFile, toolchain.mise);

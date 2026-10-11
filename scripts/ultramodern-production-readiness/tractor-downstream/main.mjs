@@ -169,15 +169,21 @@ function createTractorPackageManagerContext({
     runImpl,
     workDir: packageManagerRoot,
   });
-  return {
-    env: createAcceptanceReleaseAgeEnv(
-      runtime.env,
-      createPackage,
-      exactExclusions,
-      registryEnv,
-    ),
-    pnpmExecutable: runtime.pnpmExecutable,
-  };
+  const env = createAcceptanceReleaseAgeEnv(
+    runtime.env,
+    createPackage,
+    exactExclusions,
+    registryEnv,
+  );
+  // An executable pnpm directory can itself contain a different node binary.
+  // Keep the accepted interpreter first, including in that case.
+  env.PATH = [
+    ...new Set([
+      path.dirname(process.execPath),
+      ...env.PATH.split(path.delimiter),
+    ]),
+  ].join(path.delimiter);
+  return { env, pnpmExecutable: runtime.pnpmExecutable };
 }
 
 // Obtain the current policy from the exact producer, using its ordinary
@@ -769,7 +775,13 @@ function readPassingNodeBackendProof(workspace) {
   };
 }
 
-function* executeTractorCommands({ workspace, env, report, runImpl = run }) {
+function* executeTractorCommands({
+  workspace,
+  env,
+  report,
+  pnpmExecutable = 'pnpm',
+  runImpl = run,
+}) {
   for (const {
     command: [command, args],
     report: reportCommand,
@@ -777,7 +789,10 @@ function* executeTractorCommands({ workspace, env, report, runImpl = run }) {
     if (args[0] === 'node:proof') {
       fs.rmSync(path.join(workspace, nodeBackendProofPath), { force: true });
     }
-    runImpl(command, args, { cwd: workspace, env });
+    runImpl(command === 'pnpm' ? pnpmExecutable : command, args, {
+      cwd: workspace,
+      env,
+    });
     if (reportCommand) {
       report.checks.push({
         id: args.join('-'),
@@ -929,6 +944,7 @@ async function runTractorDownstreamAcceptance(
       workspace: options.workspace,
       env,
       report,
+      pnpmExecutable: packageManager.pnpmExecutable,
       runImpl,
     })) {
       if (args[0] === 'check') {
@@ -989,6 +1005,7 @@ async function runTractorDownstreamAcceptance(
       '.codex/reports/tractor-downstream-workerd',
     );
     const workerd = await startWorkerdProofImpl({
+      pnpmExecutable: packageManager.pnpmExecutable,
       artifactDir,
       processEnv: env,
       projectDir: options.workspace,
