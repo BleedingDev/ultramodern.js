@@ -6,16 +6,26 @@
 
 ## Linux on Depot CI
 
-The nine workflows in [`.depot/workflows`](../.depot/workflows) run Linux unit
+The nine automatic workflows in [`.depot/workflows`](../.depot/workflows) run Linux unit
 tests, integration tests, builder tests, lint, type checks, dependency checks,
 native compatibility checks, workflow security, and cache seeds. They use
 `depot-ubuntu-24.04-8`. Integration keeps all six core shards, both generator
 suites, the adapter suite, and the utility suite.
+The separate `ci-benchmark.yml` workflow runs only when requested for a comparison.
 
-Connect the repository with the Depot Code Access GitHub App. Confirm that
-Depot has disabled billing for the sponsored organization before running jobs
-or merging these workflows into the default branch. Test the migration with
-`depot ci run --workflow .depot/workflows/workflow-security.yml --repo <owner>/ultramodern.js --org 882f0kcw25`.
+Connect the repository with the Depot Code Access GitHub App. Depot offers a
+[seven-day trial without a credit card](https://depot.dev/docs/ci/overview).
+Limited validation can use that trial after the account page confirms it is
+active and has enough quota. Wait for Pedro to confirm billing is disabled for
+organization `882f0kcw25` before permanent activation or merging these workflows
+into the default branch.
+
+After verifying the API token and organization configuration, validate a frozen,
+committed SHA from a GitHub Actions job with
+`node scripts/ci/run-depot-workflow.mjs .depot/workflows/workflow-security.yml`.
+The job's GitHub environment must identify that exact repository and SHA. The
+Depot CLI can submit local workflow content and workspace patches, so a CLI
+preflight alone does not prove the committed revision passed a required check.
 
 The GitHub workflows remain active during validation. Their required checks
 are pinned to the GitHub Actions app, so Depot's own checks cannot replace them
@@ -80,10 +90,84 @@ Delete the three runner variables to return to GitHub-hosted compute.
 
 ## Compare CI times
 
-Use the same commit, toolchain, test coverage, and workflow on both providers.
-Record queue time, each job's duration, and total time until required checks
-finish. Compare cold caches separately from repeated warm runs, and link the
-public runs with the results. A completed Depot comparison is pending activation.
+The paired comparison is pending validation. Use verified trial quota for
+limited validation, or confirmed sponsored billing after activation, as described
+above. Trial availability does not establish that sponsored billing is disabled.
+
+1. Freeze one green commit and run the same Linux workload on both providers:
+   unit tests and build consumers, or the ten Linux integration suite jobs. Keep
+   the toolchain, lockfile, browser versions, test workers, and commands identical.
+   Verify the actual checkout with `record-runner-evidence.mjs`; a pull request's
+   `head_sha` can differ from its tested merge commit. Do not compare the whole
+   GitHub integration workflow, which also includes Windows jobs, with Linux-only
+   Depot CI. Record the workflow revision and exact selected job names.
+2. Measure cold and warm caches separately. For cold runs, disable every project
+   cache restore and save, or give every cache key **and fallback restore prefix**
+   a unique namespace per sample. Include pnpm, toolchain, browser, and prepared
+   build caches. Call this "project-cache cold": provider image caches may remain
+   warm. For warm runs, seed both providers at the frozen commit and verify hits
+   in the logs for every cache used, including prepared-build validation. A fast
+   run alone does not prove a hit. The current cache seed writes only from
+   `main-ultramodern`; use it when that branch contains the frozen commit, without
+   pretending a feature branch is the default branch. Use `mixed` or `unknown`
+   when evidence is missing.
+3. Collect at least five successful pairs per workload and cache condition.
+   Alternate launch order between GitHub first and Depot first, keeping each pair
+   close together. Avoid overlapping runs that the workflow's concurrency rule
+   would cancel. Keep a ledger of every failure, cancellation, and retry with its
+   run link and reason; report these counts alongside the successful sample count.
+   Compare first attempts separately from time spent recovering failed runs.
+4. Record runner evidence after installing the pinned toolchain:
+   `node scripts/ci/record-runner-evidence.mjs "$(pnpm --version)"`. Its
+   `CI_BENCHMARK_EVIDENCE` JSON has schema `ultramodern.ci.runner-evidence`, version
+   `1`: `checkedOutCommit`, `github` identity and workflow reference, `tools`,
+   `runner` OS/CPU/memory/image, and `inputs` lockfile/mise SHA-256 hashes. Keep this
+   evidence and cache-hit logs with each run. Observed host hardware may differ
+   from allocated container limits; record Depot's requested CPU and memory too.
+5. Collect completed GitHub run attempts with
+   `node scripts/ci/collect-ci-timings.mjs --input samples.json --output timings.json`.
+   The input contains `repository` and a `samples` array. Each sample identifies
+   `runId`, `attempt`, `provider`, `cacheState`, `workload`, verified `testedSha`,
+   exact `jobNames`, `cacheEvidence`, and `toolchain`. Provider values are
+   `github-actions`, `depot-github-actions`, or `depot-ci`; cache values are
+   `cold`, `warm`, `mixed`, or `unknown`. The collector preserves run and job links,
+   timestamps, runner labels, conclusions, and missing-evidence issues.
+
+The manual `ci-benchmark.yml` workflows on both providers run matching type-check
+and Linux unit/build-consumer jobs with fresh project caches. They disable cache
+restores, prepared-build restores, and Nx task caches, and isolate the pnpm store,
+mise data, and browser downloads per job. Provider image caches remain outside
+this control. GitHub must register the workflow on the default branch before
+manual dispatch. These workflows establish cold samples; they do not establish
+warm-cache results.
+
+Set `collectEvidence: true` in each sample to extract checkout and runner proof
+from its job logs. For native Depot samples, set the input manifest's `source` to
+`depot-ci`, provide the exact `workflowPath`, and supply `DEPOT_TOKEN` through the
+existing private credential configuration. The collector reads native run, job,
+and attempt timestamps. It does not invent step durations or infer cache state.
+
+Report the median and range for job execution, the sum of job execution seconds,
+and elapsed time from workflow creation until the selected jobs finish. Report
+time until all required checks finish separately. Job creation-to-start includes
+dependency and concurrency waits, so label it as waiting time rather than pure
+runner queue time. A GitHub bridge to Depot CI measures delivery through GitHub;
+use Depot's native run/job timestamps for Depot execution, and keep both metrics.
+GitHub reruns can retain the original creation time, so do not treat their elapsed
+time as a fresh first-attempt measurement.
+
+The current Linux migration changes GitHub's public `ubuntu-24.04` runner
+(4 CPUs, 16 GB RAM) to Depot's `depot-ubuntu-24.04-8` (8 CPUs, 32 GB RAM).
+Disclose that hardware change with the result; it measures this migration, not
+provider performance at equal hardware. Keep Windows and macOS results separate.
+See the [GitHub runner specifications](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+and [Depot runner specifications](https://depot.dev/docs/github-actions/runner-types).
+
+The [historical GitHub pilot](https://github.com/BleedingDev/ultramodern.js/actions/runs/38171642118)
+is uncontrolled: its commit and cache state do not establish a paired baseline.
+It cannot support a before/after speedup claim. Publish results only with the
+paired run links, tested commit, cache and runner evidence, selected job coverage,
+and complete failure/retry ledger. No Depot speedup has been measured yet.
 
 See Depot's [runner setup guide](https://depot.dev/docs/github-actions/quickstart)
 and [runner types](https://depot.dev/docs/github-actions/runner-types), plus the
