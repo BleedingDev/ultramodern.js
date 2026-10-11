@@ -14,6 +14,7 @@ const providers = new Set([
 ]);
 const cacheStates = new Set(['cold', 'warm', 'mixed', 'unknown']);
 const evidencePrefix = 'CI_BENCHMARK_EVIDENCE ';
+const cacheEvidencePrefix = 'CI_BENCHMARK_CACHE_EVIDENCE ';
 const shaPattern = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
 function assert(condition, message) {
@@ -309,6 +310,7 @@ export function extractCiEvidence(logs, { repository }) {
   const records = [];
   const checkoutCommits = [];
   const cacheSignals = [];
+  const cacheRecords = [];
   const lines = logs
     .split('\n')
     .map(line => line.replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s/u, '').trim());
@@ -323,6 +325,39 @@ export function extractCiEvidence(logs, { repository }) {
         throw new Error('Malformed runner evidence JSON');
       }
       records.push(runnerEvidence(record, repository));
+    }
+    if (line.startsWith(cacheEvidencePrefix)) {
+      assert(line.length <= 4096, 'Oversized cache evidence record');
+      let record;
+      try {
+        record = JSON.parse(line.slice(cacheEvidencePrefix.length));
+      } catch {
+        throw new Error('Malformed cache evidence JSON');
+      }
+      assert(
+        record?.schemaVersion === 1 && record.cacheState === 'cold',
+        'Unsupported cache evidence schema or mode',
+      );
+      const flags = [
+        'actionsCache',
+        'miseCache',
+        'preparedBuildRestore',
+        'nxTaskCache',
+        'nxRemoteCache',
+      ];
+      assert(
+        flags.every(key => record[key] === false) &&
+          record.pnpmStore === 'fresh-per-job' &&
+          record.browsers === 'fresh-per-job',
+        'Cache evidence does not match the isolated project-cache cold protocol',
+      );
+      cacheRecords.push({
+        schemaVersion: 1,
+        cacheState: 'cold',
+        ...Object.fromEntries(flags.map(key => [key, false])),
+        pnpmStore: 'fresh-per-job',
+        browsers: 'fresh-per-job',
+      });
     }
     if (
       /\[command\].*\bgit log -1 --format=%H$/u.test(line) &&
@@ -351,6 +386,7 @@ export function extractCiEvidence(logs, { repository }) {
     records,
     checkoutCommits: [...new Set(checkoutCommits)],
     cacheSignals,
+    cacheRecords,
   };
 }
 
@@ -477,6 +513,7 @@ export async function collectCiTimings({
           { repository },
         );
         job.runnerEvidence = extracted.records;
+        job.cacheEvidenceRecords = extracted.cacheRecords;
         proof.push({ jobId: job.id, url: job.url, ...extracted });
       }
     }
@@ -528,11 +565,17 @@ export async function collectCiTimings({
       workload: sample.workload,
       cacheEvidence: sample.cacheEvidence ?? null,
       observedCacheSignals: proof.flatMap(item => item.cacheSignals),
+      cacheEvidenceRecords: proof.flatMap(item => item.cacheRecords),
+      cacheEvidenceComplete:
+        selectedJobs.length > 0 &&
+        proof.length === selectedJobs.length &&
+        proof.every(item => item.cacheRecords.length > 0),
       toolchain: records[0]?.tools ?? sample.toolchain ?? null,
       inputHashes: records[0]?.inputs ?? null,
       evidence: proof,
       evidenceRequested: sample.collectEvidence === true,
       evidenceComplete:
+        selectedJobs.length > 0 &&
         proof.length === selectedJobs.length &&
         proof.every(
           item => item.records.length > 0 || item.checkoutCommits.length > 0,
@@ -626,6 +669,7 @@ async function depotEvidence(api, attemptId, repository) {
   const records = [];
   const checkoutCommits = [];
   const cacheSignals = [];
+  const cacheRecords = [];
   const tokens = new Set();
   let pageToken;
   for (let page = 0; page < 1000; page++) {
@@ -651,9 +695,10 @@ async function depotEvidence(api, attemptId, repository) {
     records.push(...extracted.records);
     checkoutCommits.push(...extracted.checkoutCommits);
     cacheSignals.push(...extracted.cacheSignals);
+    cacheRecords.push(...extracted.cacheRecords);
     const next = response.nextPageToken;
     if (!next || !(response.lines ?? []).length)
-      return { records, checkoutCommits, cacheSignals };
+      return { records, checkoutCommits, cacheSignals, cacheRecords };
     assert(
       typeof next === 'string' && !tokens.has(next),
       'Depot log pagination repeated a token',
@@ -863,9 +908,14 @@ export async function collectDepotCiTimings({
           detail.currentAttemptId &&
           (!sample.jobNames || sample.jobNames.includes(job.name))
         ) {
-          job.runnerEvidence = (
-            await depotEvidence(api, detail.currentAttemptId, repository)
-          ).records;
+          const proof = await depotEvidence(
+            api,
+            detail.currentAttemptId,
+            repository,
+          );
+          job.runnerEvidence = proof.records;
+          job.cacheEvidenceRecords = proof.cacheRecords;
+          job.observedCacheSignals = proof.cacheSignals;
           assert(
             job.runnerEvidence.every(
               record => record.checkedOutCommit === detail.sha,
@@ -922,6 +972,14 @@ export async function collectDepotCiTimings({
       source: 'native-depot-ci',
       cacheState: sample.cacheState,
       cacheEvidence: sample.cacheEvidence ?? null,
+      cacheEvidenceRecords: selectedJobs.flatMap(
+        job => job.cacheEvidenceRecords ?? [],
+      ),
+      cacheEvidenceComplete:
+        selectedJobs.length > 0 &&
+        selectedJobs.every(job => (job.cacheEvidenceRecords ?? []).length > 0),
+      cacheEvidenceMeaning:
+        'Logged project-cache configuration; cacheState remains explicit metadata. Fixed-revision source controls and dispatch override absence require separate operator provenance.',
       workload: sample.workload,
       testedSha,
       testedShaSource: run.sha

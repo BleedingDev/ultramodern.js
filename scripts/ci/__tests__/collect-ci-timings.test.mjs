@@ -135,6 +135,62 @@ function recordedEvidence() {
   };
 }
 
+function recordedCacheEvidence() {
+  return {
+    schemaVersion: 1,
+    cacheState: 'cold',
+    actionsCache: false,
+    miseCache: false,
+    pnpmStore: 'fresh-per-job',
+    browsers: 'fresh-per-job',
+    preparedBuildRestore: false,
+    nxTaskCache: false,
+    nxRemoteCache: false,
+  };
+}
+
+test('cache markers record the exact bounded isolation protocol without promoting declared cache state', async () => {
+  const cache = recordedCacheEvidence();
+  const withExtra = { ...cache, secret: 'not-in-output' };
+  const log = `CI_BENCHMARK_CACHE_EVIDENCE ${JSON.stringify(withExtra)}`;
+  const extracted = extractCiEvidence(log, { repository });
+  assert.deepEqual(extracted.cacheRecords, [cache]);
+  assert.equal(JSON.stringify(extracted).includes('not-in-output'), false);
+  const api = fixture({ logs: async () => log });
+  const result = (
+    await api.collect({
+      collectEvidence: true,
+      cacheState: 'unknown',
+      cacheEvidence: undefined,
+    })
+  ).samples[0];
+  assert.equal(result.cacheState, 'unknown');
+  assert.equal(result.cacheEvidence, null);
+  assert.equal(result.cacheEvidenceComplete, true);
+  assert.equal(result.evidenceComplete, false);
+  for (const invalid of [
+    { ...cache, schemaVersion: 2 },
+    { ...cache, preparedBuildRestore: true },
+    { ...cache, pnpmStore: 'pre-existing' },
+  ]) {
+    assert.throws(
+      () =>
+        extractCiEvidence(
+          `CI_BENCHMARK_CACHE_EVIDENCE ${JSON.stringify(invalid)}`,
+          { repository },
+        ),
+      /Unsupported cache evidence|does not match/u,
+    );
+  }
+  assert.throws(
+    () =>
+      extractCiEvidence('CI_BENCHMARK_CACHE_EVIDENCE invalid secret', {
+        repository,
+      }),
+    /Malformed cache evidence JSON/u,
+  );
+});
+
 test('extracts bounded runner evidence without returning full logs or unknown JSON fields', () => {
   const evidence = recordedEvidence();
   evidence.secret = 'do-not-print-this';
@@ -468,12 +524,24 @@ test('native log pages extract evidence using pinned attempt IDs and never retur
   const record = recordedEvidence();
   record.checkedOutCommit = sha;
   api.setPages([
-    { lines: [{ body: 'unrelated private log' }, {}], nextPageToken: 'page-2' },
+    {
+      lines: [
+        { body: 'unrelated private log' },
+        {},
+        {
+          body: `CI_BENCHMARK_CACHE_EVIDENCE ${JSON.stringify(recordedCacheEvidence())}`,
+        },
+      ],
+      nextPageToken: 'page-2',
+    },
     { lines: [{ body: `CI_BENCHMARK_EVIDENCE ${JSON.stringify(record)}` }] },
   ]);
   const result = (await api.collect({ collectEvidence: true })).samples[0];
   assert.deepEqual(result.toolchain, record.tools);
   assert.deepEqual(result.inputHashes, record.inputs);
+  assert.equal(result.cacheState, 'unknown');
+  assert.equal(result.cacheEvidenceComplete, true);
+  assert.deepEqual(result.cacheEvidenceRecords, [recordedCacheEvidence()]);
   assert.equal(JSON.stringify(result).includes('unrelated private log'), false);
   assert.deepEqual(
     api.calls

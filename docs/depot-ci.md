@@ -149,7 +149,11 @@ Set `collectEvidence: true` in each sample to extract checkout and runner proof
 from its job logs. For native Depot samples, set the input manifest's `source` to
 `depot-ci`, provide the exact `workflowPath`, and supply `DEPOT_TOKEN` through the
 existing private credential configuration. The collector reads native run, job,
-and attempt timestamps. It does not invent step durations or infer cache state.
+and attempt timestamps. It extracts the bounded `CI_BENCHMARK_CACHE_EVIDENCE`
+configuration records from each selected job. These records need the committed
+workflow controls and a dispatch without content or job overrides; a declared
+cache state alone is insufficient. It does not invent step durations or infer
+cache state.
 
 Report the median and range for job execution, the sum of job execution seconds,
 and elapsed time from workflow creation until the selected jobs finish. Report
