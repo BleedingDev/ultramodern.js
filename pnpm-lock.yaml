@@ -211,7 +211,6 @@ patchedDependencies:
   '@module-federation/rspack@2.9.2': 06641dcd38197ccc8831f0dca7f6ff37b05ee2e771686816cc3d3f3c57c0e8af
   '@module-federation/runtime-core@2.9.2': 8f844e9c948e1e0b8fa183bf3e8c87f9e7fa9d9abbab91cdf0aeb708123b574e
   '@module-federation/sdk@2.9.2': fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e
-  '@rsbuild/core@2.2.11': 246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05
   braces@3.0.3: e14af28f138a243a283deed5e9f26275891ad6eedc02e964d8ec7ae7efc6783a
 
 importers:
@@ -315,10 +314,10 @@ importers:
         version: link:../../packages/tsconfig
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rsdoctor/rspack-plugin':
         specifier: ^1.6.4
-        version: 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@types/node':
         specifier: ^26.6.3
         version: 26.6.5
@@ -842,7 +841,7 @@ importers:
         version: link:../../packages/tsconfig
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@storybook/addon-docs':
         specifier: ^10.6.1
         version: 10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))
@@ -866,10 +865,10 @@ importers:
         version: 10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10)
       storybook-addon-modernjs:
         specifier: 3.6.0
-        version: 3.6.0(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@packages+toolkit+plugin)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2))(typescript@7.0.2)
+        version: 3.6.0(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@packages+toolkit+plugin)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2))(typescript@7.0.2)
       storybook-react-rsbuild:
         specifier: 3.6.0
-        version: 3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rollup@4.63.4)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@7.0.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rollup@4.63.4)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@7.0.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -1110,7 +1109,7 @@ importers:
         version: link:../../solutions/app-tools
       '@rstest/adapter-rsbuild':
         specifier: ^0.12.3
-        version: 0.12.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)))
+        version: 0.12.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)))
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
@@ -1123,7 +1122,7 @@ importers:
         version: link:../../toolkit/types
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1150,34 +1149,34 @@ importers:
         version: link:../../toolkit/utils
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rsbuild/plugin-assets-retry':
         specifier: 2.0.2
-        version: 2.0.2(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 2.0.2(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsbuild/plugin-check-syntax':
         specifier: 2.0.1
-        version: 2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsbuild/plugin-css-minimizer':
         specifier: 2.0.1
-        version: 2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(clean-css@5.3.3)(csso@5.0.5)(esbuild@0.28.2)(lightningcss@1.33.0)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(clean-css@5.3.3)(csso@5.0.5)(esbuild@0.28.2)(lightningcss@1.33.0)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsbuild/plugin-less':
         specifier: 2.0.1
-        version: 2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsbuild/plugin-rem':
         specifier: 1.0.6
-        version: 1.0.6(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 1.0.6(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsbuild/plugin-sass':
         specifier: 2.0.1
-        version: 2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsbuild/plugin-source-build':
         specifier: 1.0.7
-        version: 1.0.7(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 1.0.7(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsbuild/plugin-type-check':
         specifier: 1.6.0
-        version: 1.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)
+        version: 1.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)
       '@rsbuild/plugin-typed-css-modules':
         specifier: 1.2.4
-        version: 1.2.4(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+        version: 1.2.4(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@swc/core':
         specifier: 1.16.13
         version: 1.16.13(@swc/helpers@0.5.23)
@@ -1250,13 +1249,13 @@ importers:
         version: link:../../toolkit/types
       '@rsbuild/plugin-react':
         specifier: 2.1.1
-        version: 2.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
+        version: 2.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rsbuild/plugin-svgr':
         specifier: 2.0.5
-        version: 2.0.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 2.0.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
       '@rsdoctor/rspack-plugin':
         specifier: ^1.6.4
-        version: 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1277,7 +1276,7 @@ importers:
         version: 0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       rsbuild-plugin-rsc:
         specifier: 0.1.1
-        version: 0.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(react-server-dom-rspack@0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+        version: 0.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(react-server-dom-rspack@0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       terser:
         specifier: ^5.51.2
         version: 5.51.2
@@ -1332,7 +1331,7 @@ importers:
         version: link:../../toolkit/types
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1414,7 +1413,7 @@ importers:
         version: link:../../toolkit/types
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1484,7 +1483,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1527,7 +1526,7 @@ importers:
         version: link:../../toolkit/types
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -1785,7 +1784,7 @@ importers:
         version: link:../../tsconfig
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2077,10 +2076,10 @@ importers:
         version: link:../../toolkit/utils
       '@rsbuild/plugin-react':
         specifier: 2.1.1
-        version: 2.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
+        version: 2.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@rsbuild/plugin-svgr':
         specifier: 2.0.5
-        version: 2.0.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 2.0.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
       '@swc/core':
         specifier: 1.16.13
         version: 1.16.13(@swc/helpers@0.5.23)
@@ -2138,7 +2137,7 @@ importers:
         version: 4.4.2
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2315,7 +2314,7 @@ importers:
         version: link:../../tsconfig
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2413,7 +2412,7 @@ importers:
         version: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2474,7 +2473,7 @@ importers:
         version: link:../../tsconfig
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2508,7 +2507,7 @@ importers:
         version: link:../../toolkit/utils
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -3107,7 +3106,7 @@ importers:
         version: link:../../toolkit/utils
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@swc/core':
         specifier: 1.16.13
         version: 1.16.13(@swc/helpers@0.5.23)
@@ -3156,7 +3155,7 @@ importers:
         version: link:../../../scripts/rslib
       '@rsbuild/plugin-svgr':
         specifier: 2.0.5
-        version: 2.0.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 2.0.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -3256,13 +3255,13 @@ importers:
         version: link:../../runtime/renderer-extensions
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@module-federation/runtime-tools':
         specifier: 2.9.2
         version: 2.9.2
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -3343,7 +3342,7 @@ importers:
         version: link:../../toolkit/utils
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@types/babel__core':
         specifier: ^7.20.5
         version: 7.20.5
@@ -3389,7 +3388,7 @@ importers:
         version: 0.1.55(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@rsbuild/plugin-svgr':
         specifier: 2.0.5
-        version: 2.0.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
+        version: 2.0.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -3520,7 +3519,7 @@ importers:
         version: link:../utils
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@swc/helpers':
         specifier: ^0.5.23
         version: 0.5.23
@@ -3762,10 +3761,10 @@ importers:
         version: link:../utils
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsbuild/plugin-tailwindcss':
         specifier: 2.0.3
-        version: 2.0.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+        version: 2.0.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@typescript/native':
         specifier: npm:typescript@7.0.2
         version: typescript@7.0.2
@@ -4351,7 +4350,7 @@ importers:
         version: 1.63.0
       '@rsbuild/core':
         specifier: 2.2.11
-        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+        version: 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -24793,13 +24792,13 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/modern-js-v3@2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@module-federation/modern-js-v3@2.9.2(patch_hash=56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
       '@module-federation/bridge-react': 2.9.2(patch_hash=2d8a06e2ef045f877d6b0c5f741053dc8183cb6194f42b704357f426f315d0db)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       '@module-federation/cli': 2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.9.2(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@module-federation/node': 2.7.52(patch_hash=69e8251a310c4a1f3cf338f8dfe27e4c6a4833dcd8a81155967d154689e2bce7)(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
-      '@module-federation/rsbuild-plugin': 2.9.2(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+      '@module-federation/rsbuild-plugin': 2.9.2(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@module-federation/runtime': 2.9.2
       '@module-federation/sdk': 2.9.2(patch_hash=fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e)
       '@swc/helpers': 0.5.17
@@ -24849,13 +24848,13 @@ snapshots:
       - vue-tsc
       - webpack
 
-  '@module-federation/rsbuild-plugin@2.9.2(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@module-federation/rsbuild-plugin@2.9.2(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
       '@module-federation/enhanced': 2.9.2(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@module-federation/node': 2.7.52(patch_hash=69e8251a310c4a1f3cf338f8dfe27e4c6a4833dcd8a81155967d154689e2bce7)(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@module-federation/sdk': 2.9.2(patch_hash=fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e)
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@rspack/core'
       - bufferutil
@@ -26320,7 +26319,7 @@ snapshots:
     transitivePeerDependencies:
       - '@module-federation/runtime-tools'
 
-  '@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)':
+  '@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)':
     dependencies:
       '@rspack/core': 2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23)
       '@swc/helpers': 0.5.23
@@ -26329,9 +26328,9 @@ snapshots:
     transitivePeerDependencies:
       - '@module-federation/runtime-tools'
 
-  '@rsbuild/plugin-assets-retry@2.0.2(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-assets-retry@2.0.2(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
   '@rsbuild/plugin-babel@2.1.0(@rsbuild/core@2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
@@ -26359,7 +26358,7 @@ snapshots:
     optionalDependencies:
       '@rsbuild/core': 2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-check-syntax@1.6.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-check-syntax@1.6.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
       acorn: 8.17.0
       browserslist-to-es-version: 1.4.2
@@ -26367,23 +26366,23 @@ snapshots:
       picocolors: 1.1.1
       source-map: 0.7.6
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-check-syntax@2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-check-syntax@2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
       acorn: 8.17.0
       browserslist-to-es-version: 1.4.2
       htmlparser2: 12.0.0
       source-map: 0.7.6
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-css-minimizer@2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(clean-css@5.3.3)(csso@5.0.5)(esbuild@0.28.2)(lightningcss@1.33.0)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsbuild/plugin-css-minimizer@2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(clean-css@5.3.3)(csso@5.0.5)(esbuild@0.28.2)(lightningcss@1.33.0)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
       css-minimizer-webpack-plugin: 8.0.0(clean-css@5.3.3)(csso@5.0.5)(esbuild@0.28.2)(lightningcss@1.33.0)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       reduce-configs: 1.1.2
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@parcel/css'
       - '@swc/css'
@@ -26393,14 +26392,14 @@ snapshots:
       - lightningcss
       - webpack
 
-  '@rsbuild/plugin-less@2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsbuild/plugin-less@2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
       deepmerge: 4.3.1
       less: 4.9.1(supports-color@10.2.2)
       less-loader: 12.3.3(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(less@4.9.1(supports-color@10.2.2))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       reduce-configs: 2.0.1
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@rspack/core'
       - supports-color
@@ -26424,21 +26423,21 @@ snapshots:
     transitivePeerDependencies:
       - '@rspack/core'
 
-  '@rsbuild/plugin-react@2.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))':
+  '@rsbuild/plugin-react@2.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))':
     dependencies:
       '@rspack/plugin-react-refresh': 2.0.2(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-refresh@0.19.0)
       react-refresh: 0.19.0
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@rspack/core'
 
-  '@rsbuild/plugin-rem@1.0.6(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-rem@1.0.6(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
       deepmerge: 4.3.1
       terser: 5.51.2
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
   '@rsbuild/plugin-sass@2.0.1(@rsbuild/core@2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
@@ -26450,7 +26449,7 @@ snapshots:
     optionalDependencies:
       '@rsbuild/core': 2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-sass@2.0.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-sass@2.0.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
       deepmerge: 4.3.1
       loader-utils: 2.0.4
@@ -26458,15 +26457,15 @@ snapshots:
       reduce-configs: 2.0.1
       sass-embedded: 1.105.1
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-source-build@1.0.7(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-source-build@1.0.7(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
       fast-glob: 3.3.3
       json5: 2.2.3
       yaml: 2.9.1
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
   '@rsbuild/plugin-styled-components@1.7.0(@rsbuild/core@2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     dependencies:
@@ -26475,16 +26474,16 @@ snapshots:
     optionalDependencies:
       '@rsbuild/core': 2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  '@rsbuild/plugin-svgr@2.0.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)':
+  '@rsbuild/plugin-svgr@2.0.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(supports-color@10.2.2)(typescript@7.0.2)':
     dependencies:
-      '@rsbuild/plugin-react': 2.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
+      '@rsbuild/plugin-react': 2.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))
       '@svgr/core': 8.1.0(supports-color@10.2.2)(typescript@7.0.2)
       '@svgr/plugin-jsx': 8.1.0(@svgr/core@8.1.0(supports-color@10.2.2)(typescript@7.0.2))(supports-color@10.2.2)
       '@svgr/plugin-svgo': 8.1.0(@svgr/core@8.1.0(supports-color@10.2.2)(typescript@7.0.2))(typescript@7.0.2)
       deepmerge: 4.3.1
       loader-utils: 3.3.1
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@rspack/core'
       - supports-color
@@ -26499,31 +26498,31 @@ snapshots:
       - '@rspack/core'
       - webpack
 
-  '@rsbuild/plugin-tailwindcss@2.0.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsbuild/plugin-tailwindcss@2.0.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
       '@tailwindcss/webpack': 4.3.3(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     transitivePeerDependencies:
       - '@rspack/core'
       - webpack
 
-  '@rsbuild/plugin-type-check@1.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)':
+  '@rsbuild/plugin-type-check@1.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)':
     dependencies:
       deepmerge: 4.3.1
       json5: 2.2.3
       reduce-configs: 1.1.2
       ts-checker-rspack-plugin: 1.6.1(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@typescript/native-preview': 7.0.0-dev.20260707.2
     transitivePeerDependencies:
       - '@rspack/core'
       - typescript
 
-  '@rsbuild/plugin-typed-css-modules@1.2.4(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
+  '@rsbuild/plugin-typed-css-modules@1.2.4(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))':
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
   '@rsdoctor/client@1.6.4': {}
 
@@ -26551,9 +26550,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@rsdoctor/core@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsdoctor/core@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
-      '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+      '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsdoctor/graph': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/sdk': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/types': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
@@ -26575,9 +26574,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@rsdoctor/core@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsdoctor/core@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
-      '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+      '@rsbuild/plugin-check-syntax': 1.6.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       '@rsdoctor/graph': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/sdk': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/types': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
@@ -26639,9 +26638,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@rsdoctor/rspack-plugin@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsdoctor/rspack-plugin@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
-      '@rsdoctor/core': 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+      '@rsdoctor/core': 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/graph': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/sdk': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/types': 1.6.4(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
@@ -26657,9 +26656,9 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@rsdoctor/rspack-plugin@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
+  '@rsdoctor/rspack-plugin@1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))':
     dependencies:
-      '@rsdoctor/core': 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
+      '@rsdoctor/core': 1.6.4(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/graph': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/sdk': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       '@rsdoctor/types': 1.6.4(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
@@ -26773,8 +26772,8 @@ snapshots:
 
   '@rslib/core@1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)':
     dependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
-      rsbuild-plugin-dts: 1.0.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(typescript@7.0.2)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      rsbuild-plugin-dts: 1.0.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(typescript@7.0.2)
     optionalDependencies:
       typescript: 7.0.2
     transitivePeerDependencies:
@@ -27063,9 +27062,9 @@ snapshots:
       - core-js
       - supports-color
 
-  '@rstest/adapter-rsbuild@0.12.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)))':
+  '@rstest/adapter-rsbuild@0.12.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)))':
     dependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rstest/core': 0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10))
 
   '@rstest/browser-react@0.12.3(@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10)))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
@@ -27091,7 +27090,7 @@ snapshots:
 
   '@rstest/core@0.12.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10))':
     dependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@types/chai': 5.2.3
       cjs-module-lexer: 2.2.1
     optionalDependencies:
@@ -28506,7 +28505,7 @@ snapshots:
       estree-walker: 3.0.3
       magic-string: 1.4.1
     optionalDependencies:
-      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(yaml@2.9.1)
     optional: true
 
   '@vitest/pretty-format@3.2.4':
@@ -35272,27 +35271,27 @@ snapshots:
 
   rrweb-cssom@0.8.0: {}
 
-  rsbuild-plugin-dts@1.0.3(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(typescript@7.0.2):
+  rsbuild-plugin-dts@1.0.3(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(typescript@7.0.2):
     dependencies:
       '@ast-grep/napi': 0.45.3
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
     optionalDependencies:
       typescript: 7.0.2
 
-  rsbuild-plugin-html-minifier-terser@1.1.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)):
+  rsbuild-plugin-html-minifier-terser@1.1.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)):
     dependencies:
       '@types/html-minifier-terser': 7.0.2
       html-minifier-terser: 7.2.0
     optionalDependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
   rsbuild-plugin-open-graph@1.1.3(@rsbuild/core@2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)):
     optionalDependencies:
       '@rsbuild/core': 2.2.10(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
 
-  rsbuild-plugin-rsc@0.1.1(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(react-server-dom-rspack@0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
+  rsbuild-plugin-rsc@0.1.1(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(react-server-dom-rspack@0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
     dependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       react-server-dom-rspack: 0.1.0(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
   rslog@1.3.2: {}
@@ -35869,21 +35868,21 @@ snapshots:
 
   stdin-discarder@0.3.2: {}
 
-  storybook-addon-modernjs@3.6.0(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@packages+toolkit+plugin)(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2))(typescript@7.0.2):
+  storybook-addon-modernjs@3.6.0(@modern-js/app-tools@packages+solutions+app-tools)(@modern-js/plugin@packages+toolkit+plugin)(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2))(typescript@7.0.2):
     dependencies:
       '@modern-js/app-tools': link:packages/solutions/app-tools
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       find-up: 5.0.0
       rslog: 1.3.2
-      storybook-builder-rsbuild: 3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2)
+      storybook-builder-rsbuild: 3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2)
     optionalDependencies:
       '@modern-js/plugin': link:packages/toolkit/plugin
       typescript: 7.0.2
 
-  storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2):
+  storybook-builder-rsbuild@3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2):
     dependencies:
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
-      '@rsbuild/plugin-type-check': 1.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/plugin-type-check': 1.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(typescript@7.0.2)
       browser-assert: 1.2.1
       case-sensitive-paths-webpack-plugin: 2.4.0
       cjs-module-lexer: 2.2.1
@@ -35895,7 +35894,7 @@ snapshots:
       pathe: 2.0.3
       picocolors: 1.1.1
       process: 0.11.10
-      rsbuild-plugin-html-minifier-terser: 1.1.5(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
+      rsbuild-plugin-html-minifier-terser: 1.1.5(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))
       sirv: 2.0.4
       storybook: 10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10)
       ts-dedent: 2.3.0
@@ -35910,10 +35909,10 @@ snapshots:
       - '@rspack/core'
       - '@typescript/native-preview'
 
-  storybook-react-rsbuild@3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rollup@4.63.4)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@7.0.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3)):
+  storybook-react-rsbuild@3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rollup@4.63.4)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@7.0.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3)):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.63.4)
-      '@rsbuild/core': 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
+      '@rsbuild/core': 2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@storybook/react': 10.6.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(supports-color@10.2.2)(typescript@7.0.2)
       '@storybook/react-docgen-typescript-plugin': 1.0.1(supports-color@10.2.2)(typescript@7.0.2)(webpack@5.111.1(@swc/core@1.16.13(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.1.2(postcss@8.5.29))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.29)(sharp@0.35.5(@types/node@26.6.5))(svgo@4.1.0)(uglify-js@3.19.3))
       magic-string: 1.4.1
@@ -35923,7 +35922,7 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
       resolve: 1.22.12
       storybook: 10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10)
-      storybook-builder-rsbuild: 3.6.0(@rsbuild/core@2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2)
+      storybook-builder-rsbuild: 3.6.0(@rsbuild/core@2.2.11(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(@typescript/native-preview@7.0.0-dev.20260707.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(storybook@10.6.1(@types/react@19.3.0)(bufferutil@4.1.0)(prettier@3.9.9)(react@19.3.0)(utf-8-validate@5.0.10))(typescript@7.0.2)
       tsconfig-paths: 4.2.0
     optionalDependencies:
       typescript: 7.0.2
@@ -36838,6 +36837,19 @@ snapshots:
       yaml: 2.9.1
     optional: true
 
+  vite@8.3.4(@types/node@26.6.5)(yaml@2.9.1):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.7
+      postcss: 8.5.29
+      rolldown: 1.2.13
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 26.6.5
+      fsevents: 2.3.3
+      yaml: 2.9.1
+    optional: true
+
   vitest@5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10))(vite@8.3.4(@types/node@26.6.5)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
@@ -36852,7 +36864,7 @@ snapshots:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@opentelemetry/api': 1.9.1

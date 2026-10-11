@@ -64,7 +64,6 @@ function sidecarProvenancePolicy(name) {
 const sidecarBinNames = new Map([
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
-  ['@bleedingdev/rsbuild-core', 'rsbuild'],
 ]);
 
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;

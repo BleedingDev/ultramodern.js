@@ -43,50 +43,6 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
   assertRecipeConsumers([orphan], consumers);
 });
 
-test('a listed unpublished fork edge at the exact upstream version consumes its recipe', () => {
-  const recipe = {
-    id: 'rsbuild-core',
-    upstream: { name: '@rsbuild/core', version: '2.2.11' },
-    fork: { name: '@bleedingdev/rsbuild-core', version: '2.2.11' },
-    manifestChanges: {},
-  };
-  const consumers = (name, specifier) => ({
-    generatorPins: [],
-    publishedManifests: [
-      { name, dependencies: { '@rsbuild/core': specifier } },
-    ],
-  });
-  assertRecipeConsumers(
-    [recipe],
-    consumers('@bleedingdev/modern-js-ultramodern-app-tools', '2.2.11'),
-  );
-  assert.throws(
-    () =>
-      assertRecipeConsumers(
-        [recipe],
-        consumers('@bleedingdev/modern-js-ultramodern-app-tools', '^2.2.11'),
-      ),
-    /declare npm:@bleedingdev\/rsbuild-core@2\.2\.11 in source/,
-  );
-  assert.throws(
-    () =>
-      assertRecipeConsumers(
-        [recipe],
-        consumers('@bleedingdev/modern-js-server', '2.2.11'),
-      ),
-    /declare npm:@bleedingdev\/rsbuild-core@2\.2\.11 in source/,
-  );
-  assert.equal(
-    isUnpublishedForkEdge(
-      'packages/cli/builder',
-      '@rsbuild/core',
-      '2.2.11(core-js@3.50.0)',
-      recipe,
-    ),
-    true,
-  );
-});
-
 test('unpublished recipe roots require the exact consumer, dependency and upstream version', () => {
   const roots = [
     [
@@ -413,7 +369,7 @@ test('explicit offline provenance fails closed on missing or tampered tarballs',
     path.join(os.tmpdir(), 'sidecar-integrity-'),
   );
   try {
-    for (const id of ['mf-cli', 'rsbuild-core']) {
+    for (const id of ['mf-cli', 'mf-sdk']) {
       await assert.rejects(
         verifySidecar(id, { artifactsDir: directory }),
         /ENOENT/,
@@ -461,57 +417,6 @@ test('reconstruction drops node_modules the upstream tarball shipped but pnpm ne
       }
     }
     assert.ok(fs.statSync(path.join(packageDir, 'dist/src/index.js')).isFile());
-  } finally {
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-});
-
-test('Rsbuild reconstruction preserves the complete public package and applies its patch', async () => {
-  const directory = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'rsbuild-reconstruction-'),
-  );
-  try {
-    const recipe = JSON.parse(
-      fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
-    ).find(item => item.id === 'rsbuild-core');
-    const response = await fetch(recipe.upstream.tarball, {
-      signal: AbortSignal.timeout(30_000),
-    });
-    assert.ok(response.ok);
-    fs.writeFileSync(
-      path.join(directory, 'rsbuild-core.tgz'),
-      Buffer.from(await response.arrayBuffer()),
-    );
-    const packageDir = path.join(directory, 'maintained');
-    const upstream = await verifySidecar('rsbuild-core', {
-      artifactsDir: directory,
-      materializeTo: packageDir,
-    });
-    const packedManifest = JSON.parse(
-      fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
-    );
-    for (const field of [
-      'exports',
-      'types',
-      'bin',
-      'dependencies',
-      'peerDependencies',
-      'license',
-    ])
-      assert.deepEqual(
-        packedManifest[field],
-        upstream[field],
-        `Rsbuild public ${field}`,
-      );
-    assert.notDeepEqual(
-      fs.readFileSync(path.join(packageDir, 'dist/m.js')),
-      execFileSync(
-        'tar',
-        ['-xOf', path.join(directory, 'rsbuild-core.tgz'), 'package/dist/m.js'],
-        { maxBuffer: 16 * 1024 * 1024 },
-      ),
-      'Rsbuild patch applied',
-    );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

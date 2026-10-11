@@ -4,14 +4,12 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import {
   readCohort,
   readInstalledPackageFiles,
   verifyInstalledPackage,
 } from '../../ultramodern-renderers/installed-cohort.mjs';
-import { isUnpublishedForkEdge } from '../../ultramodern-supply/verify-sidecars.mjs';
 import {
   fileEvidence,
   ordinaryFiles,
@@ -401,44 +399,11 @@ async function executeWorker(input) {
   const sdkRequire = createRequire(sdk.record.manifestPath);
   const release = readReleaseManifest({ manifestPath: artifacts.manifestPath });
   assert.equal(release.manifestSha256, binding.manifestSha256);
-  const rsbuildSidecars = release.sidecars.packages.filter(
-    item => item.name === '@bleedingdev/rsbuild-core',
+  assert.equal(
+    sdk.record.manifest.dependencies['@rsbuild/core'],
+    compilerAdapter.record.manifest.peerDependencies['@rsbuild/core'],
+    'The SDK and compiler adapter declare the same native Rsbuild version',
   );
-  assert.equal(rsbuildSidecars.length, 1);
-  const rsbuildSidecar = rsbuildSidecars[0];
-  assert.equal(rsbuildSidecar.version, '2.2.11');
-  // Until @bleedingdev/rsbuild-core is bootstrapped on npm, the SDK's
-  // @rsbuild/core edge is a listed unpublished fork edge that installs the
-  // upstream package (scripts/ultramodern-supply/verify-sidecars.mjs). Only a
-  // declared fork alias has packed candidate bytes to authenticate.
-  const rsbuildDeclared = sdk.record.manifest.dependencies['@rsbuild/core'];
-  const rsbuildForkDeclared =
-    rsbuildDeclared === `npm:${rsbuildSidecar.name}@${rsbuildSidecar.version}`;
-  assert(
-    rsbuildForkDeclared ||
-      isUnpublishedForkEdge(
-        sdk.record.manifest.name,
-        '@rsbuild/core',
-        rsbuildDeclared,
-        {
-          upstream: { version: rsbuildSidecar.version },
-        },
-      ),
-    `The SDK declares @rsbuild/core ${rsbuildDeclared}, neither the ${rsbuildSidecar.name} alias nor a listed unpublished fork edge`,
-  );
-  let rsbuildArtifact;
-  if (rsbuildForkDeclared) {
-    const rsbuildInspection = inspectNpmTarball(rsbuildSidecar.bytes);
-    rsbuildArtifact = {
-      targetName: rsbuildSidecar.name,
-      version: rsbuildSidecar.version,
-      sha256: rsbuildSidecar.sha256,
-      files: rsbuildInspection.files.map(file => ({
-        ...file,
-        sha256: sha256(rsbuildInspection.fileContents.get(file.path)),
-      })),
-    };
-  }
   const rsbuildEntry = sdkRequire.resolve('@rsbuild/core');
   assert.equal(
     fs.realpathSync(adapterRequire.resolve('@rsbuild/core')),
@@ -446,17 +411,12 @@ async function executeWorker(input) {
     'The Cloudflare adapter must use the same authenticated Rsbuild owner',
   );
   const rsbuildPackage = packageAt(rsbuildEntry, consumerRoot);
-  assert.equal(
-    rsbuildPackage.manifest.name,
-    rsbuildForkDeclared ? rsbuildSidecar.name : '@rsbuild/core',
-  );
+  assert.equal(rsbuildPackage.manifest.name, '@rsbuild/core');
   assert.equal(
     rsbuildPackage.manifest.version,
     compilerAdapter.record.manifest.peerDependencies['@rsbuild/core'],
   );
-  const rsbuildOwner = rsbuildForkDeclared
-    ? authenticatePackage(rsbuildPackage, artifacts, rsbuildArtifact)
-    : recordInstalledOwner(rsbuildPackage);
+  const rsbuildOwner = recordInstalledOwner(rsbuildPackage);
   const { createRsbuild } = sdkRequire('@rsbuild/core');
   const token = `c2-${sha256(JSON.stringify(binding)).slice(0, 16)}-${randomUUID()}`;
   const authored = createWorkerLifecycleSources({
@@ -937,14 +897,11 @@ async function executeWorker(input) {
       sourceEvidence(path.join(applicationRoot, 'package.json')),
       applicationDeclaration,
     );
-    if (rsbuildForkDeclared)
-      authenticatePackage(rsbuildPackage, artifacts, rsbuildArtifact);
-    else
-      assert.deepEqual(
-        recordInstalledOwner(rsbuildPackage),
-        rsbuildOwner,
-        'Executed Rsbuild bytes changed during qualification',
-      );
+    assert.deepEqual(
+      recordInstalledOwner(rsbuildPackage),
+      rsbuildOwner,
+      'Executed Rsbuild bytes changed during qualification',
+    );
     for (const [directory] of ownerBindings)
       authenticatePackage(
         {

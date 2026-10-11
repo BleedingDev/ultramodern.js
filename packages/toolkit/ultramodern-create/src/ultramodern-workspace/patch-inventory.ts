@@ -1,15 +1,5 @@
 export default [
   {
-    packageName: '@rsbuild/core',
-    version: '2.2.11',
-    path: 'patches/@rsbuild__core@2.2.11.patch',
-    sha256: '246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05',
-    repository: true,
-    workspace: null,
-    reason:
-      'Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach.',
-  },
-  {
     packageName: 'ultracite',
     version: '7.12.2',
     path: 'patches/ultracite@7.12.2.patch',

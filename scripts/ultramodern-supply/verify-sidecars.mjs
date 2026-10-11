@@ -33,10 +33,8 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * resetFederationRuntime (module-federation/core#5152). Backend federation in
  * plugin-bff-extensions creates its own instance and never calls it.
  *
- * `@bleedingdev/rsbuild-core` (onAfterPrepareDevCompiler) is a new sidecar
- * name that has not been bootstrapped on npm yet. Until it is, these framework
- * edges are its declared consumers and resolve the patched upstream package
- * in the monorepo.
+ * These framework edges declare reviewed sidecars that have not had their
+ * first signed publication yet and resolve the patched upstream in the monorepo.
  */
 export const unpublishedForkEdges = [
   // The SDK fork has not had its first signed release plus 24h admission.
@@ -73,33 +71,6 @@ export const unpublishedForkEdges = [
     published: '@bleedingdev/modern-js-plugin-bff-extensions',
     dependency: '@module-federation/runtime',
   },
-  ...[
-    ['packages/cli/builder', '@bleedingdev/modern-js-builder'],
-    ['packages/solutions/app-tools', '@bleedingdev/modern-js-app-tools'],
-    [
-      'packages/solutions/app-tools-extensions',
-      '@bleedingdev/modern-js-app-tools-extensions',
-    ],
-    [
-      'packages/solutions/ultramodern-app-tools',
-      '@bleedingdev/modern-js-ultramodern-app-tools',
-    ],
-    ['packages/toolkit/plugin', '@bleedingdev/modern-js-plugin'],
-    // Renderer adapters type their compiler plugins against an optional peer.
-    ['packages/runtime/renderer-core', '@bleedingdev/modern-js-renderer-core'],
-    [
-      'packages/runtime/renderer-octane',
-      '@bleedingdev/modern-js-renderer-octane',
-    ],
-    [
-      'packages/runtime/renderer-solid',
-      '@bleedingdev/modern-js-renderer-solid',
-    ],
-  ].map(([importer, published]) => ({
-    importer,
-    published,
-    dependency: '@rsbuild/core',
-  })),
   // The merged 2.9.2 patch carries a renderer hunk the published 2.9.3
   // modern-js-v3 fork lacks; its fork version moves to 2.9.4 and this edge
   // declares it once published.

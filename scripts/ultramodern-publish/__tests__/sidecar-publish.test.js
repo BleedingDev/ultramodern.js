@@ -202,8 +202,7 @@ test('recipe-only sidecar closure records exact publication identities and alias
     sidecars.map(({ name, version }) => [name, version]).sort(),
     recipes.map(({ fork }) => [fork.name, fork.version]).sort(),
   );
-  assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
-  assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
+  assert.equal(byName.has('@bleedingdev/rsbuild-core'), false);
   assert.equal(byName.has('@bleedingdev/jiti'), false);
   assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
   assert.equal(byName.has('@bleedingdev/ipx'), false);

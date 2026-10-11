@@ -6,13 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { releaseIdentity } from '../../ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs';
-import { digestCanonical } from '../../ultramodern-production-readiness/canonical-digest.mjs';
+import { releaseIdentity } from '../../../ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs';
+import { digestCanonical } from '../../../ultramodern-production-readiness/canonical-digest.mjs';
 import {
   assertReleaseEnvelopeRendererBinding,
   assertRendererReleaseArtifactBinding,
   releaseEnvelopePayload,
-} from '../lib/renderer-release-binding.mjs';
+} from '../../lib/renderer-release-binding.mjs';
 
 function rendererUi(renderer = 'react', buildId = 'release-build') {
   return {
@@ -606,7 +606,7 @@ function writeFinalizedRuntimeAuthority(projectDir, app, renderer) {
   fs.symlinkSync(
     fileURLToPath(
       new URL(
-        '../../../packages/solutions/ultramodern-app-tools/',
+        '../../../../packages/solutions/ultramodern-app-tools/',
         import.meta.url,
       ),
     ),
