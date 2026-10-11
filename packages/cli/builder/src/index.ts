@@ -25,6 +25,7 @@ export {
 } from './shared/utils';
 export type {
   BuilderConfig,
+  BuilderSvgOptions,
   BundlerType,
   CacheGroup,
   MetaOptions,

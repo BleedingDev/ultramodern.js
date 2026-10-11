@@ -37,6 +37,7 @@ export default {
         'tests/redirectPolicy.test.ts',
         'tests/reactI18nextRuntimeBoundary.test.ts',
         'tests/federatedI18nBoundaryResolver.test.tsx',
+        'tests/detection.test.ts',
       ],
       extends: commonConfig,
     }),

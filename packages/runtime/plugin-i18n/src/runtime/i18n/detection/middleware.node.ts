@@ -1,4 +1,5 @@
 import { LanguageDetector } from 'i18next-http-middleware';
+import { detectLanguageFromRequest } from '../../../shared/detection.js';
 import type { I18nInstance, LanguageDetectorOptions } from '../instance';
 
 type HttpDetectorInit = (
@@ -13,6 +14,20 @@ type HttpDetectorDetect = (
   detectionOrder?: unknown,
 ) => string | string[] | undefined;
 
+type DetectionRequest = Parameters<typeof detectLanguageFromRequest>[0];
+
+const isDetectionRequest = (request: unknown): request is DetectionRequest => {
+  if (!request || typeof request !== 'object') {
+    return false;
+  }
+
+  const { url, headers } = request as {
+    url?: unknown;
+    headers?: unknown;
+  };
+  return typeof url === 'string' && !!headers && typeof headers === 'object';
+};
+
 export const cacheUserLanguage = (
   _i18nInstance: I18nInstance,
   _language: string,
@@ -21,15 +36,18 @@ export const cacheUserLanguage = (
   return;
 };
 
-/**
- * Read language directly from storage (localStorage/cookie)
- * Not available in Node.js environment, returns undefined
- */
 export const readLanguageFromStorage = (
-  _detectionOptions?: LanguageDetectorOptions,
+  detectionOptions?: LanguageDetectorOptions,
+  request?: unknown,
+  languages: string[] = [],
 ): string | undefined => {
-  // In Node.js environment, storage-based detection is not available
-  return undefined;
+  if (!isDetectionRequest(request)) {
+    return undefined;
+  }
+
+  return (
+    detectLanguageFromRequest(request, languages, detectionOptions) ?? undefined
+  );
 };
 /**
  * Register LanguageDetector plugin to i18n instance

@@ -131,7 +131,7 @@ describe('test runtime router utils', () => {
     expect(response?.status).toBe(404);
   });
 
-  it('does not pass hasErrorBoundary to React Router routes', () => {
+  it('passes hasErrorBoundary to rendered React Router routes', () => {
     function ErrorPage() {
       return null;
     }
@@ -179,8 +179,8 @@ describe('test runtime router utils', () => {
       | ReactElement<Record<string, unknown>>
       | undefined;
 
-    expect(jsxRoot.props).not.toHaveProperty('hasErrorBoundary');
-    expect(jsxChild?.props).not.toHaveProperty('hasErrorBoundary');
+    expect(jsxRoot.props).toHaveProperty('hasErrorBoundary', true);
+    expect(jsxChild?.props).toHaveProperty('hasErrorBoundary', true);
     expect(jsxChild?.props.errorElement).toBeDefined();
   });
 

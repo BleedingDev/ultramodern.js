@@ -22,10 +22,7 @@ export const ultramodernI18nIntegrationPlugin = (): CliPlugin<AppTools> => ({
     }));
 
     // The native server plugin derives its URL policy from
-    // `localeDetection.localisedUrls` on its own, so the descriptor is left
-    // alone. Rewriting it to `@modern-js/i18n-integration/server` would make
-    // the server unbootable for an app that only declares
-    // `@modern-js/ultramodern-app-tools`.
+    // `localeDetection.localisedUrls`, so its descriptor needs no replacement.
 
     // Localised route generation used to live here. It now ships in
     // `@modern-js/plugin-i18n`'s own CLI plugin so a bare `appTools()`

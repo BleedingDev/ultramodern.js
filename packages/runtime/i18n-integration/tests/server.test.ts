@@ -1,6 +1,6 @@
 import type { I18nUrlStrategy } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
+import { i18nServerPlugin } from '@modern-js/plugin-i18n/server';
 import { describe, expect, test } from '@rstest/core';
-import { i18nServerPlugin } from '../src/server';
 
 function middlewareHarness(
   options: Parameters<typeof i18nServerPlugin>[0],

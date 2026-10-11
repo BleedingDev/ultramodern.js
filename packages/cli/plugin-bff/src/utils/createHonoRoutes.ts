@@ -21,15 +21,15 @@ const contentTypes = new TypeIs([
 
 const createHonoRoutes = (handlerInfos: APIHandlerInfo[] = []) =>
   handlerInfos.map(({ routePath, handler, httpMethod }) => {
-    const routeMiddlwares = Reflect.getMetadata('middleware', handler) || [];
+    const routeMiddlewares = Reflect.getMetadata('middleware', handler) || [];
     const honoHandler = createHonoHandler(handler);
 
     return {
       method: httpMethod.toLowerCase() as any,
       path: routePath,
       handler:
-        routeMiddlwares.length > 0
-          ? [...routeMiddlwares, honoHandler]
+        routeMiddlewares.length > 0
+          ? [...routeMiddlewares, honoHandler]
           : honoHandler,
     };
   });

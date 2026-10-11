@@ -139,7 +139,7 @@
     "i18next-browser-languagedetector": "^8.2.1"
   },
   "peerDependencies": {
-    "@modern-js/runtime": "workspace:^3.9.0",
+    "@modern-js/runtime": "workspace:^3.9.3",
     "react": "^19.2.8",
     "i18next": ">=25.7.4"
   },

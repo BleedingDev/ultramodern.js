@@ -7,6 +7,7 @@ import {
 import { storage } from '@modern-js/runtime-utils/node';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { finished, PassThrough, pipeline, Readable, Transform } from 'stream';
+import { StringDecoder } from 'string_decoder';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
 import { getMonitors } from '../../context/monitors';
@@ -19,6 +20,7 @@ import {
   orderSSRStreamTransforms,
 } from '../shared';
 import { enqueueFromEntries } from './deferredScript';
+import { DeferredScriptOutputCoordinator } from './deferredScriptOutputCoordinator';
 import {
   type CreateReadableStreamFromElement,
   getReadableStreamFromString,
@@ -173,13 +175,11 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         const marker = Buffer.from(ESCAPED_SHELL_STREAM_END_MARK);
         // Bytes that may hold the start of a marker split across chunks.
         let markerTail = Buffer.alloc(0);
+        const decoder = new StringDecoder('utf8');
         const pendingScripts: string[] = [];
+        let deferredResolversComplete = Promise.resolve();
         let shellChunkStatus = ShellChunkStatus.START;
-        const emitShell = (
-          destination: Transform,
-          buffered: Buffer,
-          markerIndex: number,
-        ) => {
+        const emitShell = (buffered: Buffer, markerIndex: number) => {
           const beforeMark = lifecycle.completedBody(
             buffered.subarray(0, markerIndex).toString('utf8'),
             'shell',
@@ -190,23 +190,26 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           shellChunkStatus = ShellChunkStatus.FINISH;
           chunks.length = 0;
           bufferedLength = 0;
-          destination.push(`${completedShellBefore}${beforeMark}${shellAfter}`);
+          coordinator.writeReact(
+            `${completedShellBefore}${beforeMark}${shellAfter}`,
+          );
           const afterMark = buffered.subarray(markerIndex + marker.length);
-          if (afterMark.length > 0) destination.push(afterMark);
-          for (const script of pendingScripts) destination.push(script);
+          if (afterMark.length > 0)
+            coordinator.writeReact(decoder.write(afterMark));
+          coordinator.markShellFinished();
+          for (const script of pendingScripts)
+            coordinator.enqueueResolver(script);
           pendingScripts.length = 0;
         };
         const body = new Transform({
           transform(chunk, _encoding, callback) {
             try {
+              const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
               if (shellChunkStatus === ShellChunkStatus.FINISH) {
-                this.push(chunk);
+                coordinator.writeReact(decoder.write(bytes));
               } else {
                 // Scan only the new bytes: rescanning the whole buffer made
                 // shell buffering quadratic in the shell size.
-                const bytes = Buffer.isBuffer(chunk)
-                  ? chunk
-                  : Buffer.from(chunk);
                 const window = Buffer.concat([markerTail, bytes]);
                 const windowIndex = window.indexOf(marker);
                 const windowStart = bufferedLength - markerTail.length;
@@ -218,7 +221,6 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
                   );
                 } else {
                   emitShell(
-                    this,
                     Buffer.concat(chunks, bufferedLength),
                     windowStart + windowIndex,
                   );
@@ -236,9 +238,26 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
               // A normal Node EOF completes an unmarked shell without losing bytes.
               if (shellChunkStatus !== ShellChunkStatus.FINISH) {
                 const buffered = Buffer.concat(chunks);
-                emitShell(this, buffered, buffered.length);
+                emitShell(buffered, buffered.length);
               }
-              callback();
+              const trailing = decoder.end();
+              if (trailing) coordinator.writeReact(trailing);
+              deferredResolversComplete.then(
+                () => {
+                  try {
+                    coordinator.finish();
+                    callback();
+                  } catch (error) {
+                    callback(
+                      error instanceof Error ? error : new Error(String(error)),
+                    );
+                  }
+                },
+                error =>
+                  callback(
+                    error instanceof Error ? error : new Error(String(error)),
+                  ),
+              );
             } catch (error) {
               callback(
                 error instanceof Error ? error : new Error(String(error)),
@@ -246,6 +265,10 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
             }
           },
         });
+        const coordinator = new DeferredScriptOutputCoordinator(content => {
+          body.push(content);
+        });
+        body.once('close', () => coordinator.abort());
         own(body);
         const passThrough = new PassThrough();
         let processedStream = own(passThrough);
@@ -260,17 +283,26 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         reactStream!.pipe(passThrough);
 
         try {
-          const activeDeferreds = storage.useContext?.()?.activeDeferreds;
+          const storageContext = storage.useContext?.();
+          const activeDeferreds = storageContext?.activeDeferreds;
+          const deferredScriptKeys = storageContext?.deferredScriptKeys;
           const entries: Array<[string, unknown]> =
             activeDeferreds instanceof Map
               ? Array.from(activeDeferreds.entries())
               : [];
-          enqueueFromEntries(entries, config.nonce, script => {
-            if (failed || body.destroyed || body.writableEnded) return;
-            if (shellChunkStatus === ShellChunkStatus.FINISH)
-              body.write(script);
-            else pendingScripts.push(script);
-          });
+          if (entries.length > 0) {
+            deferredResolversComplete = enqueueFromEntries(
+              entries,
+              deferredScriptKeys,
+              config.nonce,
+              script => {
+                if (failed || body.destroyed || body.writableEnded) return;
+                if (shellChunkStatus === ShellChunkStatus.FINISH)
+                  coordinator.enqueueResolver(script);
+                else pendingScripts.push(script);
+              },
+            );
+          }
         } catch (error) {
           getMonitors().error('cannot inject router data script', error);
         }

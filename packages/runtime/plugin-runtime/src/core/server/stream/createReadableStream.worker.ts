@@ -19,6 +19,7 @@ import {
   orderSSRStreamTransforms,
 } from '../shared';
 import { enqueueFromEntries } from './deferredScript';
+import { DeferredScriptOutputCoordinator } from './deferredScriptOutputCoordinator';
 import {
   type CreateReadableStreamFromElement,
   getReadableStreamFromString,
@@ -66,6 +67,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
     let pendingSource: ReadableStream<Uint8Array> | undefined;
     let bodyOpen = true;
     let bodyPipe: Promise<void> | undefined;
+    let coordinator: DeferredScriptOutputCoordinator | undefined;
     const templateOptions = {
       runtimeContext,
       ssrConfig,
@@ -132,12 +134,18 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       let markerTail = '';
       let shellChunkStatus = ShellChunkStatus.START;
       let bodyController: TransformStreamDefaultController<Uint8Array>;
-      const emit = (
-        chunk: string,
-        controller: TransformStreamDefaultController<Uint8Array>,
-      ) => {
+      let deferredResolversComplete = Promise.resolve();
+      coordinator = new DeferredScriptOutputCoordinator(content => {
+        if (!bodyOpen) return;
+        try {
+          bodyController.enqueue(encoder.encode(content));
+        } catch {
+          bodyOpen = false;
+        }
+      });
+      const emit = (chunk: string) => {
         if (shellChunkStatus === ShellChunkStatus.FINISH) {
-          if (chunk.length > 0) controller.enqueue(encoder.encode(chunk));
+          if (chunk.length > 0) coordinator?.writeReact(chunk);
           return;
         }
         // Scan only the new characters: rescanning the whole buffer made
@@ -169,57 +177,67 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         )(shellBefore);
         shellChunkStatus = ShellChunkStatus.FINISH;
         buffered.length = 0;
-        controller.enqueue(
-          encoder.encode(`${completedShellBefore}${beforeMark}${shellAfter}`),
+        coordinator?.writeReact(
+          `${completedShellBefore}${beforeMark}${shellAfter}`,
         );
-        if (afterMark.length > 0) controller.enqueue(encoder.encode(afterMark));
+        if (afterMark.length > 0) coordinator?.writeReact(afterMark);
+        coordinator?.markShellFinished();
         for (const script of pendingScripts)
-          controller.enqueue(encoder.encode(script));
+          coordinator?.enqueueResolver(script);
         pendingScripts.length = 0;
       };
       const body = new TransformStream<Uint8Array, Uint8Array>({
         start(controller) {
           bodyController = controller;
         },
-        transform(chunk, controller) {
-          emit(decoder.decode(chunk, { stream: true }), controller);
+        transform(chunk) {
+          emit(decoder.decode(chunk, { stream: true }));
         },
-        flush(controller) {
-          bodyOpen = false;
-          emit(decoder.decode(), controller);
+        async flush() {
+          emit(decoder.decode());
           if (shellChunkStatus !== ShellChunkStatus.FINISH)
             throw new Error('React SSR stream ended before the shell marker');
+          await deferredResolversComplete;
+          coordinator?.finish();
+          bodyOpen = false;
         },
       });
       bodyPipe = pendingSource.pipeTo(body.writable);
       // Retain completion so cancellation cannot outlive the returned body.
       bodyPipe.catch(() => {});
       pendingSource = body.readable;
-      const activeDeferreds = storage.useContext?.()?.activeDeferreds;
+      const storageContext = storage.useContext?.();
+      const activeDeferreds = storageContext?.activeDeferreds;
+      const deferredScriptKeys = storageContext?.deferredScriptKeys;
       const entries: Array<[string, unknown]> =
         activeDeferreds instanceof Map
           ? Array.from(activeDeferreds.entries())
           : [];
-      enqueueFromEntries(entries, config.nonce, script => {
-        if (!bodyOpen) return;
-        if (shellChunkStatus === ShellChunkStatus.FINISH) {
-          try {
-            bodyController.enqueue(encoder.encode(script));
-          } catch {
-            bodyOpen = false;
-          }
-        } else pendingScripts.push(script);
-      });
+      if (entries.length > 0) {
+        deferredResolversComplete = enqueueFromEntries(
+          entries,
+          deferredScriptKeys,
+          config.nonce,
+          script => {
+            if (!bodyOpen) return;
+            if (shellChunkStatus === ShellChunkStatus.FINISH)
+              coordinator?.enqueueResolver(script);
+            else pendingScripts.push(script);
+          },
+        );
+      }
       return observeSSRStream(pendingSource, {
         lifecycle,
         async onError(error) {
           bodyOpen = false;
+          coordinator?.abort();
           await bodyPipe?.catch(() => {});
           reportError(error);
         },
         signal: request.signal,
         async onCancel(reason) {
           bodyOpen = false;
+          coordinator?.abort();
           await bodyPipe?.catch(error => {
             if (error !== reason) throw error;
           });
@@ -228,6 +246,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       });
     } catch (error) {
       bodyOpen = false;
+      coordinator?.abort();
       if (pendingSource !== undefined) {
         try {
           await pendingSource.cancel(error);

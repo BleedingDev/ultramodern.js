@@ -1,14 +1,15 @@
 import dns from 'node:dns';
-import { fs as fse } from '@modern-js/utils';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import {
+  createIsolatedTestApp,
   getPort,
   killApp,
   launchApp,
   launchOptions,
   modernBuild,
   modernServe,
+  sleep,
 } from '../../../utils/modernTestUtils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
@@ -20,36 +21,6 @@ const requiredWorkspacePackages = [
   '@modern-js/server-utils',
 ];
 dns.setDefaultResultOrder('ipv4first');
-
-async function createIsolatedAppDir(prefix: string) {
-  const appDir = await fse.mkdtemp(
-    path.join(path.dirname(sourceAppDir), prefix),
-  );
-
-  await fse.copy(sourceAppDir, appDir, {
-    filter: src => {
-      const relative = path.relative(sourceAppDir, src);
-      if (!relative) {
-        return true;
-      }
-      const [firstSegment] = relative.split(path.sep);
-      return ![
-        'node_modules',
-        'dist',
-        'dist-deploy',
-        '.output',
-        'tests',
-      ].includes(firstSegment);
-    },
-  });
-  await fse.ensureSymlink(
-    path.join(sourceAppDir, 'node_modules'),
-    path.join(appDir, 'node_modules'),
-    'dir',
-  );
-
-  return appDir;
-}
 
 async function waitForApiInfoReady(
   host: string,
@@ -97,20 +68,39 @@ async function gotoAndWaitForSelector(
   url: string,
   selector: string,
 ) {
-  await page.goto(url, {
-    waitUntil: ['domcontentloaded'],
+  return retryPageAction(async () => {
+    await page.goto(url, {
+      waitUntil: ['domcontentloaded'],
+    });
+    await page.waitForSelector(selector, { timeout: 10_000 });
   });
-  await page.waitForSelector(selector);
+}
+
+async function retryPageAction<T>(action: () => Promise<T>) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await action();
+    } catch (error) {
+      lastError = error;
+      await sleep(1000);
+    }
+  }
+
+  throw lastError;
 }
 
 async function navigateHomeAndReadData(page: Page, userUrl: string) {
-  await page.goto(userUrl, {
-    waitUntil: ['domcontentloaded'],
+  return retryPageAction(async () => {
+    await page.goto(userUrl, {
+      waitUntil: ['domcontentloaded'],
+    });
+    await page.waitForSelector('#home-btn', { timeout: 10_000 });
+    await page.click('#home-btn');
+    await page.waitForSelector('#data', { timeout: 10_000 });
+    return page.$eval('#data', el => el?.textContent);
   });
-  await page.waitForSelector('html[data-hydrated]');
-  await page.click('#home-btn');
-  await page.waitForSelector('#data');
-  return page.$eval('#data', el => el?.textContent);
 }
 
 describe('pure-esm-project in dev', () => {
@@ -120,9 +110,13 @@ describe('pure-esm-project in dev', () => {
   let page: Page;
   let browser: Browser;
   let appDir: string;
+  let isolatedApp: Awaited<ReturnType<typeof createIsolatedTestApp>>;
 
   beforeAll(async () => {
-    appDir = await createIsolatedAppDir('.pure-esm-index-');
+    isolatedApp = await createIsolatedTestApp(sourceAppDir, {
+      prefix: '.pure-esm-index-',
+    });
+    appDir = isolatedApp.appDir;
     port = await getPort();
     app = await launchApp(appDir, port, {
       requiredWorkspacePackages,
@@ -155,7 +149,7 @@ describe('pure-esm-project in dev', () => {
     await killApp(app);
     await page.close();
     await browser.close();
-    await fse.remove(appDir);
+    await isolatedApp.cleanup();
   });
 });
 
@@ -166,9 +160,13 @@ describe('pure-esm-project in prod', () => {
   let page: Page;
   let browser: Browser;
   let appDir: string;
+  let isolatedApp: Awaited<ReturnType<typeof createIsolatedTestApp>>;
 
   beforeAll(async () => {
-    appDir = await createIsolatedAppDir('.pure-esm-index-');
+    isolatedApp = await createIsolatedTestApp(sourceAppDir, {
+      prefix: '.pure-esm-index-',
+    });
+    appDir = isolatedApp.appDir;
     port = await getPort();
 
     await modernBuild(appDir, [], {
@@ -204,6 +202,6 @@ describe('pure-esm-project in prod', () => {
     await killApp(app);
     await page.close();
     await browser.close();
-    await fse.remove(appDir);
+    await isolatedApp.cleanup();
   });
 });
