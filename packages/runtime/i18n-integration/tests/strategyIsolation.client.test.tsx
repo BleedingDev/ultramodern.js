@@ -1,6 +1,7 @@
 import { ModernI18nProvider } from '@modern-js/plugin-i18n/runtime/consumer';
 import type { I18nInstance } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
 import {
+  I18nRouterNavigationProvider,
   Link,
   useLocalizedLocation,
 } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
@@ -10,7 +11,6 @@ import type React from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { createTanstackNavigation } from '../../plugin-tanstack/src/runtime/navigation';
-import { I18nRouterNavigationProvider } from '../src/navigation';
 import { createI18nUrlStrategy } from '../src/urlStrategy';
 
 (

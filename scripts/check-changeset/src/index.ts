@@ -25,6 +25,7 @@ type NewChangeset = Changeset & {
 const FORK_ALLOWED_MAJOR_CHANGESET_IDS = new Set([
   'remove-bff-event-contracts',
   'remove-runtime-tanstack-router-alias',
+  'remove-redundant-i18n-composition',
   'ultramodern-i18n-instance-assignable',
 ]);
 

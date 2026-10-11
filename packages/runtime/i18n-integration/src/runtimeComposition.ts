@@ -1,8 +1,10 @@
-import type { I18nPluginOptions as NativeI18nPluginOptions } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
+import {
+  I18nRouterNavigationProvider,
+  type I18nPluginOptions as NativeI18nPluginOptions,
+} from '@modern-js/plugin-i18n/runtime/no-react-i18next';
 import type { RuntimePlugin } from '@modern-js/runtime';
 import { registerFederatedI18nBoundary } from './federation/registration';
 import { I18nLanguageSynchronization } from './languageSynchronization';
-import { I18nRouterNavigationProvider } from './navigation';
 import type { I18nPluginOptions } from './options';
 import { createI18nUrlStrategy } from './urlStrategy';
 

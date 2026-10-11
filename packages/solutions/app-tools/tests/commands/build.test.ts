@@ -74,7 +74,35 @@ describe('command build', () => {
     }
   });
 
-  test('does not close a completed non-watch build', async () => {
+  test('closes a completed non-watch build', async () => {
+    const close = rstest.fn();
+    const builderBuild = rstest.fn(async () => ({ close }));
+    const onAfterBuild = rstest.fn();
+    const mockAPI = {
+      getAppContext: rstest.fn((): any => ({
+        apiOnly: false,
+        distDirectory: '/app/dist',
+        appDirectory: '/app',
+        metaName: 'modern-js',
+        builder: {
+          build: builderBuild,
+          onAfterBuild,
+        },
+      })),
+      getNormalizedConfig: rstest.fn(() => ({})),
+      getHooks: rstest.fn(() => ({
+        _internalServerPlugins: { call: rstest.fn(() => ({ plugins: [] })) },
+      })),
+      updateAppContext: rstest.fn(),
+    };
+
+    await build(mockAPI as any);
+
+    expect(builderBuild).toHaveBeenCalledWith({ watch: undefined });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps a watch build open', async () => {
     const close = rstest.fn();
     const builderBuild = rstest.fn(async () => ({ close }));
     const mockAPI = {
@@ -95,9 +123,9 @@ describe('command build', () => {
       updateAppContext: rstest.fn(),
     };
 
-    await build(mockAPI as any);
+    await build(mockAPI as any, { watch: true });
 
-    expect(builderBuild).toHaveBeenCalledWith({ watch: undefined });
+    expect(builderBuild).toHaveBeenCalledWith({ watch: true });
     expect(close).not.toHaveBeenCalled();
   });
 });

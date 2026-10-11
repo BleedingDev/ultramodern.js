@@ -51,25 +51,25 @@ describe('deploy command', () => {
     exit.mockRestore();
   });
 
-  it('builds before deploying by default', async () => {
+  it('delegates to deploy without a duplicate build', async () => {
     const { action, api } = setupDeployCommand();
 
     await action({});
 
-    expect(mockBuild).toHaveBeenCalledWith(api);
+    expect(mockBuild).not.toHaveBeenCalled();
+    expect(mockDeploy).toHaveBeenCalledTimes(1);
     expect(mockDeploy).toHaveBeenCalledWith(api, {});
-    expect(mockBuild.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeploy.mock.invocationCallOrder[0],
-    );
+    expect(exit).toHaveBeenCalledWith(0);
   });
 
-  it('skips the build when requested', async () => {
+  it('forwards skipBuild to deploy', async () => {
     const { action, api } = setupDeployCommand();
     const options = { skipBuild: true };
 
     await action(options);
 
     expect(mockBuild).not.toHaveBeenCalled();
+    expect(mockDeploy).toHaveBeenCalledTimes(1);
     expect(mockDeploy).toHaveBeenCalledWith(api, options);
   });
 });

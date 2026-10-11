@@ -82,11 +82,6 @@ export const deployCommand = (
     .option(...deployTargetOption)
     .description(i18n.t(localeKeys.command.deploy.describe))
     .action(async (options: DeployOptions) => {
-      if (!options.skipBuild) {
-        const { build } = await import('./build.js');
-        await build(api);
-      }
-
       const { deploy } = await import('./deploy.js');
       await deploy(api, options);
       process.exit(0);
