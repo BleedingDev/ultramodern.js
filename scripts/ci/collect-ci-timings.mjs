@@ -278,7 +278,11 @@ function runnerEvidence(record, repository) {
       repository: record.github.repository,
       repositoryId: record.github.repositoryId,
       eventSha: record.github.eventSha,
-      workflowRef: evidenceText(record.github.workflowRef),
+      workflowRef:
+        record.github.workflowRef === undefined ||
+        record.github.workflowRef === null
+          ? null
+          : evidenceText(record.github.workflowRef),
     },
     tools: { node: record.tools.node, pnpm: record.tools.pnpm },
     runner: {

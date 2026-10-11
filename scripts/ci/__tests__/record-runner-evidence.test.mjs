@@ -239,3 +239,33 @@ test('Windows evidence uses the shell-supplied verified pnpm version without lau
   );
   assert.ok(calls.every(call => call.options.shell === undefined));
 });
+
+test('native Depot workflow references are optional observed metadata rather than invented revision proof', () => {
+  for (const value of [undefined, null, '']) {
+    const { options } = fixture({ env: { GITHUB_WORKFLOW_REF: value } });
+    const evidence = collectRunnerEvidence(options);
+    assert.equal(evidence.github.workflowRef, null);
+    assert.equal(evidence.checkedOutCommit, checkout);
+    assert.equal(evidence.github.eventSha, eventSha);
+    assert.equal(evidence.github.repositoryId, '1151231350');
+  }
+  for (const value of [
+    `ultramodernjs/ultramodern.js/.depot/workflows/type-check.yml@${checkout}`,
+    '.depot/workflows/type-check.yml',
+    'type-check.yml',
+  ]) {
+    const { options } = fixture({ env: { GITHUB_WORKFLOW_REF: value } });
+    assert.equal(collectRunnerEvidence(options).github.workflowRef, value);
+  }
+  for (const value of ['secret\nworkflow', 'x'.repeat(513)]) {
+    const { options } = fixture({ env: { GITHUB_WORKFLOW_REF: value } });
+    assert.throws(
+      () => collectRunnerEvidence(options),
+      error => {
+        assert.equal(error.message.includes('secret'), false);
+        assert.match(error.message, /invalid GitHub workflow reference/);
+        return true;
+      },
+    );
+  }
+});

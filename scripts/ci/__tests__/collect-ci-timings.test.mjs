@@ -189,6 +189,40 @@ test('job logs prove PR checkout, toolchain and input hashes without guessing th
   );
 });
 
+test('missing native workflowRef remains optional while checkout and other evidence stay required', async () => {
+  for (const workflowRef of [undefined, null]) {
+    const evidence = recordedEvidence();
+    evidence.github.workflowRef = workflowRef;
+    const api = fixture({
+      logs: async () => `CI_BENCHMARK_EVIDENCE ${JSON.stringify(evidence)}`,
+    });
+    const result = (await api.collect({ collectEvidence: true })).samples[0];
+    assert.equal(result.evidence[0].records[0].github.workflowRef, null);
+    assert.equal(result.evidenceComplete, true);
+    assert.equal(result.testedSha, evidence.checkedOutCommit);
+    assert.deepEqual(result.toolchain, evidence.tools);
+    assert.deepEqual(result.inputHashes, evidence.inputs);
+  }
+  const invalid = recordedEvidence();
+  invalid.github.workflowRef = '\u001b[unsafe';
+  assert.throws(
+    () =>
+      extractCiEvidence(`CI_BENCHMARK_EVIDENCE ${JSON.stringify(invalid)}`, {
+        repository,
+      }),
+    /Invalid runner evidence text/u,
+  );
+  invalid.github.workflowRef = null;
+  invalid.checkedOutCommit = null;
+  assert.throws(
+    () =>
+      extractCiEvidence(`CI_BENCHMARK_EVIDENCE ${JSON.stringify(invalid)}`, {
+        repository,
+      }),
+    /checkout SHA/u,
+  );
+});
+
 test('historical checkout logs can prove merge SHA without inventing missing instrumentation', async () => {
   const commit = 'b'.repeat(40);
   const api = fixture({

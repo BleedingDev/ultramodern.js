@@ -124,6 +124,8 @@ above. Trial availability does not establish that sponsored billing is disabled.
    `runner` OS/CPU/memory/image, and `inputs` lockfile/mise SHA-256 hashes. Keep this
    evidence and cache-hit logs with each run. Observed host hardware may differ
    from allocated container limits; record Depot's requested CPU and memory too.
+   `github.workflowRef` is optional observed metadata on Depot; the native run/job
+   APIs establish the selected workflow path and committed revision.
 5. Collect completed GitHub run attempts with
    `node scripts/ci/collect-ci-timings.mjs --input samples.json --output timings.json`.
    The input contains `repository` and a `samples` array. Each sample identifies

@@ -32,6 +32,18 @@ function description(value, label) {
   return text;
 }
 
+// Native Depot runs may omit this GitHub-only reference or provide a different
+// shape. Preserve it as optional observed metadata, never as revision proof;
+// comparisons authenticate workflow path/revision through the run/job APIs.
+function optionalWorkflowRef(value) {
+  if (value === undefined || value === null || value === '') return null;
+  return requiredText(
+    value,
+    'GitHub workflow reference',
+    /^[^\u0000-\u001f\u007f-\u009f]{1,512}$/u,
+  );
+}
+
 function commandText(command, args, cwd, run) {
   try {
     return String(
@@ -170,11 +182,7 @@ export function collectRunnerEvidence({
         'GitHub repository ID',
         /^[1-9][0-9]*$/u,
       ),
-      workflowRef: requiredText(
-        env.GITHUB_WORKFLOW_REF,
-        'GitHub workflow reference',
-        /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:\.github|\.depot)\/workflows\/[A-Za-z0-9_.-]+\.ya?ml@refs\/[A-Za-z0-9_./-]+$/u,
-      ),
+      workflowRef: optionalWorkflowRef(env.GITHUB_WORKFLOW_REF),
     },
     tools,
     runner: {
