@@ -6,7 +6,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 1124,
   "totalHunks": 3743,
-  "totalChangedLines": 86248,
+  "totalChangedLines": 86247,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3386,7 +3386,7 @@
     {
       "file": "packages/solutions/app-tools/package.json",
       "hunks": 15,
-      "changedLines": 71
+      "changedLines": 70
     },
     {
       "file": "packages/solutions/app-tools/rslib.config.mts",
