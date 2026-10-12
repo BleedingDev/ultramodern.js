@@ -369,6 +369,13 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       await page.waitForSelector(id('native-lazy'), { timeout: 15_000 });
       await waitForStyle('native-lazy', 'border-inline-start-width', '2px');
       // Hydration adopts the server's lazy subtree and makes it interactive.
+      // The eager counter can hydrate before Octane's lazy boundary.
+      if (renderer === 'octane') {
+        await page.waitForSelector(
+          `${id('native-lazy-increment')}[data-hydrated]`,
+          { timeout: 15_000 },
+        );
+      }
       await page.click(id('native-lazy-increment'));
       await waitForText('native-lazy-count', '1');
       expect(await adopted('native-lazy')).toBe(true);
