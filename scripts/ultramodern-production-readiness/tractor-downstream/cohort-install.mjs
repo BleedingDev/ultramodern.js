@@ -23,6 +23,32 @@ export const tractorEffectPackages = [
   '@effect/tsgo',
 ];
 
+export const tractorReactPackages = [
+  'react',
+  'react-dom',
+  '@types/react',
+  '@types/react-dom',
+];
+
+export function assertTractorReactDependencies(dependencies) {
+  if (
+    !dependencies ||
+    typeof dependencies !== 'object' ||
+    Object.keys(dependencies).length !== tractorReactPackages.length ||
+    tractorReactPackages.some(
+      name =>
+        typeof dependencies[name] !== 'string' ||
+        !/^\d+\.\d+\.\d+$/u.test(dependencies[name]),
+    ) ||
+    dependencies.react !== dependencies['react-dom']
+  ) {
+    throw new Error(
+      'Exact producer React dependencies must select paired React and React DOM and exact type versions',
+    );
+  }
+  return dependencies;
+}
+
 export function assertTractorEffectDependencies(dependencies) {
   if (
     !dependencies ||
@@ -52,11 +78,17 @@ export function prepareTractorCohortInstallation(
     trustPolicy,
     trustPolicyIgnoreAfter,
     producerEffectDependencies,
+    producerReactDependencies,
   } = {},
 ) {
   const effectDependencies = assertTractorEffectDependencies(
     producerEffectDependencies,
   );
+  const reactDependencies = assertTractorReactDependencies(
+    producerReactDependencies,
+  );
+  const nativeDependencies = { ...effectDependencies, ...reactDependencies };
+  const nativePackages = [...tractorEffectPackages, ...tractorReactPackages];
   const cohort = expectedReleaseCohort(release);
   const version = release.release.version;
   const create = release.createPackage;
@@ -181,9 +213,9 @@ export function prepareTractorCohortInstallation(
   ]) {
     selectBundleSidecars(selections, sidecars);
     if (selections)
-      for (const name of tractorEffectPackages) {
+      for (const name of nativePackages) {
         if (Object.hasOwn(selections, name))
-          selections[name] = effectDependencies[name];
+          selections[name] = nativeDependencies[name];
       }
   }
   const manifestUpdates = collectPackageJsonFiles(workspace).flatMap(file => {
@@ -208,13 +240,13 @@ export function prepareTractorCohortInstallation(
     }
     for (const block of dependencyBlocks) {
       changed = selectBundleSidecars(manifest[block], sidecars) || changed;
-      for (const name of tractorEffectPackages) {
+      for (const name of nativePackages) {
         if (
           Object.hasOwn(manifest[block] ?? {}, name) &&
           !manifest[block][name].startsWith('catalog:')
         ) {
-          changed ||= manifest[block][name] !== effectDependencies[name];
-          manifest[block][name] = effectDependencies[name];
+          changed ||= manifest[block][name] !== nativeDependencies[name];
+          manifest[block][name] = nativeDependencies[name];
         }
       }
     }
@@ -236,7 +268,7 @@ export function prepareTractorCohortInstallation(
     }
   }
   const managedPackages = [
-    ...tractorEffectPackages,
+    ...nativePackages,
     ...Object.keys(pnpmOverrides).map(selector => {
       const versionSeparator = selector.indexOf('@', 1);
       return versionSeparator === -1
