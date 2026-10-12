@@ -522,6 +522,8 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
       },
       repository: {
         type: 'git',
+        // Stable recipe versions retain their original package bytes after
+        // the GitHub transfer; changing this URL requires a new fork version.
         url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
         directory: 'scripts/ultramodern-supply',
       },

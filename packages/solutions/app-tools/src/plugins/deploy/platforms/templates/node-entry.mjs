@@ -49,12 +49,13 @@ async function main() {
   const port = process.env.PORT || 8080;
   app.listen(
     {
-      host: '::',
       port,
     },
     () => {
+      const address = app.address();
+      const loopback = address.family === 'IPv6' ? '[::1]' : '127.0.0.1';
       console.log(
-        `\x1b[32mServer is listening on http://[::]:${port}`,
+        `\x1b[32mServer is listening on http://${loopback}:${address.port}`,
         '\x1b[0m',
       );
     },

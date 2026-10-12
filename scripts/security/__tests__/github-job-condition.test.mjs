@@ -21,8 +21,8 @@ const publishWorkflow = yaml.load(
 const publishConditionWithoutAlways = `
   inputs.mode == 'cohort' &&
   needs.record-publish-outcome.result == 'success' &&
-  github.actor == github.repository_owner &&
-  github.triggering_actor == github.repository_owner &&
+  github.actor == 'BleedingDev' &&
+  github.triggering_actor == 'BleedingDev' &&
   github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
   inputs.dry_run == false
 `;
@@ -31,7 +31,7 @@ const successfulContext = {
   github: {
     actor: 'bleedingdev',
     ref: 'refs/heads/main-ultramodern',
-    repository_owner: 'bleedingdev',
+    repository_owner: 'ultramodernjs',
     triggering_actor: 'bleedingdev',
   },
   inputs: { mode: 'cohort', dry_run: false },
@@ -117,6 +117,34 @@ test('always plus a successful direct need survives a skipped ancestor', () => {
     }),
     true,
   );
+});
+
+test('the pinned maintainer guard ignores string case and rejects other actors', () => {
+  for (const [actor, triggeringActor, expected] of [
+    ['BleedingDev', 'BleedingDev', true],
+    ['BLEEDINGDEV', 'bleedingdev', true],
+    ['ultramodernjs', 'ultramodernjs', false],
+    ['someone-else', 'BleedingDev', false],
+    ['BleedingDev', 'someone-else', false],
+  ]) {
+    assert.equal(
+      evaluateJobSchedule({
+        workflow: publishWorkflow,
+        jobId: 'publish-change-record',
+        results: resultsWithSkippedAncestor,
+        context: {
+          ...successfulContext,
+          github: {
+            ...successfulContext.github,
+            actor,
+            triggering_actor: triggeringActor,
+          },
+        },
+      }),
+      expected,
+      `${actor}/${triggeringActor}`,
+    );
+  }
 });
 
 test('dry runs and unsuccessful direct needs fail closed', () => {

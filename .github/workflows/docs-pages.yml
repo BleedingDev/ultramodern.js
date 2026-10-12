@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: namespace-profile-testing
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     permissions:
       contents: read
     steps:
@@ -56,7 +56,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: namespace-profile-testing
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     permissions:
       pages: write
       id-token: write

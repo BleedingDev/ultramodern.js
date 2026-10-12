@@ -61,89 +61,89 @@ jobs:
         # these shards; dispatch still depends on runner availability.
         include:
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 4/6
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 3/6
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 2/6
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 1/6
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 6/6
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework
             framework_suite: core
             shard: 5/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 1/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 2/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 3/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 4/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 5/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework
             framework_suite: core
             shard: 6/6
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework-generator-workspace
             framework_suite: generator-workspace
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework-generator-workspace
             framework_suite: generator-workspace
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: framework-generator-bff
             framework_suite: generator-bff
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: framework-generator-bff
             framework_suite: generator-bff
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: rstest-adapter
           - platform: Windows
-            runner: windows-latest
+            runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
             suite: rstest-adapter
           - platform: Linux
-            runner: ubuntu-24.04
+            runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
             suite: utils
 
     steps:
@@ -184,6 +184,12 @@ jobs:
         run: |
           pnpm_version="$(pnpm --version)"
           node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
+
+      - name: Record CI benchmark evidence
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/record-runner-evidence.mjs "$pnpm_version"
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -281,7 +287,7 @@ jobs:
     name: integration-${{ matrix.platform }} (framework ${{ matrix.required_shard }}/3)
     if: always()
     needs: integration
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 5
     strategy:
       fail-fast: false

@@ -18,7 +18,7 @@ defaults:
 
 jobs:
   workflow-security:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 20
     steps:
       - name: Harden Runner
@@ -52,6 +52,7 @@ jobs:
       - name: Run validator unit tests
         run: |
           node --test scripts/security/__tests__/*.test.mjs
+          node --test scripts/ci/__tests__/*.test.mjs
           node --test scripts/__tests__/workflow-cache-writers.test.mjs
 
       - name: Run release publication tooling tests

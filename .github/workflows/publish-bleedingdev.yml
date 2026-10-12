@@ -102,11 +102,11 @@ concurrency:
 jobs:
   publish-security:
     name: Validate publish security
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 20
     if: >-
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
@@ -177,8 +177,8 @@ jobs:
     name: Integration suites on the release commit
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     uses: ./.github/workflows/integration-test.yml
 
@@ -189,12 +189,12 @@ jobs:
   # source is authorized by the original producer's receipt instead.
   qualify-source-compute:
     name: Test the release source and publication tooling
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 90
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
@@ -358,15 +358,15 @@ jobs:
   # skipped check cannot authorize a recovery or reach either publish job.
   qualify-source:
     name: Confirm qualified source and integration
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     needs:
       - integration
       - qualify-source-compute
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       needs.integration.result == 'success' &&
       needs.qualify-source-compute.result == 'success'
@@ -447,12 +447,12 @@ jobs:
 
   prepare-release:
     name: Build the immutable @bleedingdev release bundle
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 90
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     outputs:
       producer_artifact_identity: ${{ steps.producer-identity.outputs.artifact_identity }}
@@ -649,12 +649,12 @@ jobs:
   # prepare-release uploads it and gates the expensive clean-room acceptance.
   reconcile-sidecars:
     name: Reconcile the staged sidecars with the registry
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 15
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:
       - publish-security
@@ -703,17 +703,15 @@ jobs:
 
   accept-release:
     name: Clean-room acceptance of the immutable release bundle
-    # Runner-label indirection: with BLEEDINGDEV_ACCEPT_RUNNER_LABELS unset the
-    # expression resolves to ubuntu-latest (byte-identical behavior). Setting
-    # the repository variable to a JSON string (e.g. '"ubuntu-latest-8-cores"'
-    # or '["self-hosted","linux"]') moves only the two acceptance jobs to
-    # bigger runners without touching the publish trust chain.
-    runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
+    # Depot takes precedence. Without DEPOT_LINUX_RUNNER, the existing JSON
+    # acceptance override still selects these two jobs independently. With
+    # both variables unset, use GitHub's ubuntu-latest.
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     needs:
       - prepare-release
@@ -827,12 +825,12 @@ jobs:
 
   validate-release:
     name: Validate accepted @bleedingdev tarballs without publish authority
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 45
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == true
     needs:
@@ -921,8 +919,8 @@ jobs:
     name: Rehearse Tractor against the immutable bundle
     if: >-
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     # Only the immutable bundle is needed here, so the rehearsal runs alongside
     # source qualification and the exact-artifact acceptance instead of behind
@@ -939,12 +937,12 @@ jobs:
   # framework cohort, issues a cohort receipt, or invokes Tractor.
   prepare-sidecars:
     name: Prepare the immutable sidecar bundle
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 30
     if: >-
       inputs.mode == 'sidecars' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
@@ -985,15 +983,15 @@ jobs:
 
   qualify-sidecars:
     name: Qualify the exact sidecar bundle
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 30
     needs:
       - publish-security
       - prepare-sidecars
     if: >-
       inputs.mode == 'sidecars' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       needs.publish-security.result == 'success' &&
       needs.prepare-sidecars.result == 'success'
@@ -1074,7 +1072,7 @@ jobs:
   # the npm-publish environment, no token secret.
   publish-sidecars:
     name: Publish the qualified stable sidecars
-    # npm provenance rejects self-hosted runners, including Namespace.
+    # npm provenance rejects self-hosted runners, including Depot.
     runs-on: ubuntu-24.04
     environment: npm-publish
     permissions:
@@ -1085,8 +1083,8 @@ jobs:
     if: >-
       always() &&
       cancelled() == false &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false &&
       needs.publish-security.result == 'success' &&
@@ -1215,7 +1213,7 @@ jobs:
 
   publish:
     name: Publish accepted @bleedingdev tarballs
-    # npm provenance rejects self-hosted runners, including Namespace.
+    # npm provenance rejects self-hosted runners, including Depot.
     runs-on: ubuntu-24.04
     environment: npm-publish
     permissions:
@@ -1229,8 +1227,8 @@ jobs:
       always() &&
       cancelled() == false &&
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false &&
       needs.publish-security.result == 'success' &&
@@ -1357,15 +1355,15 @@ jobs:
   # here and names every package that moved.
   accept-published:
     name: Accept the exact published registry cohort
-    # Same runner-label indirection as accept-release; unset => ubuntu-latest.
-    runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
+    # Use the same Depot selection and fallback as accept-release.
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 30
     if: >-
       always() &&
       cancelled() == false &&
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false &&
       needs.publish.result == 'success' &&
@@ -1493,8 +1491,8 @@ jobs:
       always() &&
       cancelled() == false &&
       inputs.mode == 'cohort' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false &&
       needs.prepare-release.result == 'success' &&
@@ -1517,7 +1515,7 @@ jobs:
 
   record-publish-outcome:
     name: Record the authenticated publish outcome
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 20
     outputs:
       artifact_name: ${{ steps.publish-outcome.outputs.artifact_name }}
@@ -1537,8 +1535,8 @@ jobs:
       inputs.mode == 'cohort' &&
       always() &&
       cancelled() == false &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       needs.publish-security.result == 'success' &&
       needs.accept-release.result == 'success' &&
@@ -1704,7 +1702,7 @@ jobs:
 
   publish-change-record:
     name: Publish the cohort change record
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 15
     # The only job that may write to the repository, and it runs strictly after
     # the publish outcome is recorded.
@@ -1718,8 +1716,8 @@ jobs:
       always() &&
       cancelled() == false &&
       needs.record-publish-outcome.result == 'success' &&
-      github.actor == github.repository_owner &&
-      github.triggering_actor == github.repository_owner &&
+      github.actor == 'BleedingDev' &&
+      github.triggering_actor == 'BleedingDev' &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
       inputs.dry_run == false
     steps:

@@ -34,6 +34,7 @@ import {
 } from './release-artifacts.mjs';
 import {
   createRegistryProvenanceExpectation,
+  historicalRegistryProvenanceExpectations,
   slsaProvenanceV1,
   verifyRegistryProvenance,
 } from './provenance.mjs';
@@ -369,16 +370,8 @@ async function verifyRegistryProvenanceChronology(
     throw new Error(missingProvenance(firstVerified));
   }
 
-  const discoveryExpectation = historicalProvenanceExpectation(expectation);
-  const cutoverExpectation = cutoverAnchor
-    ? {
-        ...discoveryExpectation,
-        source: {
-          ...discoveryExpectation.source,
-          commit: cutoverAnchor.sourceCommit,
-        },
-      }
-    : discoveryExpectation;
+  const discoveryExpectations =
+    historicalRegistryProvenanceExpectations(expectation);
   const results = await mapWithConcurrency(
     chronology.slice(cutoverIndex),
     chronologyVerificationConcurrency,
@@ -391,23 +384,45 @@ async function verifyRegistryProvenanceChronology(
           entry.published.dist,
           `${packageName}@${entry.version} registry dist metadata`,
         );
-        const evidence = await retryThrottledProvenance(
-          () =>
-            provenanceVerifier(
-              {
-                integrity: entry.published.dist.integrity,
-                targetName: packageName,
-                version: entry.version,
-              },
-              entry.published.dist,
-              cutoverAnchor && entry.version === cutoverAnchor.version
-                ? cutoverExpectation
-                : discoveryExpectation,
-              fetchImpl,
-              dependencies.bundleVerifier,
-            ),
-          dependencies.wait,
-        );
+        let evidence;
+        const identityErrors = [];
+        for (const historicalExpectation of discoveryExpectations) {
+          const versionExpectation =
+            cutoverAnchor && entry.version === cutoverAnchor.version
+              ? {
+                  ...historicalExpectation,
+                  source: {
+                    ...historicalExpectation.source,
+                    commit: cutoverAnchor.sourceCommit,
+                  },
+                }
+              : historicalExpectation;
+          try {
+            evidence = await retryThrottledProvenance(
+              () =>
+                provenanceVerifier(
+                  {
+                    integrity: entry.published.dist.integrity,
+                    targetName: packageName,
+                    version: entry.version,
+                  },
+                  entry.published.dist,
+                  versionExpectation,
+                  fetchImpl,
+                  dependencies.bundleVerifier,
+                ),
+              dependencies.wait,
+            );
+            break;
+          } catch (error) {
+            // Throttling is not an identity mismatch; preserve its bounded
+            // retry budget and fail closed without trying another identity.
+            if (isThrottledRegistryProvenanceError(error)) throw error;
+            identityErrors.push(error);
+          }
+        }
+        if (identityErrors.length === discoveryExpectations.length)
+          throw identityErrors[0];
         return { entry, evidence };
       } catch (error) {
         if (isThrottledRegistryProvenanceError(error)) {

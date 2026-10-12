@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 1124,
-  "totalHunks": 3743,
-  "totalChangedLines": 86247,
+  "totalFiles": 1126,
+  "totalHunks": 3749,
+  "totalChangedLines": 86257,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3582,6 +3582,16 @@
       "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/node.ts",
       "hunks": 8,
       "changedLines": 36
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/templates/node-entry.cjs",
+      "hunks": 3,
+      "changedLines": 5
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/templates/node-entry.mjs",
+      "hunks": 3,
+      "changedLines": 5
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/templates/vercel-entry.cjs",

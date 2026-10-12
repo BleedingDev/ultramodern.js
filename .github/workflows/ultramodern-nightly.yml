@@ -11,7 +11,7 @@ permissions:
 jobs:
   superapp-certification-nightly:
     name: Script, build-consumer and SuperApp acceptance
-    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 180
     steps:
       - name: Harden Runner
@@ -101,7 +101,7 @@ jobs:
 
   nightly-signal:
     name: Aggregate nightly signal
-    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 5
     if: always()
     needs:

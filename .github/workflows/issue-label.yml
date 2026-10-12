@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   label:
-    runs-on: namespace-profile-testing
+    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     steps:
       - name: Label issues
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
