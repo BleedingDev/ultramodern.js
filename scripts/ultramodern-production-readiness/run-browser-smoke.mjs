@@ -112,6 +112,7 @@ function pinnedJson(filename) {
 export function createAcceptedNodeProofEnvironment(
   projectDir,
   environment = process.env,
+  context = {},
 ) {
   const {
     value: { settings },
@@ -123,7 +124,8 @@ export function createAcceptedNodeProofEnvironment(
     settings.minimumReleaseAgeStrict !== true ||
     settings.minimumReleaseAgeIgnoreMissingTime !== false ||
     settings.trustPolicy !== 'no-downgrade' ||
-    typeof settings.enableGlobalVirtualStore !== 'boolean' ||
+    (settings.enableGlobalVirtualStore !== undefined &&
+      typeof settings.enableGlobalVirtualStore !== 'boolean') ||
     !['minimumReleaseAgeExclude'].every(
       key =>
         Array.isArray(settings[key]) &&
@@ -159,19 +161,50 @@ export function createAcceptedNodeProofEnvironment(
     policy.minimumReleaseAgeExclude,
     'Continuation native release-age exclusions',
   );
-  if (policy.trustPolicyExclude !== undefined) {
-    validateExactExclusions(
-      policy.trustPolicyExclude,
-      'Continuation native trust exclusions',
+  const nativeTrustExclusions = validateExactExclusions(
+    policy.trustPolicyExclude === undefined ? [] : policy.trustPolicyExclude,
+    'Continuation native trust exclusions',
+  );
+  const savedTrustExclusions = validateExactExclusions(
+    settings.trustPolicyExclude === undefined
+      ? []
+      : settings.trustPolicyExclude,
+    'Continuation installed trust exclusions',
+  );
+  if (nativeTrustExclusions.length > 0) {
+    throw new BrowserSmokeError(
+      'Continuation requires native consumer trust policy without exclusions',
     );
   }
-  return createAcceptanceWorkspaceEnv({
-    ...environment,
-    CI: 'true',
-    pnpm_config_enable_global_virtual_store: String(
-      settings.enableGlobalVirtualStore,
-    ),
-  });
+  let trustContext;
+  if (savedTrustExclusions.length > 0) {
+    if (context.mode !== 'source' || !context.release) {
+      throw new BrowserSmokeError(
+        'Saved source candidate trust exclusions require an authenticated release. Use run-release-acceptance.mjs --continue-from source-node or source-workerd.',
+      );
+    }
+    trustContext = {
+      mode: 'source',
+      release: context.release,
+      registryEnv: {
+        PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(savedTrustExclusions),
+      },
+    };
+  }
+  return createAcceptanceWorkspaceEnv(
+    {
+      ...environment,
+      CI: 'true',
+      ...(settings.enableGlobalVirtualStore === undefined
+        ? {}
+        : {
+            pnpm_config_enable_global_virtual_store: String(
+              settings.enableGlobalVirtualStore,
+            ),
+          }),
+    },
+    trustContext,
+  );
 }
 
 export function readNodeBrowserContinuation({

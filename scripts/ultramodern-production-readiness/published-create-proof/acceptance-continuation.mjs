@@ -734,8 +734,12 @@ function verifyAcceptanceContinuationOperationalEvidence({
   return verifyAcceptanceReceiptOperationalEvidence(receipt, receiptPath);
 }
 
-function readInstalledPolicyEnvironment(projectDir, environment = {}) {
-  return createAcceptedNodeProofEnvironment(projectDir, environment);
+function readInstalledPolicyEnvironment(
+  projectDir,
+  environment = {},
+  context = {},
+) {
+  return createAcceptedNodeProofEnvironment(projectDir, environment, context);
 }
 
 async function runAcceptanceContinuation({
@@ -891,7 +895,10 @@ async function runAcceptanceContinuation({
       }),
     );
     const deploymentEnv = createAcceptanceDeploymentEnv(contract, {
-      ...readInstalledPolicyEnvironment(projectDir, runtime.env),
+      ...readInstalledPolicyEnvironment(projectDir, runtime.env, {
+        mode: 'source',
+        release,
+      }),
       ...portEnv,
     });
     await stage('topology', () =>
