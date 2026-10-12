@@ -44,6 +44,23 @@ const trustedWorkflow = {
   repository: 'https://github.com/BleedingDev/ultramodern.js',
 };
 
+// These mocked publications exercise registry behavior in a release context,
+// independently of the pull-request workflow running this test file.
+const mockTrustedWorkflowEnvironment = t => {
+  t.mock.property(process, 'env', {
+    ...process.env,
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REF: trustedWorkflow.ref,
+    GITHUB_REPOSITORY: releaseSource.repository,
+    GITHUB_SHA: releaseSource.commit,
+    GITHUB_RUN_ID: '12345',
+    GITHUB_RUN_ATTEMPT: '1',
+    GITHUB_WORKFLOW: 'Publish BleedingDev',
+    GITHUB_WORKFLOW_REF: `${releaseSource.repository}/${trustedWorkflow.path}@${trustedWorkflow.ref}`,
+    GITHUB_WORKFLOW_SHA: releaseSource.commit,
+  });
+};
+
 const npmPurl = item => {
   const [scope, name] = item.targetName.slice(1).split('/');
   return `pkg:npm/%40${scope}/${name}@${item.version}`;
@@ -606,7 +623,8 @@ test('registry preflight rejects a non-forward candidate before publication', as
   );
 });
 
-test('trusted publishing rejects the entire absent cohort before the first registry mutation', async () => {
+test('trusted publishing rejects the entire absent cohort before the first registry mutation', async t => {
+  mockTrustedWorkflowEnvironment(t);
   const { publishManifestPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -691,7 +709,8 @@ test('trusted publishing rejects the entire absent cohort before the first regis
   }
 });
 
-test('full-cohort publish runs each dependency level concurrently and never starts a consumer before its dependencies return', async () => {
+test('full-cohort publish runs each dependency level concurrently and never starts a consumer before its dependencies return', async t => {
+  mockTrustedWorkflowEnvironment(t);
   const { publishManifestPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
