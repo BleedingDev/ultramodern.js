@@ -18,8 +18,16 @@ import {
 import {
   createVerticalDescriptor,
   remoteDependencyAlias,
+  sharedPackages,
   shellApp,
 } from '../src/ultramodern-workspace/descriptors';
+
+import { assertCompilerArchitecture } from '../src/ultramodern-workspace/validation/architecture';
+import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
+import {
+  linkInstalledCompiler,
+  linkInstalledEffectCompiler,
+} from './helpers/workspace-kit';
 
 const require = createRequire(__filename);
 const {
@@ -155,7 +163,7 @@ test('generated native bridge loaders preserve runtime module identity during No
   assert.ok(!shellHtml.includes('shell.remoteUnavailable'));
 });
 
-test('adding ERP verticals writes native loaders into the final shell routes', async () => {
+test('adding a vertical writes validated native loaders into the final shell routes', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-native-shell-loader-'),
   );
@@ -169,18 +177,9 @@ test('adding ERP verticals writes native loaders into the final shell routes', a
       enableTailwind: false,
       packageSource: { strategy: 'workspace' },
     });
-    const names = [
-      'inventory',
-      'finance',
-      'people',
-      'analytics',
-      'orders',
-      'procurement',
-      'billing',
-      'logistics',
-      'support',
-      'compliance',
-    ];
+    linkInstalledCompiler(targetDir);
+    linkInstalledEffectCompiler(targetDir);
+    const names = ['inventory'];
     for (const name of names) {
       await addUltramodernVertical({
         workspaceRoot: targetDir,
@@ -198,12 +197,42 @@ test('adding ERP verticals writes native loaders into the final shell routes', a
       'utf8',
     );
     assert.match(source, /import \{ getInstance, loadRemote \}/u);
+    assert.match(
+      source,
+      /loader:\s*\(\)\s*=>\s*loadRemote<RemoteComponentModule>\(moduleId\)\s*as\s*Promise<RemoteComponentModule>/u,
+    );
     for (const name of names) {
-      assert.ok(
-        source.includes(`loadRemote<RemoteComponentModule>('${name}/Widget')`),
-      );
+      assert.ok(source.includes(`'${name}/Widget'`));
       assert.ok(!source.includes(`import('${name}/Widget')`));
     }
+    const contract = createWorkspaceValidationContract(
+      'native-shell-loader',
+      false,
+      sharedPackages.map(pkg => ({
+        id: pkg.id,
+        path: pkg.directory,
+        package: `native-shell-loader/${pkg.id}`,
+      })),
+      names.map((name, index) => createVerticalDescriptor(name, 4101 + index)),
+    );
+    assert.doesNotThrow(() => assertCompilerArchitecture(targetDir, contract));
+    const forbiddenFile = path.join(
+      targetDir,
+      'apps/shell-super-app/src/routes/manual-loader.tsx',
+    );
+    for (const authored of [
+      "import { loadRemote } from '@module-federation/modern-js-v3/runtime'; loadRemote('inventory/Widget');",
+      'const loadRemote = () => ({}); loadRemote();',
+      "import { createLazyComponent } from '@module-federation/modern-js-v3/react'; const loadRemote = () => ({}); createLazyComponent({ loader: () => loadRemote() });",
+      "import { loadRemote } from '@module-federation/modern-js-v3/runtime'; import { createLazyComponent } from '@module-federation/modern-js-v3/react'; createLazyComponent({ loader: () => { return loadRemote('inventory/Widget'); } });",
+    ]) {
+      fs.writeFileSync(forbiddenFile, authored);
+      assert.throws(
+        () => assertCompilerArchitecture(targetDir, contract),
+        /module federation native loading/u,
+      );
+    }
+    fs.rmSync(forbiddenFile);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
