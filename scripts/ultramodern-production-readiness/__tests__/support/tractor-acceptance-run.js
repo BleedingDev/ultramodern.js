@@ -272,6 +272,11 @@ async function runTractorAcceptanceFixture({
       ? { registryUrl: 'https://registry.npmjs.org/' }
       : {
           registryEnv: {
+            PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(
+              release.packages
+                .map(item => `${item.targetName}@${item.version}`)
+                .sort(),
+            ),
             npm_config_cache: path.join(root, 'npm-cache'),
             npm_config_userconfig: path.join(root, '.npmrc'),
           },
