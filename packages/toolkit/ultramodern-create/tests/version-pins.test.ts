@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import { yaml } from '@modern-js/utils';
 import { ULTRAMODERN_WORKSPACE_MODERN_PACKAGES } from '../src/ultramodern-package-source';
 import {
   assertReleaseCohortPackageSource,
   parseUltramodernReleaseCohort,
+  releaseCohortSelectors,
 } from '../src/ultramodern-release-cohort';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { ULTRAMODERN_WORKSPACE_POLICY } from '../src/ultramodern-workspace/policy';
@@ -27,7 +30,8 @@ function cohort() {
     ],
     release: { tag: 'latest', version: '3.9.0' },
     schema: 'bleedingdev.ultramodern.release-cohort',
-    schemaVersion: 1,
+    schemaVersion: 2,
+    sidecars: [],
     source: { commit: 'a'.repeat(40), repository: 'https://example.test/repo' },
   });
 }
@@ -137,7 +141,7 @@ test('local source generation rejects an explicit install request', async () => 
 // package runs from node_modules (no src/, shipped release-cohort.json), and
 // pnpm's strict 24h gate would reject every cohort package unless the
 // workspace exempts exactly those versions.
-test('an installed create package exempts exactly its shipped cohort from the release-age gate', () => {
+test('an installed create package immediately installs its exact cohort and transitive sidecars under native release-age policy', async () => {
   const packageRoot = path.resolve(__dirname, '..');
   // The installed copy lives under this package's node_modules so Node
   // resolves its dependencies by walking up, with no links to create.
@@ -165,6 +169,23 @@ test('an installed create package exempts exactly its shipped cohort from the re
       });
     }
     const version = '3.9.0-ultramodern.17';
+    const recipes = JSON.parse(
+      fs.readFileSync(
+        new URL(
+          '../../../../scripts/ultramodern-supply/sidecars.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    );
+    const sidecars = recipes
+      .filter((recipe: { id: string }) =>
+        ['braces', 'mf-modern-js-v3', 'mf-sdk'].includes(recipe.id),
+      )
+      .map((recipe: { fork: { name: string; version: string } }) => recipe.fork)
+      .sort((left: { name: string }, right: { name: string }) =>
+        left.name.localeCompare(right.name),
+      );
     // modern-js-utils is not a catalog entry: it arrives transitively at the
     // same cohort version and must be exempt too.
     const names = [
@@ -189,7 +210,8 @@ test('an installed create package exempts exactly its shipped cohort from the re
         })),
         release: { tag: 'latest', version },
         schema: 'bleedingdev.ultramodern.release-cohort',
-        schemaVersion: 1,
+        schemaVersion: 2,
+        sidecars,
         source: {
           commit: 'a'.repeat(40),
           repository: 'https://example.test/repo',
@@ -228,7 +250,13 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     ) as Record<string, any>;
     assert.deepEqual(
       policy.minimumReleaseAgeExclude,
-      names.map(name => `@bleedingdev/modern-js-${name}@${version}`).sort(),
+      [
+        ...names.map(name => `@bleedingdev/modern-js-${name}@${version}`),
+        ...sidecars.map(
+          (item: { name: string; version: string }) =>
+            `${item.name}@${item.version}`,
+        ),
+      ].sort(),
     );
     assert.deepEqual(
       policy.overrides,
@@ -236,10 +264,163 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     );
     assert.equal(policy.minimumReleaseAge, 1440);
     assert.equal(policy.minimumReleaseAgeStrict, true);
+    assert.equal(policy.minimumReleaseAgeIgnoreMissingTime, false);
+    assert.equal(policy.trustPolicy, 'no-downgrade');
+    assert.equal(policy.trustPolicyIgnoreAfter, 1440);
+    assert.equal(
+      policy.minimumReleaseAgeExclude.some(
+        (selector: string) =>
+          selector.includes('*') || selector.startsWith('sharp@'),
+      ),
+      false,
+    );
     assert.equal(
       policy.catalogs.ultramodern['@modern-js/runtime'],
       `npm:@bleedingdev/modern-js-runtime@${version}`,
     );
+
+    // Only registry timestamps and native pnpm policy decide admission here.
+    // These package fixtures isolate metadata age, not sidecar implementation.
+    const sdk = sidecars.find(
+      (item: { name: string }) => item.name === '@bleedingdev/mf-sdk',
+    );
+    const modern = sidecars.find(
+      (item: { name: string }) => item.name === '@bleedingdev/mf-modern-js-v3',
+    );
+    assert(
+      sdk && modern,
+      'Canonical MF sidecars are required for the transitive age proof',
+    );
+    const definitions = [
+      ...sidecars.map((item: { name: string; version: string }) => ({
+        ...item,
+        ...(item === modern
+          ? {
+              dependencies: {
+                '@module-federation/sdk': `npm:${sdk.name}@${sdk.version}`,
+              },
+            }
+          : {}),
+      })),
+      { name: '@bleedingdev/modern-js-utils', version },
+      { name: 'sharp', version: '0.35.5' },
+    ];
+    const snapshots = definitions.map(definition => {
+      const dir = path.join(
+        tempRoot,
+        'registry-fixtures',
+        definition.name.replaceAll('/', '__'),
+      );
+      fs.mkdirSync(dir, { recursive: true });
+      const packageJson = { ...definition, license: 'MIT' };
+      fs.writeFileSync(
+        path.join(dir, 'package.json'),
+        JSON.stringify(packageJson),
+      );
+      const result = JSON.parse(
+        execFileSync('npm', ['pack', '--ignore-scripts', '--json'], {
+          cwd: dir,
+          encoding: 'utf8',
+        }),
+      )[0];
+      const bytes = fs.readFileSync(path.join(dir, result.filename));
+      return {
+        ...definition,
+        packageJson,
+        bytes,
+        integrity: `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
+        shasum: crypto.createHash('sha1').update(bytes).digest('hex'),
+      };
+    });
+    const { startSidecarRegistry } = await import(
+      '../../../../scripts/ultramodern-publish/qualify-sidecar-bundle.mjs'
+    );
+    const registry = await startSidecarRegistry(snapshots);
+    try {
+      const env = { ...process.env };
+      for (const key of Object.keys(env)) {
+        if (/^(?:npm_config_|pnpm_config_)/iu.test(key)) delete env[key];
+      }
+      const consumer = path.join(tempRoot, 'native-consumer');
+      fs.mkdirSync(consumer);
+      fs.copyFileSync(
+        path.join(tempRoot, 'fresh/pnpm-workspace.yaml'),
+        path.join(consumer, 'pnpm-workspace.yaml'),
+      );
+      fs.writeFileSync(
+        path.join(consumer, 'package.json'),
+        JSON.stringify({
+          private: true,
+          dependencies: {
+            '@modern-js/utils': `npm:@bleedingdev/modern-js-utils@${version}`,
+            '@module-federation/modern-js-v3': `npm:${modern.name}@${modern.version}`,
+            braces: '3.0.3',
+          },
+        }),
+      );
+      const installArgs = [
+        'install',
+        '--registry',
+        registry.registryUrl,
+        '--store-dir',
+        path.join(tempRoot, 'fresh-store'),
+      ];
+      await promisify(execFile)('pnpm', installArgs, {
+        cwd: consumer,
+        env,
+        maxBuffer: 1024 * 1024,
+      });
+      assert.equal(
+        JSON.parse(
+          fs.readFileSync(
+            path.join(consumer, 'node_modules/braces/package.json'),
+            'utf8',
+          ),
+        ).name,
+        '@bleedingdev/braces',
+      );
+      assert(
+        registry.servedTarballs.has(sdk.name),
+        'A freshly dated transitive SDK must install under the producer policy',
+      );
+      assert.equal(
+        JSON.parse(
+          fs.readFileSync(
+            path.join(consumer, 'node_modules/@modern-js/utils/package.json'),
+            'utf8',
+          ),
+        ).version,
+        version,
+      );
+      fs.writeFileSync(
+        path.join(consumer, 'package.json'),
+        JSON.stringify({ private: true, dependencies: { sharp: '0.35.5' } }),
+      );
+      const sharpMetadata = await (
+        await fetch(`${registry.registryUrl}sharp`)
+      ).json();
+      assert.equal(sharpMetadata.versions['0.35.5'].name, 'sharp');
+      assert(Date.now() - Date.parse(sharpMetadata.time['0.35.5']) < 60_000);
+      await assert.rejects(
+        promisify(execFile)('pnpm', installArgs, {
+          cwd: consumer,
+          env,
+          maxBuffer: 1024 * 1024,
+        }),
+        error => {
+          const output =
+            String((error as { stdout?: string; stderr?: string }).stdout) +
+            String((error as { stdout?: string; stderr?: string }).stderr);
+          assert.match(
+            output,
+            /minimumReleaseAge|release age|too new|released/iu,
+          );
+          return true;
+        },
+      );
+    } finally {
+      await registry.stop();
+    }
 
     // The installed producer cannot authenticate another release, so a failed
     // generation must not publish a workspace with that release's catalog.
@@ -326,6 +507,29 @@ test('workspace validation rejects competing selectors but permits unrelated ove
           overrides: { ...required, [selector]: '3.0.3' },
         }),
       /conflicts with the producer policy/u,
+    );
+  }
+});
+
+test('authenticated sidecar selectors reject foreign names, ranges and duplicate identities', () => {
+  const good = { name: '@bleedingdev/braces', version: BRACES_FORK_VERSION };
+  const projected = parseUltramodernReleaseCohort({
+    ...cohort(),
+    sidecars: [good],
+  });
+  assert.deepEqual(releaseCohortSelectors(projected), [
+    `@bleedingdev/braces@${BRACES_FORK_VERSION}`,
+    '@bleedingdev/modern-js-runtime@3.9.0',
+  ]);
+  for (const sidecars of [
+    [{ name: 'sharp', version: '0.35.5' }],
+    [{ name: '@third-party/braces', version: '3.0.4' }],
+    [{ ...good, version: '^3.0.4' }],
+    [good, good],
+    [{ name: '@bleedingdev/modern-js-runtime', version: '3.9.0' }],
+  ]) {
+    assert.throws(() =>
+      parseUltramodernReleaseCohort({ ...cohort(), sidecars }),
     );
   }
 });

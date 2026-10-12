@@ -120,7 +120,8 @@ beforeEach(() => {
       packages,
       release: { tag: 'latest', version: releaseVersion },
       schema: 'bleedingdev.ultramodern.release-cohort',
-      schemaVersion: 1,
+      schemaVersion: 2,
+      sidecars: [],
       source: {
         commit: 'a'.repeat(40),
         repository: 'https://example.test/repo',

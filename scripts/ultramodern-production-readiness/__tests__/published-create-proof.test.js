@@ -1207,7 +1207,8 @@ test('asserts generated cohorts only from strict manifest expectations', async t
     packages: release.packages.map(item => ({ ...item, version })),
     release: { tag: 'latest', version },
     schema: 'bleedingdev.ultramodern.release-cohort',
-    schemaVersion: 1,
+    schemaVersion: 2,
+    sidecars: [],
     source: {
       commit: 'a'.repeat(40),
       repository: 'BleedingDev/ultramodern.js',

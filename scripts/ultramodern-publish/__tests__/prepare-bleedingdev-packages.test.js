@@ -167,7 +167,10 @@ const createTemplateRequiredFiles = [
 
 // Builds a real staged cohort and packs it through the production
 // `createReleaseArtifacts`, so the tests below verify real tarball bytes.
-const createArtifactFixture = async (extraDefinitions = []) => {
+const createArtifactFixture = async (
+  extraDefinitions = [],
+  sidecarDefinitions = [],
+) => {
   const { createReleaseArtifacts } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -232,11 +235,40 @@ const createArtifactFixture = async (extraDefinitions = []) => {
   });
   let releaseArtifacts;
   try {
+    let sidecars = null;
+    if (sidecarDefinitions.length > 0) {
+      const { writeSidecarStagingManifest } = await import(
+        '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+      );
+      const stagedSidecars = sidecarDefinitions.map(({ name, version }) => {
+        const stagedDir = path.join(
+          root,
+          'sidecars',
+          name.replaceAll('/', '__'),
+        );
+        const packageJson = { name, version, main: 'index.js', license: 'MIT' };
+        writeJson(path.join(stagedDir, 'package.json'), packageJson);
+        writeFile(path.join(stagedDir, 'index.js'), 'module.exports = {};\n');
+        return {
+          name,
+          version,
+          stagedDir,
+          packageJson,
+          root: `packages/sidecar/${name.slice('@bleedingdev/'.length)}`,
+        };
+      });
+      sidecars = writeSidecarStagingManifest(
+        path.join(root, 'release'),
+        stagedSidecars,
+        { publishBefore: aliases['@modern-js/runtime'] },
+      ).descriptor;
+    }
     releaseArtifacts = createReleaseArtifacts({
       aliases,
       command: execFileSync,
       outDir: path.join(root, 'release'),
       packages,
+      sidecars,
       source: releaseSource,
       tag: 'latest',
       tools: releaseTools,
@@ -249,6 +281,52 @@ const createArtifactFixture = async (extraDefinitions = []) => {
 
   return { aliases, packages, releaseArtifacts, root };
 };
+
+test('packed cohort projects every verified sidecar and rejects incomplete or altered records', async () => {
+  const { validateReleaseCohortProjection, verifyReleaseArtifacts } =
+    await import('../lib/prepare-bleedingdev-packages/release-artifacts.mjs');
+  const fixture = await createArtifactFixture(
+    [],
+    [
+      { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+      { name: '@bleedingdev/braces', version: '3.0.3' },
+    ],
+  );
+  try {
+    const { manifest, sidecars, cohortProjection } = fixture.releaseArtifacts;
+    assert.equal(cohortProjection.value.schemaVersion, 2);
+    assert.deepEqual(cohortProjection.value.sidecars, [
+      { name: '@bleedingdev/braces', version: '3.0.3' },
+      { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+    ]);
+    for (const sidecarRecords of [
+      [],
+      cohortProjection.value.sidecars.slice(0, 1),
+      [
+        { name: '@bleedingdev/braces', version: '3.0.4' },
+        { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+      ],
+    ]) {
+      assert.throws(
+        () =>
+          validateReleaseCohortProjection(
+            { ...cohortProjection.value, sidecars: sidecarRecords },
+            manifest,
+            sidecars,
+          ),
+        /Release cohort projection does not match/,
+      );
+    }
+    const sidecar = sidecars.packages[0];
+    fs.appendFileSync(sidecar.artifactPath, 'tampered');
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.releaseArtifacts.outDir),
+      /sidecar tarball size mismatch/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
 
 // A cohort where create depends on i18n-utils, which depends on utils.
 const makePublishOrderFixture = () => {

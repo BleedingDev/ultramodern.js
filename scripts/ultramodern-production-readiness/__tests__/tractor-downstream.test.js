@@ -108,7 +108,8 @@ function writeAuthenticatedCohort(root) {
     ],
     release: release.release,
     schema: 'bleedingdev.ultramodern.release-cohort',
-    schemaVersion: 1,
+    schemaVersion: 2,
+    sidecars: [],
   };
   release.cohortProjection = { value: projection };
   fs.writeFileSync(

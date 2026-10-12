@@ -29,7 +29,7 @@ const releaseManifestDigestFile = 'manifest.json.sha256';
 const releaseCohortDigestFile = 'cohort.sha256';
 const releaseCohortProjectionSchema =
   'bleedingdev.ultramodern.release-cohort';
-const releaseCohortProjectionSchemaVersion = 1;
+const releaseCohortProjectionSchemaVersion = 2;
 const releaseCohortProjectionPath =
   'release-cohort.json';
 const tarballsDirectory = 'tarballs';
@@ -173,7 +173,27 @@ function cohortIdentity(manifest) {
   };
 }
 
-function createReleaseCohortProjection({ aliases, packages, source, tag, version }) {
+function createReleaseCohortProjection({
+  aliases,
+  packages,
+  sidecarPackages = [],
+  source,
+  tag,
+  version,
+}) {
+  const cohortNames = new Set(packages.map(item => item.targetName));
+  const sidecars = [...sidecarPackages]
+    .sort((left, right) => compareCanonicalStrings(left.name, right.name))
+    .map(({ name, version: sidecarVersion }) => {
+      if (
+        !/^@bleedingdev\/[a-z0-9][a-z0-9.-]*$/u.test(name) ||
+        !/^\d+\.\d+\.\d+$/u.test(sidecarVersion) ||
+        cohortNames.has(name)
+      ) {
+        throw new Error(`Invalid release cohort sidecar ${name}@${sidecarVersion}`);
+      }
+      return { name, version: sidecarVersion };
+    });
   return {
     aliases,
     packages: [...packages]
@@ -188,14 +208,15 @@ function createReleaseCohortProjection({ aliases, packages, source, tag, version
     release: { tag, version },
     schema: releaseCohortProjectionSchema,
     schemaVersion: releaseCohortProjectionSchemaVersion,
+    sidecars,
     source,
   };
 }
 
-function validateReleaseCohortProjection(projection, manifest) {
+function validateReleaseCohortProjection(projection, manifest, verifiedSidecars) {
   assertExactKeys(
     projection,
-    ['aliases', 'packages', 'release', 'schema', 'schemaVersion', 'source'],
+    ['aliases', 'packages', 'release', 'schema', 'schemaVersion', 'sidecars', 'source'],
     'Release cohort projection',
   );
   if (
@@ -213,6 +234,7 @@ function validateReleaseCohortProjection(projection, manifest) {
     createReleaseCohortProjection({
       aliases: manifest.aliases,
       packages: manifest.packages,
+      sidecarPackages: verifiedSidecars?.packages ?? [],
       source: manifest.source,
       tag: manifest.release.tag,
       version: manifest.release.version,
@@ -1322,7 +1344,7 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
       }`,
     );
   }
-  validateReleaseCohortProjection(projection, manifest);
+  validateReleaseCohortProjection(projection, manifest, sidecars);
   const canonicalProjectionBytes = Buffer.from(
     `${canonicalJson(projection, 2)}\n`,
     'utf8',
@@ -1441,6 +1463,7 @@ function createReleaseArtifacts({
   const projection = createReleaseCohortProjection({
     aliases,
     packages,
+    sidecarPackages: verifySidecarArtifacts(resolvedOutDir, sidecars)?.packages ?? [],
     source,
     tag,
     version,
