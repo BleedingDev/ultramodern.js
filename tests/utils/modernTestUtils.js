@@ -714,12 +714,65 @@ function modernServe(dir, port, opts = {}) {
   });
 }
 
-async function killApp(instance) {
-  await new Promise((resolve, reject) => {
-    if (!instance) {
-      return resolve();
-    }
+function readLinuxProcess(pid) {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    return {
+      pid,
+      state: fields[0],
+      parent: Number(fields[1]),
+      start: fields[19],
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ESRCH') return undefined;
+    throw error;
+  }
+}
 
+function captureLinuxProcessTree(pid) {
+  const processes = fs
+    .readdirSync('/proc')
+    .filter(name => /^\d+$/.test(name))
+    .map(name => readLinuxProcess(Number(name)))
+    .filter(Boolean);
+  const owned = new Set([pid]);
+  let previousSize;
+  do {
+    previousSize = owned.size;
+    for (const process of processes) {
+      if (owned.has(process.parent)) owned.add(process.pid);
+    }
+  } while (owned.size !== previousSize);
+  return processes.filter(process => owned.has(process.pid));
+}
+
+async function waitForLinuxProcessTree(processes) {
+  const deadline = Date.now() + 10_000;
+  while (true) {
+    const live = processes.filter(process => {
+      const current = readLinuxProcess(process.pid);
+      // start time binds the captured PID to this process, including after its
+      // parent exits. A reused PID belongs to another owner and is untouched.
+      return (
+        current && current.start === process.start && current.state !== 'Z'
+      );
+    });
+    if (!live.length) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `App processes did not exit after termination: ${live.map(process => process.pid).join(', ')}`,
+      );
+    }
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
+
+async function killApp(instance) {
+  if (!instance) return;
+  const processes =
+    process.platform === 'linux' ? captureLinuxProcessTree(instance.pid) : [];
+  await new Promise((resolve, reject) => {
     treeKill(instance.pid, err => {
       if (err) {
         if (
@@ -742,6 +795,9 @@ async function killApp(instance) {
       return resolve();
     });
   });
+  // tree-kill acknowledges signal delivery, not process exit. Even inherited
+  // pipes can close while a descendant is still completing its shutdown.
+  await waitForLinuxProcessTree(processes);
 }
 
 async function reservePort() {
