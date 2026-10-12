@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
 import { transformSync } from 'esbuild';
 import { type ComponentType, createElement } from 'react';
 import { renderToReadableStream } from 'react-dom/server.edge';
-import { createFederatedComponentsRegistry } from '../src/ultramodern-workspace/demo-components';
+import {
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+} from '../src/ultramodern-workspace';
+import {
+  createFederatedComponentsRegistry,
+  createShellRemoteComponents,
+} from '../src/ultramodern-workspace/demo-components';
 import {
   createVerticalDescriptor,
   remoteDependencyAlias,
@@ -107,4 +117,94 @@ test('generated native bridge loaders preserve runtime module identity during No
     html.includes('data-modern-distributed-ssr-boundary="inventory::./Widget"'),
   );
   assert.ok(!html.includes('remote-unavailable'));
+  const shellModule = { exports: {} as Record<string, unknown> };
+  vm.runInNewContext(
+    transformSync(
+      `${createShellRemoteComponents(shellApp, [remote])}\nexport { InventoryWidget };`,
+      {
+        loader: 'tsx',
+        format: 'cjs',
+        jsx: 'automatic',
+        supported: { 'dynamic-import': false },
+      },
+    ).code,
+    {
+      module: shellModule,
+      exports: shellModule.exports,
+      require(specifier: string) {
+        if (specifier === id) return namespace;
+        if (specifier === '@modern-js/federation-runtime/distributed-ssr')
+          return { createDistributedSsrComponent };
+        if (specifier === '@module-federation/modern-js-v3/react')
+          return bridge;
+        if (specifier === '@module-federation/modern-js-v3/runtime')
+          return {
+            getInstance: () => instance,
+            loadRemote: instance.loadRemote.bind(instance),
+          };
+        if (specifier === '@modern-js/plugin-i18n/runtime')
+          return { useModernI18n: () => ({ t: (value: string) => value }) };
+        return require(specifier);
+      },
+    },
+  );
+  const shellHtml = await render(
+    shellModule.exports.InventoryWidget as ComponentType,
+  );
+  assert.ok(shellHtml.includes(`data-native-remote="${id}"`));
+  assert.ok(!shellHtml.includes('shell.remoteUnavailable'));
+});
+
+test('adding ERP verticals writes native loaders into the final shell routes', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-native-shell-loader-'),
+  );
+  const targetDir = path.join(tempRoot, 'workspace');
+  try {
+    await generateUltramodernWorkspace({
+      targetDir,
+      packageName: 'native-shell-loader',
+      modernVersion: '3.9.3',
+      generateAgentFiles: false,
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    const names = [
+      'inventory',
+      'finance',
+      'people',
+      'analytics',
+      'orders',
+      'procurement',
+      'billing',
+      'logistics',
+      'support',
+      'compliance',
+    ];
+    for (const name of names) {
+      await addUltramodernVertical({
+        workspaceRoot: targetDir,
+        name,
+        modernVersion: '3.9.3',
+        enableTailwind: false,
+        packageSource: { strategy: 'workspace' },
+      });
+    }
+    const source = fs.readFileSync(
+      path.join(
+        targetDir,
+        'apps/shell-super-app/src/routes/vertical-components.tsx',
+      ),
+      'utf8',
+    );
+    assert.match(source, /import \{ getInstance, loadRemote \}/u);
+    for (const name of names) {
+      assert.ok(
+        source.includes(`loadRemote<RemoteComponentModule>('${name}/Widget')`),
+      );
+      assert.ok(!source.includes(`import('${name}/Widget')`));
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
 });

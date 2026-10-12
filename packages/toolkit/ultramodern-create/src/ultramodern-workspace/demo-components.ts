@@ -84,7 +84,7 @@ function createShellRemoteComponentsSource(
         : `const ${componentName} = createRemoteComponent(
   '${remote.id}',
   './Widget',
-  () => import('${remoteDependencyAlias(remote)}/Widget'),
+  () => loadRemote<RemoteComponentModule>('${remoteDependencyAlias(remote)}/Widget') as Promise<RemoteComponentModule>,
 );`;
     })
     .join('\n');
