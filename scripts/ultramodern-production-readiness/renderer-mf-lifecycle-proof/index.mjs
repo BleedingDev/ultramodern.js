@@ -10,14 +10,12 @@ import {
   runChecked,
   startEphemeralRegistry,
 } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
-import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
-  createAcceptanceReleaseAgeEnv,
+  createAcceptanceWorkspaceEnv,
 } from '../published-create-proof/acceptance-profile.mjs';
-import { resolveCreatePackage } from '../published-create-proof/package-cohort.mjs';
-import { releaseAgeExemptions } from '../published-create-proof/release-age-audit.mjs';
+import { parseYamlFile } from '../published-create-proof/release-age-audit.mjs';
 import { registerOwnedRoot } from '../react-rsc-worker-proof/lifecycle.mjs';
 import { runCommand } from '../react-rsc-worker-proof/main.mjs';
 import {
@@ -194,34 +192,14 @@ export async function runProof(provided) {
       };
     const registryUrl = registry?.registryUrl ?? options.registryUrl;
     const registryEnv = registry?.env ?? options.env ?? {};
-    // Every lane passes the one exemption set derived from the manifest and
-    // the reviewed exception policy.
-    const releaseAgeExclusions = releaseAgeExemptions(release, {
-      policyPath: defaultReleaseAgePolicyPath,
-    });
-    const packageEnv = createAcceptanceReleaseAgeEnv(
-      createAcceptancePackageManagerEnv(
-        options.workDir,
-        registryEnv,
-        options.pnpmExecutable,
-        process.env,
-        { storeDir: options.storeDir },
-      ),
-      resolveCreatePackage(release),
-      releaseAgeExclusions,
+    const packageEnv = createAcceptancePackageManagerEnv(
+      options.workDir,
       registryEnv,
+      options.pnpmExecutable,
+      process.env,
+      { storeDir: options.storeDir },
     );
-    receipt.installPolicy = {
-      minimumReleaseAge: Number(packageEnv.pnpm_config_minimum_release_age),
-      minimumReleaseAgeStrict:
-        packageEnv.pnpm_config_minimum_release_age_strict === 'true',
-      minimumReleaseAgeIgnoreMissingTime:
-        packageEnv.pnpm_config_minimum_release_age_ignore_missing_time ===
-        'true',
-      minimumReleaseAgeExclude: releaseAgeExclusions,
-      pmOnFail: packageEnv.pnpm_config_pm_on_fail,
-    };
-    const env = {
+    const env = createAcceptanceWorkspaceEnv({
       ...process.env,
       ...options.env,
       ...packageEnv,
@@ -238,7 +216,7 @@ export async function runProof(provided) {
       XDG_CACHE_HOME: path.join(options.workDir, 'xdg-cache'),
       TMPDIR: path.join(options.workDir, 'runtime-temp'),
       ULTRAMODERN_SOURCE_REVISION: release.source.commit,
-    };
+    });
     fs.mkdirSync(env.TMPDIR);
     for (const name of [
       'NODE_OPTIONS',
@@ -274,6 +252,17 @@ export async function runProof(provided) {
       controlOrigin: control.url,
       release,
     });
+    const policy = parseYamlFile(path.join(consumer, 'pnpm-workspace.yaml'));
+    receipt.installPolicy = {
+      minimumReleaseAge: policy.minimumReleaseAge,
+      minimumReleaseAgeStrict: policy.minimumReleaseAgeStrict,
+      minimumReleaseAgeIgnoreMissingTime:
+        policy.minimumReleaseAgeIgnoreMissingTime,
+      minimumReleaseAgeExclude: policy.minimumReleaseAgeExclude,
+      trustPolicy: policy.trustPolicy,
+      trustPolicyIgnoreAfter: policy.trustPolicyIgnoreAfter,
+      pmOnFail: env.pnpm_config_pm_on_fail,
+    };
     receipt.fixture = fixture.fixture;
     receipt.origins = { ...origins, control: control.url };
     receipt.workspaceInputs = ['package.json', 'pnpm-workspace.yaml'].map(

@@ -151,6 +151,23 @@ function createAcceptanceReleaseAgeEnv(
     ),
   };
 }
+function createAcceptanceWorkspaceEnv(runtimeEnv) {
+  const env = { ...runtimeEnv, pnpm_config_pm_on_fail: 'ignore' };
+  // Commands merge their environment with process.env again. Undefined values
+  // remove inherited overrides so the generated workspace owns its policy.
+  for (const name of new Set([
+    ...Object.keys(process.env),
+    ...Object.keys(runtimeEnv),
+  ])) {
+    const configName = name.replace(/[-_]/gu, '').toLowerCase();
+    if (
+      /^(?:npm|pnpm)config(?:minimumreleaseage|trustpolicy)/u.test(configName)
+    ) {
+      env[name] = undefined;
+    }
+  }
+  return env;
+}
 const operationalIndependenceChangedPaths = Object.freeze([
   'verticals/inventory/api/index.ts',
   'verticals/inventory/locales/en/inventory.json',
@@ -1380,12 +1397,13 @@ async function runAcceptanceProfile({
       runImpl,
       workDir,
     });
-    const packageManagerEnv = createAcceptanceReleaseAgeEnv(
+    const bootstrapEnv = createAcceptanceReleaseAgeEnv(
       runtimeEnv,
       createPackage,
       commandExclusions,
       registryEnv,
     );
+    const packageManagerEnv = createAcceptanceWorkspaceEnv(runtimeEnv);
     const receipt = createAcceptanceReceipt({
       release,
       mode,
@@ -1406,7 +1424,7 @@ async function runAcceptanceProfile({
           verifyRegistryCohort({
             release,
             registryUrl,
-            env: packageManagerEnv,
+            env: bootstrapEnv,
             workDir,
             // Async runner: the cohort proof verifies packages through a
             // bounded concurrent pool; the profile's shared sync runImpl would
@@ -1422,7 +1440,7 @@ async function runAcceptanceProfile({
             workDir,
             options.projectName,
             createPackage,
-            packageManagerEnv,
+            bootstrapEnv,
             runImpl,
           );
           // The generated project is always-Zephyr by design (the zephyr-gating
@@ -1594,6 +1612,7 @@ export {
   createAcceptancePackageManagerEnv,
   createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
+  createAcceptanceWorkspaceEnv,
   createOperationalIndependenceCommit,
   createRuntimeArtifactBinding,
   inheritedPlaywrightBrowsersPath,

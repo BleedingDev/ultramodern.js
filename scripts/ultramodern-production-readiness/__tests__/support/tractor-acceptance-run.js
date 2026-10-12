@@ -225,7 +225,15 @@ async function runTractorAcceptanceFixture({
       fs.mkdirSync(generated, { recursive: true });
       fs.writeFileSync(
         path.join(generated, 'pnpm-workspace.yaml'),
-        'overrides: {}\n',
+        `overrides: {}\nminimumReleaseAge: 1440\nminimumReleaseAgeStrict: true\nminimumReleaseAgeIgnoreMissingTime: false\ntrustPolicy: no-downgrade\ntrustPolicyIgnoreAfter: 1440\nminimumReleaseAgeExclude:\n${[
+          ...release.packages.map(item => `${item.targetName}@${item.version}`),
+          ...(release.sidecars?.packages ?? []).map(
+            item => `${item.name}@${item.version}`,
+          ),
+        ]
+          .sort()
+          .map(selector => `  - ${JSON.stringify(selector)}`)
+          .join('\n')}\n`,
       );
     }
     if (command === 'git') {

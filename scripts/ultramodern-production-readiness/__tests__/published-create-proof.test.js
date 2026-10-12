@@ -569,7 +569,7 @@ test('bootstrap rejects invalid sidecar observations and cannot forge sidecar ex
   );
 });
 
-test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
+test('bootstrap release policy binds one exact cohort and sidecar selector set', async t => {
   const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
@@ -616,6 +616,50 @@ test('fresh-release installs use one exact cohort and sidecar selector set', asy
     () => releaseAgeExemptions(release, { policyPath }),
     /Acceptance command release-age exclusions/u,
   );
+});
+
+test('generated workspace commands cannot inherit release-age or trust policy overrides', async t => {
+  const { createAcceptanceWorkspaceEnv } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const overrides = {
+    npm_config_minimum_release_age: '0',
+    npm_config_minimumReleaseAge: '0',
+    'pnpm_config_trust-policy-exclude': '["*"]',
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["*"]',
+    PnPm_Config_Minimum_Release_Age_Strict: 'false',
+    npm_config_minimum_release_age_ignore_missing_time: 'true',
+    pnpm_config_trust_policy: 'off',
+    NPM_CONFIG_TRUST_POLICY_EXCLUDE: '["*"]',
+  };
+  t.mock.property(process, 'env', { ...process.env, ...overrides });
+  const runtimeEnv = {
+    PATH: '/qualified/pnpm',
+    npm_config_registry: 'https://registry.example.test/',
+    pnpm_config_store_dir: '/owned/store',
+    pnpm_config_trust_policy_exclude: '["foreign@1.0.0"]',
+  };
+  const original = { ...runtimeEnv };
+  const env = createAcceptanceWorkspaceEnv(runtimeEnv);
+  const childEnv = createProcessEnv(env);
+  for (const name of [
+    ...Object.keys(overrides),
+    'pnpm_config_trust_policy_exclude',
+  ]) {
+    assert.equal(env[name], undefined);
+    assert.equal(childEnv[name], undefined);
+  }
+  assert.deepEqual(runtimeEnv, original);
+  for (const [name, value] of Object.entries(overrides)) {
+    assert.equal(process.env[name], value);
+  }
+  assert.equal(childEnv.PATH, runtimeEnv.PATH);
+  assert.equal(childEnv.npm_config_registry, runtimeEnv.npm_config_registry);
+  assert.equal(
+    childEnv.pnpm_config_store_dir,
+    runtimeEnv.pnpm_config_store_dir,
+  );
+  assert.equal(childEnv.pnpm_config_pm_on_fail, 'ignore');
 });
 
 test('acceptance production builds and runtime proofs use the same explicit local deployment addresses', async () => {

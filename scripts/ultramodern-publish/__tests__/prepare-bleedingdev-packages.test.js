@@ -240,23 +240,31 @@ const createArtifactFixture = async (
       const { writeSidecarStagingManifest } = await import(
         '../lib/prepare-bleedingdev-packages/sidecars.mjs'
       );
-      const stagedSidecars = sidecarDefinitions.map(({ name, version }) => {
-        const stagedDir = path.join(
-          root,
-          'sidecars',
-          name.replaceAll('/', '__'),
-        );
-        const packageJson = { name, version, main: 'index.js', license: 'MIT' };
-        writeJson(path.join(stagedDir, 'package.json'), packageJson);
-        writeFile(path.join(stagedDir, 'index.js'), 'module.exports = {};\n');
-        return {
-          name,
-          version,
-          stagedDir,
-          packageJson,
-          root: `packages/sidecar/${name.slice('@bleedingdev/'.length)}`,
-        };
-      });
+      const stagedSidecars = sidecarDefinitions.map(
+        ({ name, version, dependencies = {} }) => {
+          const stagedDir = path.join(
+            root,
+            'sidecars',
+            name.replaceAll('/', '__'),
+          );
+          const packageJson = {
+            name,
+            version,
+            main: 'index.js',
+            license: 'MIT',
+            dependencies,
+          };
+          writeJson(path.join(stagedDir, 'package.json'), packageJson);
+          writeFile(path.join(stagedDir, 'index.js'), 'module.exports = {};\n');
+          return {
+            name,
+            version,
+            stagedDir,
+            packageJson,
+            root: `packages/sidecar/${name.slice('@bleedingdev/'.length)}`,
+          };
+        },
+      );
       sidecars = writeSidecarStagingManifest(
         path.join(root, 'release'),
         stagedSidecars,
@@ -326,6 +334,64 @@ test('packed cohort projects every verified sidecar and rejects incomplete or al
   } finally {
     removeDir(fixture.root);
   }
+});
+
+test('verified artifacts reject incomplete or mismatched owned dependency closure', async () => {
+  const leaf = { name: '@bleedingdev/leaf', version: '2.1.0' };
+  for (const dependency of [
+    { leaf: 'npm:@bleedingdev/missing@2.1.0' },
+    { '@bleedingdev/missing': '2.1.0' },
+    { leaf: 'npm:@bleedingdev/leaf@2.1.1' },
+    { '@bleedingdev/leaf': '2.1.1' },
+  ]) {
+    await assert.rejects(
+      () =>
+        createArtifactFixture(
+          [
+            {
+              sourceName: '@modern-js/tooling',
+              targetName: '@bleedingdev/modern-js-tooling',
+              dependencies: dependency,
+            },
+          ],
+          [leaf],
+        ),
+      /neither a staged sidecar nor a cohort package|stages version/,
+    );
+  }
+  for (const dependency of [
+    { '@bleedingdev/missing': '2.1.0' },
+    { leaf: 'npm:@bleedingdev/leaf@2.1.1' },
+  ]) {
+    await assert.rejects(
+      () =>
+        createArtifactFixture(
+          [],
+          [
+            leaf,
+            {
+              name: '@bleedingdev/dependent',
+              version: '1.0.0',
+              dependencies: dependency,
+            },
+          ],
+        ),
+      /neither a staged sidecar nor a cohort package|stages version/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      createArtifactFixture(
+        [],
+        [
+          {
+            name: '@bleedingdev/modern-js-unlisted',
+            version: '1.0.0',
+          },
+        ],
+      ),
+    /Invalid release cohort sidecar/,
+  );
 });
 
 // A cohort where create depends on i18n-utils, which depends on utils.

@@ -7,6 +7,7 @@ import {
   readVerifiedPackageArtifactBytes,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { expectedReleaseCohort } from '../published-create-proof/package-cohort.mjs';
+import { validateExactExclusions } from '../published-create-proof/release-age-audit.mjs';
 import { collectPackageJsonFiles } from './contract.mjs';
 
 const dependencyBlocks = [
@@ -20,7 +21,12 @@ const dependencyBlocks = [
 export function prepareTractorCohortInstallation(
   workspace,
   release,
-  { pnpmOverrides = {} } = {},
+  {
+    pnpmOverrides = {},
+    minimumReleaseAgeExclude,
+    trustPolicy,
+    trustPolicyIgnoreAfter,
+  } = {},
 ) {
   const cohort = expectedReleaseCohort(release);
   const version = release.release.version;
@@ -50,6 +56,40 @@ export function prepareTractorCohortInstallation(
   ) {
     throw new Error(
       'Installed producer release cohort disagrees with the authenticated bundle',
+    );
+  }
+  const verifiedSidecars = (release.sidecars?.packages ?? [])
+    .map(({ name, version }) => ({ name, version }))
+    .sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
+  if (!isDeepStrictEqual(installedCohort.sidecars, verifiedSidecars)) {
+    throw new Error(
+      'Installed producer sidecars disagree with the authenticated bundle',
+    );
+  }
+  const sidecars = new Map(
+    verifiedSidecars.map(item => [item.name, item.version]),
+  );
+  const producerExclusions = validateExactExclusions(
+    minimumReleaseAgeExclude,
+    'Producer pnpm minimumReleaseAgeExclude',
+  );
+  const expectedExclusions = [
+    ...cohort.targetNames.map(name => `${name}@${version}`),
+    ...Array.from(
+      sidecars,
+      ([name, sidecarVersion]) => `${name}@${sidecarVersion}`,
+    ),
+  ].sort();
+  if (!isDeepStrictEqual(producerExclusions, expectedExclusions)) {
+    throw new Error(
+      'Producer pnpm minimumReleaseAgeExclude must select exactly the verified Modern.js cohort and sidecars',
+    );
+  }
+  if (trustPolicy !== 'no-downgrade' || trustPolicyIgnoreAfter !== 1440) {
+    throw new Error(
+      'Producer pnpm trust policy must retain no-downgrade and its 24-hour window',
     );
   }
 
@@ -104,9 +144,6 @@ export function prepareTractorCohortInstallation(
   // Consumers select sidecars directly (`npm:@bleedingdev/mf-modern-js-v3@…`
   // in manifests, the default and named catalogs, and overrides). The bundle ships its own sidecar
   // versions, so adopting it moves those selections too.
-  const sidecars = new Map(
-    (release.sidecars?.packages ?? []).map(item => [item.name, item.version]),
-  );
   for (const selections of [
     policy.catalog,
     ...Object.values(policy.catalogs),
@@ -157,6 +194,12 @@ export function prepareTractorCohortInstallation(
     ),
     ...pnpmOverrides,
   };
+  policy.minimumReleaseAge = 1440;
+  policy.minimumReleaseAgeStrict = true;
+  policy.minimumReleaseAgeIgnoreMissingTime = false;
+  policy.minimumReleaseAgeExclude = producerExclusions;
+  policy.trustPolicy = trustPolicy;
+  policy.trustPolicyIgnoreAfter = trustPolicyIgnoreAfter;
   const toolchain = prepareTractorToolchain(workspace, release.tools);
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
   fs.writeFileSync(toolchain.miseFile, toolchain.mise);

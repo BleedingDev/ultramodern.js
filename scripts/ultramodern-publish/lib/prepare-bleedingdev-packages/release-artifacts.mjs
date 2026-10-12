@@ -20,6 +20,7 @@ import {
   packageDependenciesFromPackageJson,
 } from './manifest.mjs';
 import validationKit from '../../../lib/validation-kit.js';
+import { validateAliasConsistency } from './sidecars.mjs';
 
 const { assertNonEmptyString, assertPlainObject } = validationKit;
 const releaseManifestSchema = 'bleedingdev.ultramodern.release-manifest';
@@ -187,6 +188,7 @@ function createReleaseCohortProjection({
     .map(({ name, version: sidecarVersion }) => {
       if (
         !/^@bleedingdev\/[a-z0-9][a-z0-9.-]*$/u.test(name) ||
+        name.startsWith('@bleedingdev/modern-js-') ||
         !/^\d+\.\d+\.\d+$/u.test(sidecarVersion) ||
         cohortNames.has(name)
       ) {
@@ -1316,6 +1318,10 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
       throw new Error(`${item.targetName} tarball escapes the artifact root`);
     }
     return verifyPackageArtifact(item, artifactPath);
+  });
+
+  validateAliasConsistency(packages, sidecars?.packages ?? [], {
+    cohortTargetNames: new Set(manifest.packages.map(item => item.targetName)),
   });
 
   const createPackages = packages.filter(

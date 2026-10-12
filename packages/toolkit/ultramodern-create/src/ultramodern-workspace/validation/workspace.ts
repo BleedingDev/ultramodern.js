@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import {
+  assertReleaseCohortAliasRequest,
   hasCreateReleaseCohort,
   isCreatePackageSourceCheckout,
   readCreateReleaseCohort,
@@ -609,6 +610,25 @@ export function validateWorkspace(
   const producer = hasCreateReleaseCohort()
     ? readCreateReleaseCohort()
     : undefined;
+  if (producer) {
+    const policies = [
+      [
+        'workspace overrides',
+        record(workspace.overrides, 'workspace overrides'),
+      ],
+      ['workspace catalog', dependencyCatalogs.catalog],
+      ...Object.entries(catalogs).map(
+        ([name, values]) =>
+          [
+            `workspace catalog ${name}`,
+            record(values, `workspace catalog ${name}`),
+          ] as const,
+      ),
+    ] as const;
+    for (const [label, values] of policies)
+      for (const [name, request] of Object.entries(values))
+        assertReleaseCohortAliasRequest(producer, request, `${label} ${name}`);
+  }
   const sourceCheckout = isCreatePackageSourceCheckout();
   const cohort = new Map(
     producer?.packages.map(pkg => [pkg.sourceName, pkg]) ?? [],
@@ -641,6 +661,24 @@ export function validateWorkspace(
       for (const [name, request] of Object.entries(
         record(manifest[group] ?? {}, `${member} ${group}`),
       )) {
+        if (producer) {
+          assertReleaseCohortAliasRequest(
+            producer,
+            request,
+            `${member} ${name}`,
+          );
+          if (typeof request === 'string' && request.startsWith('catalog:')) {
+            const catalogName = request.slice('catalog:'.length);
+            const values = catalogName
+              ? record(catalogs[catalogName] ?? {}, `catalog ${catalogName}`)
+              : dependencyCatalogs.catalog;
+            assertReleaseCohortAliasRequest(
+              producer,
+              values[name],
+              `${member} ${name} catalog request`,
+            );
+          }
+        }
         if (!(expected.modernPackages as string[]).includes(name)) continue;
         assert(
           typeof request === 'string',

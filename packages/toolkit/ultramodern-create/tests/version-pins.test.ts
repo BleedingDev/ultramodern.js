@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { yaml } from '@modern-js/utils';
 import { ULTRAMODERN_WORKSPACE_MODERN_PACKAGES } from '../src/ultramodern-package-source';
 import {
+  assertReleaseCohortAliasRequest,
   assertReleaseCohortPackageSource,
   parseUltramodernReleaseCohort,
   releaseCohortSelectors,
@@ -179,9 +180,6 @@ test('an installed create package immediately installs its exact cohort and tran
       ),
     );
     const sidecars = recipes
-      .filter((recipe: { id: string }) =>
-        ['braces', 'mf-modern-js-v3', 'mf-sdk'].includes(recipe.id),
-      )
       .map((recipe: { fork: { name: string; version: string } }) => recipe.fork)
       .sort((left: { name: string }, right: { name: string }) =>
         left.name.localeCompare(right.name),
@@ -292,16 +290,24 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
       'Canonical MF sidecars are required for the transitive age proof',
     );
     const definitions = [
-      ...sidecars.map((item: { name: string; version: string }) => ({
-        ...item,
-        ...(item === modern
-          ? {
-              dependencies: {
-                '@module-federation/sdk': `npm:${sdk.name}@${sdk.version}`,
-              },
-            }
-          : {}),
-      })),
+      ...sidecars
+        .filter((item: { name: string }) =>
+          [
+            '@bleedingdev/braces',
+            '@bleedingdev/mf-modern-js-v3',
+            '@bleedingdev/mf-sdk',
+          ].includes(item.name),
+        )
+        .map((item: { name: string; version: string }) => ({
+          ...item,
+          ...(item === modern
+            ? {
+                dependencies: {
+                  '@module-federation/sdk': `npm:${sdk.name}@${sdk.version}`,
+                },
+              }
+            : {}),
+        })),
       { name: '@bleedingdev/modern-js-utils', version },
       { name: 'sharp', version: '0.35.5' },
     ];
@@ -343,6 +349,12 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
       }
       const consumer = path.join(tempRoot, 'native-consumer');
       fs.mkdirSync(consumer);
+      // Scoped registry configuration otherwise wins over --registry. This
+      // routes fixtures only; the generated native age policy stays intact.
+      fs.writeFileSync(
+        path.join(consumer, '.npmrc'),
+        `@bleedingdev:registry=${registry.registryUrl}\n`,
+      );
       fs.copyFileSync(
         path.join(tempRoot, 'fresh/pnpm-workspace.yaml'),
         path.join(consumer, 'pnpm-workspace.yaml'),
@@ -428,9 +440,38 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     assert.equal(other.status, 1, other.stderr);
     assert.match(
       other.stderr,
-      /catalog request disagrees with the installed release cohort/u,
+      /(?:catalog request|owned alias) disagrees with the installed release cohort/u,
     );
     assert.equal(fs.existsSync(path.join(tempRoot, 'other')), false);
+    const cohortPath = path.join(installed, 'release-cohort.json');
+    const validProjection = JSON.parse(fs.readFileSync(cohortPath, 'utf8'));
+    for (const name of [
+      '@bleedingdev/braces',
+      '@bleedingdev/mf-modern-js-v3',
+    ]) {
+      for (const missing of [false, true]) {
+        const sidecars = validProjection.sidecars.flatMap(
+          (item: { name: string; version: string }) =>
+            item.name !== name
+              ? [item]
+              : missing
+                ? []
+                : [{ ...item, version: '0.0.0' }],
+        );
+        fs.writeFileSync(
+          cohortPath,
+          JSON.stringify({ ...validProjection, sidecars }),
+        );
+        const target = `drift-${name.split('/')[1]}-${missing}`;
+        const drift = generate(target, version);
+        assert.equal(drift.status, 1, drift.stderr);
+        assert.match(
+          drift.stderr,
+          /owned alias disagrees with the installed release cohort/u,
+        );
+        assert.equal(fs.existsSync(path.join(tempRoot, target)), false);
+      }
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
     fs.rmSync(installRoot, { recursive: true, force: true });
@@ -527,9 +568,37 @@ test('authenticated sidecar selectors reject foreign names, ranges and duplicate
     [{ ...good, version: '^3.0.4' }],
     [good, good],
     [{ name: '@bleedingdev/modern-js-runtime', version: '3.9.0' }],
+    [{ name: '@bleedingdev/modern-js-injected', version: '3.9.0' }],
   ]) {
     assert.throws(() =>
       parseUltramodernReleaseCohort({ ...cohort(), sidecars }),
     );
   }
+});
+
+test('emitted owned aliases require exact authenticated cohort identities', () => {
+  const producer = parseUltramodernReleaseCohort({
+    ...cohort(),
+    sidecars: [{ name: '@bleedingdev/braces', version: BRACES_FORK_VERSION }],
+  });
+  for (const request of [
+    'workspace:*',
+    'catalog:ultramodern',
+    '0.35.5',
+    'npm:@bleedingdev/modern-js-runtime@3.9.0',
+    `npm:@bleedingdev/braces@${BRACES_FORK_VERSION}`,
+  ])
+    assert.doesNotThrow(() =>
+      assertReleaseCohortAliasRequest(producer, request, 'dependency'),
+    );
+  for (const request of [
+    'npm:@bleedingdev/braces@3.0.3',
+    'npm:@bleedingdev/braces@^3.0.4',
+    'npm:@bleedingdev/mf-sdk@2.6.0',
+    'npm:@bleedingdev/modern-js-runtime@3.8.2',
+  ])
+    assert.throws(
+      () => assertReleaseCohortAliasRequest(producer, request, 'dependency'),
+      /owned alias disagrees/u,
+    );
 });

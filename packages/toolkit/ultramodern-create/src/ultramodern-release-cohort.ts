@@ -187,8 +187,9 @@ export function parseUltramodernReleaseCohort(value: unknown) {
       `${label}.version must be an exact stable version.`,
     );
     assert(
-      !packageTargetNames.has(item.name),
-      `${label}.name duplicates a cohort package.`,
+      !item.name.startsWith('@bleedingdev/modern-js-') &&
+        !packageTargetNames.has(item.name),
+      `${label}.name uses a reserved cohort package identity.`,
     );
     assert(
       !sidecarNames.includes(item.name),
@@ -271,4 +272,23 @@ export function releaseCohortSelectors(cohort: UltramodernReleaseCohort) {
     ...cohort.packages.map(item => `${item.targetName}@${item.version}`),
     ...cohort.sidecars.map(item => `${item.name}@${item.version}`),
   ].sort();
+}
+
+/** Authenticate owned aliases actually emitted into consumer dependency policy. */
+export function assertReleaseCohortAliasRequest(
+  cohort: UltramodernReleaseCohort,
+  request: unknown,
+  label: string,
+) {
+  if (typeof request !== 'string' || !request.startsWith('npm:@bleedingdev/'))
+    return;
+  const match = /^npm:(@bleedingdev\/[^@]+)@([^@]+)$/u.exec(request);
+  assert(match, `${label} must name an exact authenticated owned alias.`);
+  const entry =
+    cohort.packages.find(item => item.targetName === match[1]) ??
+    cohort.sidecars.find(item => item.name === match[1]);
+  assert(
+    entry && entry.version === match[2],
+    `${label} owned alias disagrees with the installed release cohort: ${request}.`,
+  );
 }

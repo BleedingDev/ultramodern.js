@@ -24,8 +24,8 @@ import {
 } from '../browser-smoke/targets.mjs';
 import {
   acceptancePlaywrightInstallArgs,
-  createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
+  createAcceptanceWorkspaceEnv,
   resolveExactPnpmExecutable,
   snapshotAcceptanceWorkspaceSource,
   withAcceptancePlaywrightBrowsersPath,
@@ -135,24 +135,18 @@ function createTractorPnpmDlxArgs(
 }
 
 function createTractorPackageManagerContext({
-  createPackage,
   expectedPnpmVersion,
   environment = process.env,
-  minimumReleaseAgeExclude,
   packageManagerRoot,
   registryEnv,
   storeDir,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
 }) {
-  const exactExclusions = validateExactExclusions(
-    minimumReleaseAgeExclude,
-    'Tractor bootstrap minimumReleaseAgeExclude',
-  );
   // Thin delegate: the shared acceptance owner decides the exact pnpm
   // executable, PATH, registry, npm/pnpm stores, XDG cache, and
-  // PLAYWRIGHT_BROWSERS_PATH. Only the Tractor bootstrap release-age policy
-  // is layered on top here. The registry environment is decided by the mode
+  // PLAYWRIGHT_BROWSERS_PATH. Native workspace YAML owns the age and trust
+  // policy. The registry environment is decided by the mode
   // (see resolveAcceptanceRegistryEnv) and passed straight through.
   const runtime = createAcceptanceRuntimeContext({
     browsers: 'isolated',
@@ -169,12 +163,7 @@ function createTractorPackageManagerContext({
     runImpl,
     workDir: packageManagerRoot,
   });
-  const env = createAcceptanceReleaseAgeEnv(
-    runtime.env,
-    createPackage,
-    exactExclusions,
-    registryEnv,
-  );
+  const env = createAcceptanceWorkspaceEnv(runtime.env);
   // An executable pnpm directory can itself contain a different node binary.
   // Keep the accepted interpreter first, including in that case.
   env.PATH = [
@@ -224,7 +213,32 @@ function readTractorProducerOverrides({
         'Exact producer workspace must provide native pnpm overrides',
       );
     }
-    return overrides;
+    if (
+      policy.minimumReleaseAge !== 1440 ||
+      policy.minimumReleaseAgeStrict !== true ||
+      policy.minimumReleaseAgeIgnoreMissingTime !== false ||
+      policy.trustPolicy !== 'no-downgrade' ||
+      policy.trustPolicyIgnoreAfter !== 1440
+    ) {
+      throw new Error(
+        'Exact producer workspace must retain strict 24-hour age and no-downgrade trust policies',
+      );
+    }
+    const producerExclusions = validateExactExclusions(
+      policy.minimumReleaseAgeExclude,
+      'Exact producer workspace minimumReleaseAgeExclude',
+    );
+    if (!producerExclusions.includes(createPackage.exactSpecifier)) {
+      throw new Error(
+        'Exact producer workspace minimumReleaseAgeExclude must include its installed producer',
+      );
+    }
+    return {
+      pnpmOverrides: overrides,
+      minimumReleaseAgeExclude: producerExclusions,
+      trustPolicy: policy.trustPolicy,
+      trustPolicyIgnoreAfter: policy.trustPolicyIgnoreAfter,
+    };
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -838,9 +852,7 @@ async function runTractorDownstreamAcceptance(
     path.join(os.tmpdir(), 'ultramodern-tractor-downstream-'),
   );
   const packageManager = createTractorPackageManagerContext({
-    createPackage,
     expectedPnpmVersion: release.tools?.pnpm,
-    minimumReleaseAgeExclude,
     packageManagerRoot,
     registryEnv,
     storeDir: options.storeDir,
@@ -881,16 +893,18 @@ async function runTractorDownstreamAcceptance(
         `Tractor child Node.js must match release ${release.tools.node}, found ${childNode}`,
       );
     }
-    const pnpmOverrides = readTractorProducerOverrides({
+    const producerPolicy = readTractorProducerOverrides({
       createPackage,
       minimumReleaseAgeExclude,
       packageManager,
       packageManagerRoot,
       runImpl,
     });
-    prepareTractorCohortInstallation(options.workspace, release, {
-      pnpmOverrides,
-    });
+    prepareTractorCohortInstallation(
+      options.workspace,
+      release,
+      producerPolicy,
+    );
     // pnpm validates the existing lock before resolving new dependencies. A
     // recently accepted previous cohort is outside this candidate's exact
     // release-age approvals, so resolve the candidate from a fresh native lock.

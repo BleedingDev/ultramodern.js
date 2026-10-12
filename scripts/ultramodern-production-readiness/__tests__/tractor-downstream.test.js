@@ -379,12 +379,12 @@ test('runner CLI has no bypass flag and builds a hermetic package-manager env', 
   ]);
   assert.equal(
     packageManager.env.pnpm_config_minimum_release_age_exclude,
-    JSON.stringify(bootstrapExclude),
+    undefined,
   );
-  assert.equal(packageManager.env.pnpm_config_minimum_release_age, '1440');
+  assert.equal(packageManager.env.pnpm_config_minimum_release_age, undefined);
   assert.equal(
     packageManager.env.pnpm_config_minimum_release_age_strict,
-    'true',
+    undefined,
   );
   assert.equal(packageManager.env.pnpm_config_trust_policy_exclude, undefined);
 });
@@ -437,7 +437,7 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
     packageManager: { pnpmExecutable: exactPnpmExecutable, env },
     packageManagerRoot: root,
   };
-  const overrides = readTractorProducerOverrides({
+  const producerPolicy = readTractorProducerOverrides({
     ...options,
     runImpl(command, args, childOptions) {
       assert.equal(command, exactPnpmExecutable);
@@ -450,15 +450,56 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
       fs.mkdirSync(workspace);
       fs.writeFileSync(
         path.join(workspace, 'pnpm-workspace.yaml'),
-        "overrides:\n  'braces@>=3.0.0 <3.0.4': npm:@bleedingdev/braces@3.0.4\n  'sharp@>=0.35.0 <0.35.5': 0.35.5\n",
+        `minimumReleaseAge: 1440\nminimumReleaseAgeStrict: true\nminimumReleaseAgeIgnoreMissingTime: false\ntrustPolicy: no-downgrade\ntrustPolicyIgnoreAfter: 1440\nminimumReleaseAgeExclude:\n${bootstrapExclude.map(selector => `  - ${JSON.stringify(selector)}`).join('\n')}\noverrides:\n  'braces@>=3.0.0 <3.0.4': npm:@bleedingdev/braces@3.0.4\n  'sharp@>=0.35.0 <0.35.5': 0.35.5\n`,
       );
     },
   });
-  assert.deepEqual(overrides, {
-    'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
-    'sharp@>=0.35.0 <0.35.5': '0.35.5',
+  assert.deepEqual(producerPolicy, {
+    pnpmOverrides: {
+      'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
+      'sharp@>=0.35.0 <0.35.5': '0.35.5',
+    },
+    minimumReleaseAgeExclude: bootstrapExclude,
+    trustPolicy: 'no-downgrade',
+    trustPolicyIgnoreAfter: 1440,
   });
   assert.deepEqual(fs.readdirSync(root), []);
+  const { stringify: stringifyYaml } = await import('yaml');
+  for (const invalid of [
+    { minimumReleaseAge: 0 },
+    { minimumReleaseAgeStrict: false },
+    { minimumReleaseAgeIgnoreMissingTime: true },
+    { trustPolicy: 'none' },
+    { trustPolicyIgnoreAfter: 0 },
+    { minimumReleaseAgeExclude: ['@bleedingdev/*'] },
+    { minimumReleaseAgeExclude: [] },
+  ]) {
+    assert.throws(
+      () =>
+        readTractorProducerOverrides({
+          ...options,
+          runImpl(_command, args) {
+            const workspace = args[args.indexOf('dlx') + 3];
+            fs.mkdirSync(workspace);
+            fs.writeFileSync(
+              path.join(workspace, 'pnpm-workspace.yaml'),
+              stringifyYaml({
+                overrides: producerPolicy.pnpmOverrides,
+                minimumReleaseAge: 1440,
+                minimumReleaseAgeStrict: true,
+                minimumReleaseAgeIgnoreMissingTime: false,
+                minimumReleaseAgeExclude: bootstrapExclude,
+                trustPolicy: 'no-downgrade',
+                trustPolicyIgnoreAfter: 1440,
+                ...invalid,
+              }),
+            );
+          },
+        }),
+      /producer workspace/iu,
+    );
+    assert.deepEqual(fs.readdirSync(root), []);
+  }
   assert.throws(
     () =>
       readTractorProducerOverrides({
@@ -545,8 +586,8 @@ test('Tractor commands use the selected external store with clone-or-copy import
     }
     assert.equal(env.NPM_CONFIG_STORE_DIR, undefined);
     assert.equal(env.PNPM_CONFIG_PACKAGE_IMPORT_METHOD, undefined);
-    assert.equal(env.pnpm_config_minimum_release_age, '1440');
-    assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
+    assert.equal(env.pnpm_config_minimum_release_age, undefined);
+    assert.equal(env.pnpm_config_minimum_release_age_strict, undefined);
     assert.equal(env.pnpm_config_trust_policy_exclude, undefined);
   }
   const child = runCommand(
@@ -579,7 +620,7 @@ test('Tractor commands use the selected external store with clone-or-copy import
   );
 });
 
-test('runner rejects inherited release-age bypasses and preserves verified source selectors', async () => {
+test('runner strips inherited age and trust policies from ordinary workspace commands', async () => {
   const { createTractorPackageManagerContext } = await runnerPromise;
   // One representative per casing family: the child env is filtered
   // case-insensitively, so a poisoned parent cannot widen the install.
@@ -588,6 +629,10 @@ test('runner rejects inherited release-age bypasses and preserves verified sourc
     'npm_config_trust_policy_exclude',
     'PnPm_Config_Minimum_Release_Age_Exclude',
     'pnpm_config_trust_policy_exclude',
+    'NPM_CONFIG_MINIMUM_RELEASE_AGE',
+    'PnPm_Config_Minimum_Release_Age_Strict',
+    'pnpm_config_minimum_release_age_ignore_missing_time',
+    'NPM_CONFIG_TRUST_POLICY',
   ];
   const inherited = Object.fromEntries(
     inheritedKeys.map(name => [name, process.env[name]]),
@@ -619,7 +664,7 @@ test('runner rejects inherited release-age bypasses and preserves verified sourc
           '-e',
           `process.stdout.write(JSON.stringify(Object.fromEntries(
           Object.entries(process.env).filter(([name]) =>
-            /^(?:npm|pnpm)_config_(?:minimum_release_age|trust_policy)_exclude$/iu.test(name),
+            /^(?:npm|pnpm)_config_(?:minimum_release_age|trust_policy)(?:_|$)/iu.test(name),
           ),
         )))`,
         ],
@@ -630,13 +675,7 @@ test('runner rejects inherited release-age bypasses and preserves verified sourc
         },
       );
       assert.equal(child.exitCode, 0, child.stderr);
-      assert.deepEqual(JSON.parse(child.stdout), {
-        ...(sourceSelectors && {
-          pnpm_config_trust_policy_exclude: sourceSelectors,
-        }),
-        pnpm_config_minimum_release_age_exclude:
-          JSON.stringify(bootstrapExclude),
-      });
+      assert.deepEqual(JSON.parse(child.stdout), {});
     }
   } finally {
     for (const [name, value] of Object.entries(inherited)) {
@@ -1154,6 +1193,19 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     next.publishOrder = Object.values(next.aliases);
     next.cohortProjection.value.release.version = next.release.version;
     next.cohortProjection.value.packages[0].version = next.release.version;
+    next.sidecars = {
+      packages: [
+        { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
+        { name: '@bleedingdev/mf-sdk', version: '0.18.0' },
+        { name: '@bleedingdev/zod', version: '4.6.5' },
+        { name: '@bleedingdev/ipx', version: '3.2.2' },
+        { name: '@bleedingdev/braces', version: '3.0.4' },
+      ],
+    };
+    next.cohortProjection.value.sidecars = [...next.sidecars.packages].sort(
+      (left, right) =>
+        left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
     const { inspectNpmTarball } = await import(
       '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs'
     );
@@ -1217,14 +1269,6 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     );
     // The baseline selects the sidecars of the cohort it adopted last; the
     // bundle moved one of them.
-    next.sidecars = {
-      packages: [
-        { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
-        { name: '@bleedingdev/zod', version: '4.6.5' },
-        { name: '@bleedingdev/ipx', version: '3.2.2' },
-        { name: '@bleedingdev/braces', version: '3.0.4' },
-      ],
-    };
     const shellManifestFile = path.join(
       root,
       'apps/shell-super-app/package.json',
@@ -1252,9 +1296,24 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
       'sharp@>=0.35.0 <0.35.5': '0.35.5',
     };
-    const result = prepareTractorCohortInstallation(root, next, {
+    const producerOptions = {
       pnpmOverrides,
-    });
+      minimumReleaseAgeExclude: [
+        ...Object.values(next.aliases).map(
+          name => `${name}@${next.release.version}`,
+        ),
+        ...next.sidecars.packages.map(
+          ({ name, version }) => `${name}@${version}`,
+        ),
+      ].sort(),
+      trustPolicy: 'no-downgrade',
+      trustPolicyIgnoreAfter: 1440,
+    };
+    const result = prepareTractorCohortInstallation(
+      root,
+      next,
+      producerOptions,
+    );
     assert.equal(result.dependencyCount, 1);
     const policyText = fs.readFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
@@ -1277,6 +1336,18 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       'sharp@>=0.35.0 > unrelated': '2.0.0',
       ...pnpmOverrides,
     });
+    assert.deepEqual(
+      parseYaml(policyText).minimumReleaseAgeExclude,
+      producerOptions.minimumReleaseAgeExclude,
+    );
+    assert.equal(parseYaml(policyText).minimumReleaseAge, 1440);
+    assert.equal(parseYaml(policyText).minimumReleaseAgeStrict, true);
+    assert.equal(
+      parseYaml(policyText).minimumReleaseAgeIgnoreMissingTime,
+      false,
+    );
+    assert.equal(parseYaml(policyText).trustPolicy, 'no-downgrade');
+    assert.equal(parseYaml(policyText).trustPolicyIgnoreAfter, 1440);
     assert.match(policyText, /sharp@>=0\.35\.0 <0\.35\.5.*0\.35\.5/u);
     assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
     assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);
@@ -1317,6 +1388,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     assert.throws(
       () =>
         prepareTractorCohortInstallation(root, next, {
+          ...producerOptions,
           pnpmOverrides: {
             'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.5',
           },
@@ -1326,10 +1398,14 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     const selectedMise = fs.readFileSync(path.join(root, '.mise.toml'), 'utf8');
     assert.throws(
       () =>
-        prepareTractorCohortInstallation(root, {
-          ...next,
-          tools: { ...next.tools, node: '>=26' },
-        }),
+        prepareTractorCohortInstallation(
+          root,
+          {
+            ...next,
+            tools: { ...next.tools, node: '>=26' },
+          },
+          producerOptions,
+        ),
       /exact release node version/u,
     );
     assert.equal(
@@ -1340,9 +1416,50 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       fs.readFileSync(path.join(root, '.mise.toml'), 'utf8'),
       selectedMise,
     );
+    for (const minimumReleaseAgeExclude of [
+      producerOptions.minimumReleaseAgeExclude.filter(
+        selector => !selector.startsWith('@bleedingdev/braces@'),
+      ),
+      producerOptions.minimumReleaseAgeExclude.filter(
+        selector => !selector.startsWith('@bleedingdev/mf-sdk@'),
+      ),
+      [...producerOptions.minimumReleaseAgeExclude, 'sharp@0.35.5'].sort(),
+      ['@bleedingdev/*'],
+    ]) {
+      assert.throws(
+        () =>
+          prepareTractorCohortInstallation(root, next, {
+            ...producerOptions,
+            minimumReleaseAgeExclude,
+          }),
+        /minimumReleaseAgeExclude/u,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        selectedPolicy,
+      );
+      assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
+    }
+    for (const invalidTrust of [
+      { trustPolicy: 'none' },
+      { trustPolicyIgnoreAfter: 0 },
+    ]) {
+      assert.throws(
+        () =>
+          prepareTractorCohortInstallation(root, next, {
+            ...producerOptions,
+            ...invalidTrust,
+          }),
+        /trust policy/u,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        selectedPolicy,
+      );
+    }
     fs.appendFileSync(artifactPath, 'tampered');
     assert.throws(
-      () => prepareTractorCohortInstallation(root, next),
+      () => prepareTractorCohortInstallation(root, next, producerOptions),
       /tarball size mismatch/u,
     );
     fs.writeFileSync(artifactPath, bytes);
@@ -1354,7 +1471,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       'utf8',
     );
     assert.throws(
-      () => prepareTractorCohortInstallation(root, next),
+      () => prepareTractorCohortInstallation(root, next, producerOptions),
       /absent from the release cohort/u,
     );
     assert.equal(

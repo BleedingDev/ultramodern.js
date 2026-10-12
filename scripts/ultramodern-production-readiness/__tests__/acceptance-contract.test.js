@@ -817,6 +817,105 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
   }
 });
 
+test('an external age approval cannot replace ordinary generated workspace policy', async t => {
+  const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = tempRoot('release-age-ordinary-install-');
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const version = '3.9.3-ultramodern.1';
+  const cohort = '@bleedingdev/modern-js-runtime';
+  const external = {
+    name: 'external-package',
+    version: '1.0.0',
+    integrity: 'sha512-ZXh0ZXJuYWw=',
+  };
+  const key = `${external.name}@${external.version}`;
+  const policyPath = path.join(root, 'release-age-policy.json');
+  fs.writeFileSync(
+    policyPath,
+    JSON.stringify({
+      schema: 'bleedingdev.ultramodern.release-age-exceptions',
+      schemaVersion: 2,
+      entries: [
+        {
+          package: external.name,
+          version: external.version,
+          integrity: external.integrity,
+          approvedBy: 'Release reviewer <reviewer@example.test>',
+          reviewedAt: '2026-10-11T00:00:00.000Z',
+          expiresAt: '2026-10-13T00:00:00.000Z',
+          evidence: {
+            sha256: 'a'.repeat(64),
+            uri: `urn:sha256:${'a'.repeat(64)}`,
+          },
+        },
+      ],
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'pnpm-workspace.yaml'),
+    JSON.stringify({
+      minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [`${cohort}@${version}`],
+      minimumReleaseAgeIgnoreMissingTime: false,
+      minimumReleaseAgeStrict: true,
+      trustPolicy: 'no-downgrade',
+      trustPolicyIgnoreAfter: 1440,
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'pnpm-lock.yaml'),
+    JSON.stringify({
+      lockfileVersion: '9.0',
+      importers: {
+        '.': {
+          dependencies: {
+            [external.name]: {
+              specifier: external.version,
+              version: external.version,
+            },
+          },
+        },
+      },
+      packages: { [key]: { resolution: { integrity: external.integrity } } },
+      snapshots: { [key]: {} },
+    }),
+  );
+  const release = {
+    packages: [
+      { sourceName: '@modern-js/runtime', targetName: cohort, version },
+    ],
+    release: { version },
+    targetScope: 'bleedingdev',
+  };
+  const now = new Date('2026-10-12T01:00:00.000Z');
+  const options = {
+    projectDir: root,
+    release,
+    commandExclusions: releaseAgeExemptions(release, { policyPath, now }),
+    registryUrl: 'https://registry.example.test/',
+    policyPath,
+    now,
+    parseYamlImpl: JSON.parse,
+    verifyYamlTool: false,
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          time: { [external.version]: '2026-10-12T00:30:00.000Z' },
+          versions: {
+            [external.version]: { dist: { integrity: external.integrity } },
+          },
+        }),
+        { status: 200 },
+      ),
+  };
+  await assert.rejects(
+    auditReleaseAgePolicy(options),
+    /External release-age approvals cannot override ordinary workspace installs/u,
+  );
+});
+
 for (const { mode, registryUrl } of [
   { mode: 'source', registryUrl: 'http://127.0.0.1:4873/' },
   { mode: 'published', registryUrl: 'https://registry.npmjs.org/' },
@@ -855,7 +954,10 @@ for (const { mode, registryUrl } of [
       path.join(root, 'pnpm-workspace.yaml'),
       JSON.stringify({
         minimumReleaseAge: 1440,
-        minimumReleaseAgeExclude: [`${firstParty.targetName}@${version}`],
+        minimumReleaseAgeExclude: [
+          `${sidecar.name}@${sidecar.version}`,
+          `${firstParty.targetName}@${version}`,
+        ].sort(),
         minimumReleaseAgeIgnoreMissingTime: false,
         minimumReleaseAgeStrict: true,
         trustPolicy: 'no-downgrade',
@@ -933,7 +1035,7 @@ for (const { mode, registryUrl } of [
 // release reused sidecars published under 24h earlier. The source lane
 // exempted them and passed; both published lanes did not and failed with
 // ERR_PNPM_NO_MATURE_MATCHING_VERSION after the cohort was already public.
-test('a lane that drops the fresh .13 sidecars fails the audit before install, naming them', async t => {
+test('fresh sidecar approvals cannot rescue a generated policy that omits them', async t => {
   const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
@@ -1038,21 +1140,23 @@ test('a lane that drops the fresh .13 sidecars fails the audit before install, n
     verifyYamlTool: false,
   };
   const exemptions = releaseAgeExemptions(release, { policyPath, now });
+  await assert.rejects(
+    auditReleaseAgePolicy({ ...options, commandExclusions: exemptions }),
+    error =>
+      error.message.includes(
+        'must list exactly the release cohort and verified sidecars',
+      ) && sidecars.every(item => error.message.includes(key(item))),
+  );
+  const workspacePath = path.join(root, 'pnpm-workspace.yaml');
+  const workspace = JSON.parse(fs.readFileSync(workspacePath, 'utf8'));
+  workspace.minimumReleaseAgeExclude = exemptions;
+  fs.writeFileSync(workspacePath, JSON.stringify(workspace));
   const audit = await auditReleaseAgePolicy({
     ...options,
     commandExclusions: exemptions,
   });
   assert.equal(audit.approvals.length, sidecars.length);
-
-  const cohortOnly = exemptions.filter(selector =>
-    selector.startsWith('@bleedingdev/modern-js-'),
-  );
-  await assert.rejects(
-    auditReleaseAgePolicy({ ...options, commandExclusions: cohortOnly }),
-    error =>
-      error.message.includes('every lane must pass that exact set') &&
-      sidecars.every(item => error.message.includes(key(item))),
-  );
+  assert.deepEqual(audit.exactExclusions, workspace.minimumReleaseAgeExclude);
 });
 
 // A workspace created on the day its cohort is published can only install if
