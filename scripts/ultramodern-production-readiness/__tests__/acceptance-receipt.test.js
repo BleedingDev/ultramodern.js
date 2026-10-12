@@ -319,6 +319,30 @@ test('producer receipt preserves runtime-only MF identity and distinct native ta
         /MicroVertical identity is stale or mixed/,
       ],
       [
+        'missing selected runtime',
+        receipt => {
+          receipt.binding.artifacts.runtimeModuleFederation = [];
+        },
+        /requires one exact Module Federation runtime/,
+      ],
+      [
+        'duplicate selected runtime',
+        receipt => {
+          receipt.binding.artifacts.runtimeModuleFederation.push(
+            receipt.binding.artifacts.runtimeModuleFederation[0],
+          );
+        },
+        /requires one exact Module Federation runtime/,
+      ],
+      [
+        'invalid selected runtime version',
+        receipt => {
+          receipt.binding.artifacts.runtimeModuleFederation[0].version =
+            '^2.9.3';
+        },
+        /requires one exact Module Federation runtime/,
+      ],
+      [
         'missing authenticated runtime',
         receipt => {
           receipt.binding.artifacts.moduleFederation =

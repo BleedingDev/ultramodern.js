@@ -8,6 +8,7 @@ import {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  projectRuntimeArtifactBinding,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
   resolutionParityResultId,
@@ -514,7 +515,12 @@ function assertAcceptanceReceipt(
   );
   assertExactKeys(
     receipt.binding.artifacts,
-    ['moduleFederation', 'packages', 'sourceRevision'],
+    [
+      'moduleFederation',
+      'packages',
+      'runtimeModuleFederation',
+      'sourceRevision',
+    ],
     'Acceptance receipt binding.artifacts',
   );
   assertCondition(
@@ -565,14 +571,9 @@ function assertAcceptanceReceipt(
       'Acceptance receipt Module Federation package identity is invalid',
     );
   }
-  const runtimeModuleFederation =
-    receipt.binding.artifacts.moduleFederation.filter(
-      item => item.packageName === '@module-federation/runtime',
-    );
-  assertCondition(
-    runtimeModuleFederation.length === 1,
-    'Acceptance receipt requires one exact Module Federation runtime in its artifact cohort',
-  );
+  const runtimeModuleFederation = projectRuntimeArtifactBinding(
+    receipt.binding.artifacts,
+  ).moduleFederation;
   assertCondition(
     receipt.binding.artifacts.sourceRevision === receipt.binding.source.commit,
     'Acceptance receipt artifact sourceRevision is stale or mixed',

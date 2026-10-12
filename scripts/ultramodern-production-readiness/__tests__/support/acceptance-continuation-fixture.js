@@ -29,6 +29,7 @@ async function createAcceptanceContinuationFixture({
   projectDirectory = path.resolve(__dirname, 'retained-erp-10'),
   nodeReportProvenance = 'external-report',
   moduleFederationDependencies = { '@module-federation/runtime': '2.8.0' },
+  runtimeSidecarVersion,
   workerdBuildMarkers = {},
   cloudflareBuildCompleted = false,
   releasePackageCount = 1,
@@ -91,6 +92,21 @@ async function createAcceptanceContinuationFixture({
       integrity: `sha512-${crypto.createHash('sha512').update(sourceName).digest('base64')}`,
       packageJson: { name: targetName, version: releaseVersion },
     });
+  }
+  if (runtimeSidecarVersion) {
+    release.sidecars = {
+      packages: [
+        {
+          name: '@bleedingdev/mf-runtime',
+          version: runtimeSidecarVersion,
+          integrity: packageIntegrity,
+          packageJson: {
+            name: '@bleedingdev/mf-runtime',
+            version: runtimeSidecarVersion,
+          },
+        },
+      ],
+    };
   }
   const runIdentity = 'github:BleedingDev/ultramodern.js:run:321:attempt:1';
   const verticals = [...readableErpVerticalNames];

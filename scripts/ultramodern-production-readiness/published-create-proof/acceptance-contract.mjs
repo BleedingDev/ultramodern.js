@@ -269,11 +269,56 @@ function releaseModuleFederationCohort(release) {
 }
 
 function createReleaseArtifactBinding(release) {
+  const moduleFederation = releaseModuleFederationCohort(release);
+  const runtimeSidecars = (release.sidecars?.packages ?? []).filter(
+    item => item.name === '@bleedingdev/mf-runtime',
+  );
+  assertCondition(
+    runtimeSidecars.length <= 1,
+    'Release runtime sidecar identity is duplicated',
+  );
+  const runtimeSidecar = runtimeSidecars[0];
+  if (runtimeSidecar) {
+    assertCondition(
+      exactVersionPattern.test(runtimeSidecar.version ?? '') &&
+        runtimeSidecar.packageJson?.name === runtimeSidecar.name &&
+        runtimeSidecar.packageJson.version === runtimeSidecar.version &&
+        /^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(runtimeSidecar.integrity ?? ''),
+      'Release runtime sidecar requires one verified exact packed identity',
+    );
+  }
   return {
     packages: releasePackageCohort(release),
-    moduleFederation: releaseModuleFederationCohort(release),
+    moduleFederation,
+    // SDK dependencies record upstream versions. App surfaces execute the
+    // selected sidecar whose bytes readReleaseManifest already verified.
+    runtimeModuleFederation: runtimeSidecar
+      ? [
+          {
+            packageName: '@module-federation/runtime',
+            version: runtimeSidecar.version,
+          },
+        ]
+      : moduleFederation.filter(
+          item => item.packageName === '@module-federation/runtime',
+        ),
     sourceRevision: release.source.commit,
   };
+}
+
+function projectRuntimeArtifactBinding(artifactBinding) {
+  const moduleFederation = artifactBinding.runtimeModuleFederation;
+  assertCondition(
+    Array.isArray(moduleFederation) &&
+      moduleFederation.length === 1 &&
+      moduleFederation[0]?.packageName === '@module-federation/runtime' &&
+      exactVersionPattern.test(moduleFederation[0].version ?? '') &&
+      artifactBinding.moduleFederation.filter(
+        item => item.packageName === '@module-federation/runtime',
+      ).length === 1,
+    'Release acceptance requires one exact Module Federation runtime in its verified artifact cohort',
+  );
+  return { ...artifactBinding, moduleFederation };
 }
 
 function assertReleaseAcceptanceProfile(options) {
@@ -913,6 +958,7 @@ export {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  projectRuntimeArtifactBinding,
   releaseIdentityCoherence,
   rendererReleaseCoherence,
   requiredAcceptanceResultIds,

@@ -243,6 +243,72 @@ test('normal acceptance rejects foreign runtimes and SDK tooling in served ident
   }
 });
 
+test('runtime acceptance binds the verified sidecar instead of the SDK upstream version', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { createRuntimeArtifactBinding: projectBinding } = await import(
+    '../published-create-proof/acceptance-continuation.mjs'
+  );
+  const { createReleaseArtifactBinding, assertRuntimeAcceptanceDimension } =
+    await import('../published-create-proof/acceptance-contract.mjs');
+  const release = makeNormalAcceptanceRelease();
+  release.createPackage.packageJson.dependencies['@module-federation/runtime'] =
+    '2.9.2';
+  const sidecar = {
+    name: '@bleedingdev/mf-runtime',
+    version: '2.9.3',
+    integrity: release.createPackage.integrity,
+    packageJson: { name: '@bleedingdev/mf-runtime', version: '2.9.3' },
+  };
+  release.sidecars = { packages: [sidecar] };
+  const fullBinding = createReleaseArtifactBinding(release);
+  const runtimeCohort = [
+    { packageName: '@module-federation/runtime', version: '2.9.3' },
+  ];
+  assert.equal(
+    fullBinding.moduleFederation.find(
+      item => item.packageName === '@module-federation/runtime',
+    ).version,
+    '2.9.2',
+  );
+  assert.deepEqual(
+    createRuntimeArtifactBinding(release).moduleFederation,
+    runtimeCohort,
+  );
+  assert.deepEqual(projectBinding(fullBinding).moduleFederation, runtimeCohort);
+  for (const platform of ['node', 'workerd']) {
+    for (const version of ['2.9.2', '2.9.3', '2.9.4']) {
+      const { report, verticals, applicationSourceRevision } =
+        makeNormalAcceptanceReport(platform, [
+          { packageName: '@module-federation/runtime', version },
+        ]);
+      const verify = () =>
+        assertRuntimeAcceptanceDimension(report, {
+          artifactBinding: createRuntimeArtifactBinding(release),
+          applicationSourceRevision,
+          dimension: 'release-identity',
+          mode: 'source',
+          platform,
+          verticals,
+        });
+      if (version === '2.9.3') verify();
+      else assert.throws(verify, /Module Federation cohort differs/u);
+    }
+  }
+  for (const packages of [
+    [sidecar, sidecar],
+    [{ ...sidecar, version: '2.9.4' }],
+    [{ ...sidecar, version: '^2.9.3' }],
+  ]) {
+    release.sidecars.packages = packages;
+    assert.throws(
+      () => createRuntimeArtifactBinding(release),
+      /runtime sidecar/u,
+    );
+  }
+});
+
 test('normal acceptance rejects missing or invalid packed runtime declarations', async () => {
   const { createRuntimeArtifactBinding } = await import(
     '../published-create-proof/acceptance-profile.mjs'
