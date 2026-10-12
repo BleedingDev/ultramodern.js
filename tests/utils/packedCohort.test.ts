@@ -72,7 +72,7 @@ test('the harness packs exactly the sidecars the release publishes', async () =>
         '@bleedingdev:registry=' + registry.registryUrl + '\n',
       );
       const policy =
-        "packages: []\nminimumReleaseAge: 0\npackageImportMethod: clone-or-copy\noverrides:\n  'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@" +
+        "packages: []\nminimumReleaseAge: 0\nverifyDepsBeforeRun: error\npackageImportMethod: clone-or-copy\noverrides:\n  'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@" +
         braces.version +
         "'\n  'sharp@>=0.35.0 <0.35.5': '0.35.5'\n";
       fs.writeFileSync(path.join(consumer, 'pnpm-workspace.yaml'), policy);
@@ -106,6 +106,27 @@ test('the harness packs exactly the sidecars the release publishes', async () =>
           }),
         ).rejects.toThrow();
       }
+      fs.writeFileSync(path.join(consumer, 'pnpm-workspace.yaml'), policy);
+      fs.rmSync(path.join(consumer, '.npmrc'));
+      await registry.stop();
+      expect(registry.isClosed()).toBe(true);
+      await runPnpmAsync(
+        [
+          '--offline',
+          'exec',
+          process.execPath,
+          '-e',
+          `require('node:assert/strict').deepEqual(
+            [require('braces/package.json').name, require('braces/package.json').version],
+            ['@bleedingdev/braces', ${JSON.stringify(braces.version)}]
+          );`,
+        ],
+        { cwd: consumer, stdio: 'pipe', env: { ...process.env, CI: 'true' } },
+      );
+      await runPnpmAsync(
+        ['install', '--frozen-lockfile', '--ignore-scripts', '--offline'],
+        { cwd: consumer, stdio: 'pipe', env: { ...process.env, CI: 'true' } },
+      );
     } finally {
       await registry.stop();
     }

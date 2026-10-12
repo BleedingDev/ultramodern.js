@@ -253,7 +253,7 @@ export async function materializeGeneratedWorkspaceDependencies(
   );
   // Fresh dependency candidates use only the repository's exact reviewed selectors.
   // The published generator retains its normal release-age policy.
-  // Keep the transport overrides installed: reverting them would invalidate
+  // Keep the framework file overrides installed: reverting them would invalidate
   // pnpm's lockfile settings and break verifyDepsBeforeRun for real commands.
   fs.writeFileSync(
     workspaceFile,
