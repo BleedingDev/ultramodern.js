@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { sharedPackages } from '../src/ultramodern-workspace/descriptors';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../src/ultramodern-workspace/policy';
 import {
   validateApiClientExports,
   validateApiOnlySourceSurface,
@@ -37,7 +38,10 @@ function fixture(
   write('package.json', { name: scope });
   fs.writeFileSync(
     path.join(root, 'pnpm-workspace.yaml'),
-    'packages:\n  - apps/*\n  - packages/*\n',
+    JSON.stringify({
+      packages: ['apps/*', 'packages/*'],
+      overrides: ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+    }),
   );
   write('topology/reference-topology.json', {
     schemaVersion: 1,
@@ -282,7 +286,15 @@ test('installed framework version must match the native catalog request', () => 
   try {
     fs.writeFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
-      'packages:\n  - apps/*\ncatalogs:\n  ultramodern:\n    "@modern-js/app-tools": "npm:@bleedingdev/app-tools@3.8.3"\n',
+      JSON.stringify({
+        packages: ['apps/*'],
+        overrides: ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+        catalogs: {
+          ultramodern: {
+            '@modern-js/app-tools': 'npm:@bleedingdev/app-tools@3.8.3',
+          },
+        },
+      }),
     );
     write(`${app.path}/package.json`, {
       name: app.packageName,
