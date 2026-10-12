@@ -241,7 +241,12 @@ const createArtifactFixture = async (
         '../lib/prepare-bleedingdev-packages/sidecars.mjs'
       );
       const stagedSidecars = sidecarDefinitions.map(
-        ({ name, version, dependencies = {} }) => {
+        ({
+          name,
+          version,
+          dependencies = {},
+          repository = releaseSource.repository,
+        }) => {
           const stagedDir = path.join(
             root,
             'sidecars',
@@ -252,6 +257,10 @@ const createArtifactFixture = async (
             version,
             main: 'index.js',
             license: 'MIT',
+            repository: {
+              type: 'git',
+              url: `git+https://github.com/${repository}.git`,
+            },
             dependencies,
           };
           writeJson(path.join(stagedDir, 'package.json'), packageJson);
@@ -1030,4 +1039,20 @@ test('registry entrypoints fetch source state and accept an already coherent pub
   } finally {
     removeDir(fixture.root);
   }
+});
+
+test('cohort preparation rejects sidecar repository metadata from a different trusted source path', async () => {
+  await assert.rejects(
+    createArtifactFixture(
+      [],
+      [
+        {
+          name: '@bleedingdev/braces',
+          version: '3.0.3',
+          repository: 'ultramodernjs/ultramodern.js',
+        },
+      ],
+    ),
+    /package repository does not match its producer source repository/,
+  );
 });

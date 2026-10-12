@@ -8,7 +8,7 @@ const load = () => import('../sidecar-bundle.mjs');
 const artifacts = () =>
   import('../lib/prepare-bleedingdev-packages/release-artifacts.mjs');
 
-async function fixture(t, profile = 'parser') {
+async function fixture(t, profile = 'parser', metadata = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-contract-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const bundle = await load();
@@ -17,7 +17,12 @@ async function fixture(t, profile = 'parser') {
   const { writeSidecarStagingManifest } = await import(
     '../lib/prepare-bleedingdev-packages/sidecars.mjs'
   );
-  const source = resolveSourceIdentity();
+  const source = {
+    ...resolveSourceIdentity(),
+    ...(metadata.sourceRepository
+      ? { repository: metadata.sourceRepository }
+      : {}),
+  };
   const tools = resolveToolVersions();
   // These are synthetic unit-test invocation IDs, never uploaded as production receipts.
   const env = {
@@ -44,6 +49,10 @@ async function fixture(t, profile = 'parser') {
       version: input.version,
       main: 'index.js',
       license: 'MIT',
+      repository: {
+        type: 'git',
+        url: `git+https://github.com/${metadata.packageRepository ?? source.repository}.git`,
+      },
       publishConfig: {
         access: 'public',
         registry: 'https://registry.npmjs.org/',
@@ -425,5 +434,15 @@ test('SDK placeholder exemptions pin both receipts and do not authorize unsigned
   await assert.rejects(
     assertSidecarReuseProvenance(release, unsignedRelease, options),
     /missing SLSA v1 provenance and is not a grandfathered version/u,
+  );
+});
+
+test('new bundles reject stale repository metadata even with authentic packed digests after transfer', async t => {
+  await assert.rejects(
+    fixture(t, 'parser', {
+      sourceRepository: 'ultramodernjs/ultramodern.js',
+      packageRepository: 'BleedingDev/ultramodern.js',
+    }),
+    /package repository does not match its producer source repository/,
   );
 });
