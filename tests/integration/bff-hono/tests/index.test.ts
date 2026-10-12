@@ -320,7 +320,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.get pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -341,7 +341,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.exception pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -362,7 +362,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.getManaged pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -383,7 +383,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.exceptionManaged pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -425,7 +425,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.get pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -446,7 +446,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.exception pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -467,7 +467,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.getManaged pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
@@ -488,7 +488,7 @@ describe('bff hono tests', () => {
       await page.waitForFunction(
         () => {
           const el = document.querySelector('.exceptionManaged pre');
-          return el?.textContent !== 'null';
+          return Boolean(el?.textContent && el.textContent !== 'null');
         },
         { timeout: 10000 },
       );
