@@ -45,7 +45,9 @@ import {
 import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
+  assertTractorEffectDependencies,
   prepareTractorCohortInstallation,
+  tractorEffectPackages,
 } from './cohort-install.mjs';
 import {
   assertNativeTanStackSearch,
@@ -241,7 +243,18 @@ function readTractorProducerOverrides({
         'Exact producer workspace minimumReleaseAgeExclude must include its installed producer',
       );
     }
+    const producerManifest = JSON.parse(
+      fs.readFileSync(path.join(workspace, 'package.json'), 'utf8'),
+    );
     return {
+      producerEffectDependencies: assertTractorEffectDependencies(
+        Object.fromEntries(
+          tractorEffectPackages.map(name => [
+            name,
+            producerManifest.devDependencies?.[name],
+          ]),
+        ),
+      ),
       pnpmOverrides: overrides,
       minimumReleaseAgeExclude: producerExclusions,
       trustPolicy: policy.trustPolicy,
@@ -797,6 +810,32 @@ function readPassingNodeBackendProof(workspace) {
   };
 }
 
+function installTractorRelease({
+  workspace,
+  createPackage,
+  minimumReleaseAgeExclude,
+  packageManager,
+  runImpl = run,
+}) {
+  const options = { cwd: workspace, env: packageManager.env };
+  runImpl(packageManager.pnpmExecutable, ['clean', '--lockfile'], options);
+  runImpl(
+    packageManager.pnpmExecutable,
+    ['install', '--no-frozen-lockfile'],
+    options,
+  );
+  for (const command of ['sync-delivery-unit', 'validate']) {
+    runImpl(
+      packageManager.pnpmExecutable,
+      createTractorPnpmDlxArgs(createPackage, minimumReleaseAgeExclude, [
+        'ultramodern',
+        command,
+      ]),
+      options,
+    );
+  }
+}
+
 function* executeTractorCommands({
   workspace,
   env,
@@ -921,26 +960,13 @@ async function runTractorDownstreamAcceptance(
     // pnpm validates the existing lock before resolving new dependencies. A
     // recently accepted previous cohort is outside this candidate's exact
     // release-age approvals, so resolve the candidate from a fresh native lock.
-    runImpl(packageManager.pnpmExecutable, ['clean', '--lockfile'], {
-      cwd: options.workspace,
-      env: packageManager.env,
+    installTractorRelease({
+      workspace: options.workspace,
+      createPackage,
+      minimumReleaseAgeExclude,
+      packageManager,
+      runImpl,
     });
-    runImpl(
-      packageManager.pnpmExecutable,
-      ['install', '--no-frozen-lockfile'],
-      {
-        cwd: options.workspace,
-        env: packageManager.env,
-      },
-    );
-    runImpl(
-      packageManager.pnpmExecutable,
-      createTractorPnpmDlxArgs(createPackage, minimumReleaseAgeExclude, [
-        'ultramodern',
-        'validate',
-      ]),
-      { cwd: options.workspace, env: packageManager.env },
-    );
     report.checks.push({
       id: 'exact-create-validation',
       status: 'passed',
@@ -963,6 +989,7 @@ async function runTractorDownstreamAcceptance(
       status: 'passed',
       detail: {
         dependencyObservationCount: dependencyObservations.length,
+        producerEffectDependencies: producerPolicy.producerEffectDependencies,
         generatedCohort,
       },
     });
@@ -1236,6 +1263,7 @@ export {
   createTractorPnpmDlxArgs,
   executeTractorCommands,
   executionCommands,
+  installTractorRelease,
   launchWorkspaceBrowser,
   main,
   parseArgs,

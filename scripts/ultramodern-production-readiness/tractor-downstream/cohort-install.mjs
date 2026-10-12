@@ -17,6 +17,31 @@ const dependencyBlocks = [
   'peerDependencies',
 ];
 
+export const tractorEffectPackages = [
+  'effect',
+  '@effect/opentelemetry',
+  '@effect/tsgo',
+];
+
+export function assertTractorEffectDependencies(dependencies) {
+  if (
+    !dependencies ||
+    typeof dependencies !== 'object' ||
+    Object.keys(dependencies).length !== tractorEffectPackages.length ||
+    tractorEffectPackages.some(
+      name =>
+        typeof dependencies[name] !== 'string' ||
+        !/^\d+\.\d+\.\d+$/u.test(dependencies[name]),
+    ) ||
+    dependencies.effect !== dependencies['@effect/opentelemetry']
+  ) {
+    throw new Error(
+      'Exact producer Effect dependencies must select native stable Effect, OpenTelemetry and compiler versions',
+    );
+  }
+  return dependencies;
+}
+
 /** Select the exact supplied bundle through the consumer's native pnpm catalog. */
 export function prepareTractorCohortInstallation(
   workspace,
@@ -26,8 +51,12 @@ export function prepareTractorCohortInstallation(
     minimumReleaseAgeExclude,
     trustPolicy,
     trustPolicyIgnoreAfter,
+    producerEffectDependencies,
   } = {},
 ) {
+  const effectDependencies = assertTractorEffectDependencies(
+    producerEffectDependencies,
+  );
   const cohort = expectedReleaseCohort(release);
   const version = release.release.version;
   const create = release.createPackage;
@@ -150,12 +179,44 @@ export function prepareTractorCohortInstallation(
     policy.overrides,
   ]) {
     selectBundleSidecars(selections, sidecars);
+    if (selections)
+      for (const name of tractorEffectPackages) {
+        if (Object.hasOwn(selections, name))
+          selections[name] = effectDependencies[name];
+      }
   }
   const manifestUpdates = collectPackageJsonFiles(workspace).flatMap(file => {
     const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const changed = dependencyBlocks
-      .map(block => selectBundleSidecars(manifest[block], sidecars))
-      .some(Boolean);
+    let changed = false;
+    if (
+      path.dirname(file) !== workspace &&
+      ['ts', 'js', 'mjs'].some(extension =>
+        fs.existsSync(
+          path.join(path.dirname(file), `modern.config.${extension}`),
+        ),
+      )
+    ) {
+      const dependency = '@modern-js/backend-federation-contracts';
+      if (!cohort.aliases[dependency])
+        throw new Error(
+          'Tractor native build identity dependency is absent from the exact release cohort',
+        );
+      manifest.dependencies ??= {};
+      changed = manifest.dependencies[dependency] !== 'catalog:ultramodern';
+      manifest.dependencies[dependency] = 'catalog:ultramodern';
+    }
+    for (const block of dependencyBlocks) {
+      changed = selectBundleSidecars(manifest[block], sidecars) || changed;
+      for (const name of tractorEffectPackages) {
+        if (
+          Object.hasOwn(manifest[block] ?? {}, name) &&
+          !manifest[block][name].startsWith('catalog:')
+        ) {
+          changed ||= manifest[block][name] !== effectDependencies[name];
+          manifest[block][name] = effectDependencies[name];
+        }
+      }
+    }
     return changed ? [[file, manifest]] : [];
   });
   for (const specifier of Object.values(pnpmOverrides)) {
@@ -173,12 +234,15 @@ export function prepareTractorCohortInstallation(
       );
     }
   }
-  const managedPackages = Object.keys(pnpmOverrides).map(selector => {
-    const versionSeparator = selector.indexOf('@', 1);
-    return versionSeparator === -1
-      ? selector
-      : selector.slice(0, versionSeparator);
-  });
+  const managedPackages = [
+    ...tractorEffectPackages,
+    ...Object.keys(pnpmOverrides).map(selector => {
+      const versionSeparator = selector.indexOf('@', 1);
+      return versionSeparator === -1
+        ? selector
+        : selector.slice(0, versionSeparator);
+    }),
+  ];
   const managedSelector =
     managedPackages.length > 0
       ? new RegExp(
