@@ -59,6 +59,7 @@ function createVerdaccioConfig({
   htpasswdPath,
   scope,
   sidecarNames = [],
+  cohortNames = [],
 }) {
   return [
     `storage: ${JSON.stringify(storageDir)}`,
@@ -74,9 +75,9 @@ function createVerdaccioConfig({
     '    max_fails: 100',
     '    fail_timeout: 1s',
     'packages:',
-    // Published sidecars are seeded from their accepted bytes too. Looking them
-    // up upstream during that seed would reject the existing version with 409.
-    ...sidecarNames.flatMap(name => [
+    // Seed accepted bytes locally even when the same version exists on npm.
+    // The consumer phase restores cohort proxying for historical lockfiles.
+    ...[...new Set([...sidecarNames, ...cohortNames])].flatMap(name => [
       `  ${JSON.stringify(name)}:`,
       '    access: $all',
       '    publish: $authenticated',
@@ -156,12 +157,13 @@ function reservePort(host = registryHost) {
   });
 }
 
-async function waitForRegistry(registryUrl, fetchImpl = fetch) {
+async function waitForRegistry(registryUrl, fetchImpl = fetch, signal) {
   const deadline = Date.now() + 60_000;
   let lastError;
   while (Date.now() < deadline) {
+    signal?.throwIfAborted();
     try {
-      const response = await fetchImpl(new URL('-/ping', registryUrl));
+      const response = await fetchImpl(new URL('-/ping', registryUrl), { signal });
       if (response.ok) {
         return;
       }
@@ -393,10 +395,17 @@ async function stopChild(child) {
     return;
   }
   child.kill('SIGTERM');
-  await Promise.race([
-    once(child, 'exit'),
-    new Promise(resolve => setTimeout(resolve, 5_000)),
-  ]);
+  let timer;
+  try {
+    await Promise.race([
+      once(child, 'exit'),
+      new Promise(resolve => {
+        timer = setTimeout(resolve, 5_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
   if (child.exitCode === null && child.signalCode === null) {
     child.kill('SIGKILL');
     await once(child, 'exit');
@@ -412,6 +421,8 @@ async function startEphemeralRegistry({
   runImpl = runChecked,
   spawnImpl = spawn,
   reservePortImpl = reservePort,
+  publishReleaseTarballsImpl = publishReleaseTarballs,
+  publishStagedSidecarsImpl = publishStagedSidecars,
 }) {
   const packageManagerEnv =
     storeDir === undefined
@@ -427,43 +438,68 @@ async function startEphemeralRegistry({
   const userConfigPath = path.join(rootDir, '.npmrc');
   const cacheDir = path.join(rootDir, 'npm-cache');
   fs.mkdirSync(rootDir, { recursive: true });
-  fs.writeFileSync(
-    configPath,
-    createVerdaccioConfig({
-      storageDir,
-      htpasswdPath,
-      scope: release.targetScope,
-      sidecarNames: release.sidecars
-        ? readStagedSidecars(releaseDir).sidecars.map(sidecar => sidecar.name)
-        : [],
-    }),
-  );
-
-  const child = spawnImpl('pnpm', verdaccioDlxArgs(configPath, port), {
-    cwd: rootDir,
-    env: createProcessEnv(packageManagerEnv ?? {}),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const output = [];
-  for (const stream of [child.stdout, child.stderr]) {
-    stream?.on('data', chunk => {
-      output.push(String(chunk));
-      if (output.join('').length > 65_536) {
-        output.splice(0, output.length - 1);
-      }
-    });
-  }
+  const sidecarNames = release.sidecars
+    ? readStagedSidecars(releaseDir).sidecars.map(sidecar => sidecar.name)
+    : [];
+  const writeConfig = cohortNames =>
+    fs.writeFileSync(
+      configPath,
+      createVerdaccioConfig({
+        storageDir,
+        htpasswdPath,
+        scope: release.targetScope,
+        sidecarNames,
+        cohortNames,
+      }),
+    );
+  writeConfig((release.packages ?? []).map(item => item.targetName));
   const registryUrl = `http://${registryHost}:${port}/`;
+  let child;
+  const startChild = async () => {
+    const startedChild = spawnImpl('pnpm', verdaccioDlxArgs(configPath, port), {
+      cwd: rootDir,
+      env: createProcessEnv(packageManagerEnv ?? {}),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child = startedChild;
+    const output = [];
+    for (const stream of [startedChild.stdout, startedChild.stderr]) {
+      stream?.on('data', chunk => {
+        output.push(String(chunk));
+        if (output.join('').length > 65_536) {
+          output.splice(0, output.length - 1);
+        }
+      });
+    }
+    const readiness = new AbortController();
+    let onExit;
+    let onError;
+    const exited = new Promise((_, reject) => {
+      onExit = (code, signal) =>
+        reject(
+          new Error(
+            `Verdaccio exited before readiness (code ${code}, signal ${signal})\n${output.join('')}`,
+          ),
+        );
+      onError = reject;
+      startedChild.once('exit', onExit);
+      startedChild.once('error', onError);
+    });
+    try {
+      await Promise.race([
+        waitForRegistry(registryUrl, fetchImpl, readiness.signal),
+        exited,
+      ]);
+    } finally {
+      readiness.abort();
+      // An intentional seed-phase stop must not reject a stale readiness race.
+      startedChild.removeListener('exit', onExit);
+      startedChild.removeListener('error', onError);
+    }
+  };
 
   try {
-    await Promise.race([
-      waitForRegistry(registryUrl, fetchImpl),
-      once(child, 'exit').then(([code, signal]) => {
-        throw new Error(
-          `Verdaccio exited before readiness (code ${code}, signal ${signal})\n${output.join('')}`,
-        );
-      }),
-    ]);
+    await startChild();
     const token = await createRegistryUser(registryUrl, fetchImpl);
     writeRegistryUserConfig(
       userConfigPath,
@@ -489,14 +525,19 @@ async function startEphemeralRegistry({
     const seedStartedAt = Date.now();
     console.log('[registry] seed start');
     registry.sidecars = release.sidecars
-      ? await publishStagedSidecars(releaseDir, release.tools, registry, token)
+      ? await publishStagedSidecarsImpl(releaseDir, release.tools, registry, token)
       : [];
-    registry.published = await publishReleaseTarballs(
+    registry.published = await publishReleaseTarballsImpl(
       release,
       registry,
       token,
       { fetchImpl },
     );
+    // Publishing with an uplink would conflict with already published releases.
+    // Once accepted bytes are local, restore history for the consumer install.
+    await stopChild(child);
+    writeConfig([]);
+    await startChild();
     registry.env = createRegistryEnv({
       userConfigPath,
       cacheDir,
@@ -505,7 +546,7 @@ async function startEphemeralRegistry({
     console.log(`[registry] seed end (${Date.now() - seedStartedAt}ms)`);
     return registry;
   } catch (error) {
-    await stopChild(child);
+    if (child) await stopChild(child);
     throw error;
   }
 }
