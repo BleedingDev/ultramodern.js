@@ -889,7 +889,7 @@ test('continuation rejects a prior build attributed to another application commi
   );
 });
 
-test('continuation policy environment restores the accepted install settings without changing the project', async t => {
+test('continuation uses native policy without restoring acceptance age or trust exceptions', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-continuation-policy-')),
@@ -910,39 +910,59 @@ test('continuation policy environment restores the accepted install settings wit
       '@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.1',
       '@bleedingdev/runtime-sidecar@1.2.3',
     ],
-    trustPolicyExclude: ['@fixture/already-installed@4.5.6'],
   };
   const stateText = JSON.stringify({ settings });
   fs.writeFileSync(statePath, stateText);
 
-  assert.deepEqual(
-    readInstalledPolicyEnvironment(root, {
-      PATH: '/accepted/node/bin',
-      PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["foreign@1.0.0"]',
-      npm_config_trust_policy_exclude: '["foreign@1.0.0"]',
-      pnpm_config_minimum_release_age_exclude: '["foreign@1.0.0"]',
-    }),
-    {
-      PATH: '/accepted/node/bin',
-      CI: 'true',
-      pnpm_config_pm_on_fail: 'ignore',
-      pnpm_config_minimum_release_age: '1440',
-      pnpm_config_minimum_release_age_strict: 'true',
-      pnpm_config_minimum_release_age_ignore_missing_time: 'false',
-      pnpm_config_minimum_release_age_exclude: JSON.stringify(
-        settings.minimumReleaseAgeExclude,
-      ),
-      pnpm_config_trust_policy_exclude: JSON.stringify(
-        settings.trustPolicyExclude,
-      ),
-      pnpm_config_trust_policy: 'no-downgrade',
-      pnpm_config_enable_global_virtual_store: 'false',
-    },
+  const workspacePath = path.join(root, 'pnpm-workspace.yaml');
+  const policy = { ...settings, trustPolicyIgnoreAfter: 1440 };
+  delete policy.enableGlobalVirtualStore;
+  const nativeYaml = value =>
+    Object.entries(value)
+      .map(([key, item]) => `${key}: ${JSON.stringify(item)}`)
+      .join('\n') + '\n';
+  const workspaceText = nativeYaml(policy);
+  fs.writeFileSync(workspacePath, workspaceText);
+  const inherited = {
+    PATH: '/accepted/node/bin',
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["*"]',
+    npm_config_minimumReleaseAge: '0',
+    npm_config_trust_policy_exclude: '["foreign@1.0.0"]',
+    pnpm_config_minimum_release_age_exclude: '["foreign@1.0.0"]',
+    pnpm_config_verify_deps_before_run: 'error',
+  };
+  const env = readInstalledPolicyEnvironment(root, inherited);
+  const { createProcessEnv } = require('../../lib/process-kit');
+  const childEnv = createProcessEnv(env);
+  for (const key of Object.keys(inherited).filter(key =>
+    /release|trust/iu.test(key),
+  )) {
+    assert.equal(env[key], undefined);
+    assert.equal(childEnv[key], undefined);
+  }
+  assert.equal(env.PATH, inherited.PATH);
+  assert.equal(env.CI, 'true');
+  assert.equal(env.pnpm_config_pm_on_fail, 'ignore');
+  assert.equal(env.pnpm_config_enable_global_virtual_store, 'false');
+  assert.equal(env.pnpm_config_verify_deps_before_run, 'error');
+  assert.equal(fs.readFileSync(workspacePath, 'utf8'), workspaceText);
+  policy.minimumReleaseAgeExclude = ['*'];
+  fs.writeFileSync(workspacePath, nativeYaml(policy));
+  assert.throws(
+    () => readInstalledPolicyEnvironment(root),
+    /unchanged native pnpm workspace policy/u,
+  );
+  policy.minimumReleaseAgeExclude = settings.minimumReleaseAgeExclude;
+  policy.trustPolicyExclude = ['*'];
+  fs.writeFileSync(workspacePath, nativeYaml(policy));
+  assert.throws(
+    () => readInstalledPolicyEnvironment(root),
+    /must not contain a glob/u,
   );
   assert.equal(fs.readFileSync(statePath, 'utf8'), stateText);
 });
 
-test('continuation policy environment requires both installed exclusion arrays', async t => {
+test('continuation rejects incomplete strict installed policy', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
   const root = fs.realpathSync(
     fs.mkdtempSync(
