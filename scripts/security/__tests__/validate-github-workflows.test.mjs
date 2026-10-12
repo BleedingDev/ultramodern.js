@@ -57,6 +57,10 @@ test('Tractor installs the frozen publication CLI before waiting for the registr
     'mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy',
   );
   assert.notEqual(install['continue-on-error'], true);
+  const rootPackage = JSON.parse(
+    fs.readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'),
+  );
+  assert.ok(rootPackage.dependencies.semver);
 });
 
 test('repository advisory correction requires the blocking frozen production install before audit', () => {
