@@ -8,6 +8,11 @@ const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 
 const cohortInstallPromise = import('../tractor-downstream/cohort-install.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
+const producerEffectDependencies = {
+  effect: '4.0.0',
+  '@effect/opentelemetry': '4.0.0',
+  '@effect/tsgo': '0.47.2',
+};
 const releaseAgePromise = import(
   '../published-create-proof/release-age-audit.mjs'
 );
@@ -449,12 +454,17 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
       assert.equal(path.dirname(childOptions.cwd), root);
       fs.mkdirSync(workspace);
       fs.writeFileSync(
+        path.join(workspace, 'package.json'),
+        JSON.stringify({ devDependencies: producerEffectDependencies }),
+      );
+      fs.writeFileSync(
         path.join(workspace, 'pnpm-workspace.yaml'),
         `minimumReleaseAge: 1440\nminimumReleaseAgeStrict: true\nminimumReleaseAgeIgnoreMissingTime: false\ntrustPolicy: no-downgrade\ntrustPolicyIgnoreAfter: 1440\nminimumReleaseAgeExclude:\n${bootstrapExclude.map(selector => `  - ${JSON.stringify(selector)}`).join('\n')}\noverrides:\n  'braces@>=3.0.0 <3.0.4': npm:@bleedingdev/braces@3.0.4\n  'sharp@>=0.35.0 <0.35.5': 0.35.5\n`,
       );
     },
   });
   assert.deepEqual(producerPolicy, {
+    producerEffectDependencies,
     pnpmOverrides: {
       'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
       'sharp@>=0.35.0 <0.35.5': '0.35.5',
@@ -897,6 +907,51 @@ test('Tractor stops on formatter failure without reporting format or running che
   );
 });
 
+test('Tractor synchronizes native delivery artifacts after installation and before validation', async () => {
+  const { installTractorRelease } = await runnerPromise;
+  const calls = [];
+  const options = {
+    workspace: '/tractor',
+    createPackage: packageManagerOptions().createPackage,
+    minimumReleaseAgeExclude: bootstrapExclude,
+    packageManager: {
+      pnpmExecutable: exactPnpmExecutable,
+      env: { PATH: '/accepted/node' },
+    },
+  };
+  installTractorRelease({
+    ...options,
+    runImpl(command, args, context) {
+      assert.equal(command, exactPnpmExecutable);
+      assert.equal(context.cwd, options.workspace);
+      assert.equal(context.env, options.packageManager.env);
+      if (args.includes('dlx'))
+        assert.equal(args[args.indexOf('dlx') + 2], bootstrapSpecifier);
+      calls.push(args.includes('dlx') ? args.at(-1) : args.join(' '));
+    },
+  });
+  assert.deepEqual(calls, [
+    'clean --lockfile',
+    'install --no-frozen-lockfile',
+    'sync-delivery-unit',
+    'validate',
+  ]);
+  const stopped = [];
+  assert.throws(
+    () =>
+      installTractorRelease({
+        ...options,
+        runImpl(_command, args) {
+          stopped.push(args.at(-1));
+          if (args.at(-1) === 'sync-delivery-unit')
+            throw new Error('invalid authored renderer contract');
+        },
+      }),
+    /invalid authored renderer contract/u,
+  );
+  assert.equal(stopped.includes('validate'), false);
+});
+
 test('Tractor command execution uses the exact pnpm executable after toolchain adoption', async () => {
   const { executeTractorCommands } = await runnerPromise;
   const commands = [];
@@ -1189,6 +1244,9 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
   try {
     writeAuthenticatedCohort(root);
     const next = structuredClone(release);
+    next.aliases['@modern-js/backend-federation-contracts'] =
+      '@bleedingdev/modern-js-backend-federation-contracts';
+    next.cohortProjection.value.aliases = { ...next.aliases };
     next.release.version = '3.9.0-ultramodern.6';
     next.publishOrder = Object.values(next.aliases);
     next.cohortProjection.value.release.version = next.release.version;
@@ -1274,6 +1332,27 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       'apps/shell-super-app/package.json',
     );
     fs.writeFileSync(
+      path.join(path.dirname(shellManifestFile), 'modern.config.ts'),
+      'export default {};',
+    );
+    const verticalManifests = ['catalog', 'cart', 'checkout'].map(name =>
+      path.join(root, 'verticals', name, 'package.json'),
+    );
+    for (const file of verticalManifests) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(
+        file,
+        JSON.stringify({
+          name: path.basename(path.dirname(file)),
+          dependencies: { effect: '4.0.0-rc.117' },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(path.dirname(file), 'modern.config.ts'),
+        'export default {};',
+      );
+    }
+    fs.writeFileSync(
       shellManifestFile,
       `${JSON.stringify(
         {
@@ -1282,7 +1361,10 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
             '@module-federation/modern-js-v3':
               'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
             react: '19.3.0',
+            effect: '4.0.0-rc.117',
+            '@effect/opentelemetry': 'catalog:',
           },
+          devDependencies: { '@effect/tsgo': '0.41.0' },
         },
         null,
         2,
@@ -1292,11 +1374,30 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       path.join(root, 'pnpm-workspace.yaml'),
       "catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n  braces: 3.0.3\n  braces@^3: 3.0.3\n  fast-glob>braces@3: 3.0.3\n  sharp: 0.35.4\n  other>sharp: 0.35.4\n  parent > braces@>=3.0.0: 3.0.3\n  braces@3>foo: 1.2.3\n  sharp@>=0.35.0 > unrelated: 2.0.0\n  '@scope/other@^1': 1.2.3\n",
     );
+    const { parse: parseYaml, stringify: stringifyYaml } = await import('yaml');
+    const baselinePolicy = parseYaml(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+    );
+    Object.assign(baselinePolicy.catalog, {
+      effect: '4.0.0-rc.117',
+      '@effect/opentelemetry': '4.0.0-rc.117',
+      '@effect/tsgo': '0.41.0',
+    });
+    Object.assign(baselinePolicy.overrides, {
+      'parent>effect': 'npm:@bleedingdev/effect@4.0.0-rc.117',
+      '@effect/opentelemetry': '4.0.0-rc.117',
+      '@effect/tsgo': '0.41.0',
+    });
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      stringifyYaml(baselinePolicy),
+    );
     const pnpmOverrides = {
       'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
       'sharp@>=0.35.0 <0.35.5': '0.35.5',
     };
     const producerOptions = {
+      producerEffectDependencies,
       pnpmOverrides,
       minimumReleaseAgeExclude: [
         ...Object.values(next.aliases).map(
@@ -1327,10 +1428,12 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       policyText,
       /braces@>=3\.0\.0 <3\.0\.4.*npm:@bleedingdev\/braces@3\.0\.4/u,
     );
-    const { parse: parseYaml } = await import('yaml');
+    assert.deepEqual(parseYaml(policyText).catalog, {
+      ipx: 'npm:@bleedingdev/ipx@3.2.2',
+      ...producerEffectDependencies,
+    });
     assert.deepEqual(parseYaml(policyText).overrides, {
       zod: 'npm:@bleedingdev/zod@4.6.5',
-      effect: 'npm:@bleedingdev/effect@4.0.0-rc.117',
       '@scope/other@^1': '1.2.3',
       'braces@3>foo': '1.2.3',
       'sharp@>=0.35.0 > unrelated': '2.0.0',
@@ -1351,18 +1454,27 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     assert.match(policyText, /sharp@>=0\.35\.0 <0\.35\.5.*0\.35\.5/u);
     assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
     assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);
-    assert.match(
-      policyText,
-      /effect: npm:@bleedingdev\/effect@4\.0\.0-rc\.117/u,
-    );
+    assert.doesNotMatch(policyText, /@bleedingdev\/effect|4\.0\.0-rc\.117/u);
     assert.deepEqual(
       JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).dependencies,
       {
         '@module-federation/modern-js-v3':
           'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
         react: '19.3.0',
+        effect: '4.0.0',
+        '@effect/opentelemetry': 'catalog:',
+        '@modern-js/backend-federation-contracts': 'catalog:ultramodern',
       },
     );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).devDependencies,
+      { '@effect/tsgo': '0.47.2' },
+    );
+    for (const file of verticalManifests)
+      assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).dependencies, {
+        effect: '4.0.0',
+        '@modern-js/backend-federation-contracts': 'catalog:ultramodern',
+      });
     fs.rmSync(shellManifestFile);
     assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
     assert.deepEqual(
@@ -1385,6 +1497,29 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       path.join(root, 'pnpm-workspace.yaml'),
       'utf8',
     );
+    for (const invalidEffect of [
+      undefined,
+      {},
+      { ...producerEffectDependencies, effect: '4.0.0-rc.117' },
+      { ...producerEffectDependencies, '@effect/opentelemetry': '4.0.1' },
+      {
+        ...producerEffectDependencies,
+        '@effect/tsgo': 'npm:@bleedingdev/tsgo@0.47.2',
+      },
+    ]) {
+      assert.throws(
+        () =>
+          prepareTractorCohortInstallation(root, next, {
+            ...producerOptions,
+            producerEffectDependencies: invalidEffect,
+          }),
+        /native stable Effect/u,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        selectedPolicy,
+      );
+    }
     assert.throws(
       () =>
         prepareTractorCohortInstallation(root, next, {

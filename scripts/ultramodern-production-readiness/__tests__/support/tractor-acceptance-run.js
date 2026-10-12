@@ -223,6 +223,13 @@ async function runTractorAcceptanceFixture({
     ) {
       const generated = args[args.indexOf('dlx') + 3];
       fs.mkdirSync(generated, { recursive: true });
+      writeJson(path.join(generated, 'package.json'), {
+        devDependencies: {
+          effect: '4.0.0',
+          '@effect/opentelemetry': '4.0.0',
+          '@effect/tsgo': '0.47.2',
+        },
+      });
       fs.writeFileSync(
         path.join(generated, 'pnpm-workspace.yaml'),
         `overrides: {}\nminimumReleaseAge: 1440\nminimumReleaseAgeStrict: true\nminimumReleaseAgeIgnoreMissingTime: false\ntrustPolicy: no-downgrade\ntrustPolicyIgnoreAfter: 1440\nminimumReleaseAgeExclude:\n${[

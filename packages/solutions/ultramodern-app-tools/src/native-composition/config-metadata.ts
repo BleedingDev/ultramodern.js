@@ -148,6 +148,15 @@ export async function readUltramodernConfigMetadata(
     });
     const resolution = await resolveUltramodernEntryIdentities({
       appDirectory,
+      installedAppDirectory:
+        options.stagedWorkspace &&
+        (appDirectory === path.resolve(options.stagedWorkspace.root) ||
+          inside(path.resolve(options.stagedWorkspace.root), appDirectory))
+          ? path.resolve(
+              options.stagedWorkspace.originalRoot,
+              path.relative(options.stagedWorkspace.root, appDirectory),
+            )
+          : appDirectory,
       config: loaded.config,
       command: options.command,
       configFile: loaded.configFile,
