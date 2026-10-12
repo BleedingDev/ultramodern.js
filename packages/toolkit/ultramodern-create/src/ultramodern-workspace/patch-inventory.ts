@@ -53,11 +53,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.2',
     path: 'patches/@module-federation__modern-js-v3@2.9.2.patch',
-    sha256: '56a94453f6d99b6f5aebfc2dbabcdf4f7c9492ecbb475c52b46d70b44731e939',
+    sha256: 'b0e1d695fb33da011494338e16294c5fd2961c655774b014712750f2b7f52b86',
     repository: true,
     workspace: null,
     reason:
-      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
+      'Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). Serve JavaScript with UTF-8 byte lengths so Unicode chunks are not truncated over HTTP. UltraModern renderer hunk: re-export the public React bridge base entry without React Router imports in every module format.',
   },
   {
     packageName: '@module-federation/node',
