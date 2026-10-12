@@ -83,11 +83,6 @@ function InlineCssStyle({
   );
 }
 
-interface ScriptAttrs {
-  [key: string]: string | boolean | undefined;
-  src?: string;
-}
-
 function HeadElement(props: {
   tag: 'meta' | 'link' | 'style';
   attrs?: Record<string, any>;
