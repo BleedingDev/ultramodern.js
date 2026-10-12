@@ -156,6 +156,12 @@ function writeTractorWorkspace(workspace) {
     packageManager: 'pnpm@11.24.0',
     dependencies: { '@modern-js/i18n-utils': 'catalog:ultramodern' },
   });
+  writeJson(path.join(workspace, 'tsconfig.base.json'), {
+    compilerOptions: {
+      strict: true,
+      plugins: [{ name: '@effect/language-service' }],
+    },
+  });
   fs.writeFileSync(
     path.join(workspace, '.mise.toml'),
     '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',

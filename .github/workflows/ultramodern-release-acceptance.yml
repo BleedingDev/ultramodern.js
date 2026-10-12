@@ -149,6 +149,7 @@ jobs:
           name: erp-diagnostics-${{ inputs.producer_artifact_identity }}
           path: |
             ${{ steps.acceptance-workspace.outputs.path }}/**/src/federated-components*.tsx
+            ${{ steps.acceptance-workspace.outputs.path }}/**/src/routes/vertical-components*.tsx
             ${{ steps.acceptance-workspace.outputs.path }}/**/.output/bundles/*.js
             ${{ steps.acceptance-workspace.outputs.path }}/**/.output/*mf-manifest*.json
             ${{ steps.acceptance-workspace.outputs.path }}/**/dist/mf-manifest.json
