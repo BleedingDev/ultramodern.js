@@ -114,12 +114,31 @@ export function startServer(
       { nodeDeployEntry },
     );
   }
-  const child = spawn(process.execPath, ['index.js'], {
-    cwd: nodeDeployDirectory,
-    detached: process.platform !== 'win32',
-    env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const diagnostics = env.FEDERATION_DEBUG === 'true';
+  if (diagnostics) {
+    env.ULTRAMODERN_FEDERATED_WIRE_DIR = path.resolve(
+      artifactDir,
+      `${target.app.id}-federated-wire`,
+    );
+  }
+  const child = spawn(
+    process.execPath,
+    [
+      ...(diagnostics
+        ? [
+            '--import',
+            new URL('./federated-wire-diagnostics.mjs', import.meta.url).href,
+          ]
+        : []),
+      'index.js',
+    ],
+    {
+      cwd: nodeDeployDirectory,
+      detached: process.platform !== 'win32',
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
   const combinedLogTail = createCombinedLogTailCollector();
   child.stdout.on('data', chunk => combinedLogTail.append(chunk));
   child.stderr.on('data', chunk => combinedLogTail.append(chunk));
