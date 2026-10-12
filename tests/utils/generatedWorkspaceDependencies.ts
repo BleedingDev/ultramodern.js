@@ -267,7 +267,9 @@ export async function materializeGeneratedWorkspaceDependencies(
         ...new Set([
           ...(workspace.minimumReleaseAgeExclude ?? []),
           ...minimumReleaseAgeExclude,
-          ...Object.keys(sidecars),
+          ...Object.entries(sidecars).map(
+            ([name, { version }]) => `${name}@${version}`,
+          ),
         ]),
       ],
     }),
