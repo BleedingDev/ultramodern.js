@@ -158,11 +158,14 @@ export async function loadUltramodernConfig(
 /** Resolve the real convention/custom entries without invoking output hooks. */
 export async function resolveUltramodernEntryIdentities({
   appDirectory,
+  installedAppDirectory = appDirectory,
   config,
   command = 'metadata',
   configFile = false,
 }: {
   appDirectory: string;
+  /** Staged source may use the original application's installed packages. */
+  installedAppDirectory?: string;
   config: UltramodernAppUserConfig;
   command?: string;
   configFile?: string | false;
@@ -201,7 +204,7 @@ export async function resolveUltramodernEntryIdentities({
       entrypoints,
       context.plugins.map(plugin => plugin.name),
       undefined,
-      appDirectory,
+      installedAppDirectory,
     );
     return { entries, primaryEntryName: primary.entryName, routerBindings };
   });
