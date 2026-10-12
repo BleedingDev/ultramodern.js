@@ -25,7 +25,6 @@ import {
 import {
   acceptancePlaywrightInstallArgs,
   createAcceptanceRuntimeContext,
-  createAcceptanceWorkspaceEnv,
   resolveExactPnpmExecutable,
   snapshotAcceptanceWorkspaceSource,
   withAcceptancePlaywrightBrowsersPath,
@@ -35,7 +34,10 @@ import {
   createPnpmDlxArgs,
   resolveCreatePackage,
 } from '../published-create-proof/package-cohort.mjs';
-import { run } from '../published-create-proof/process.mjs';
+import {
+  createAcceptanceWorkspaceEnv,
+  run,
+} from '../published-create-proof/process.mjs';
 import {
   releaseAgeExemptions,
   validateExactExclusions,
@@ -135,6 +137,8 @@ function createTractorPnpmDlxArgs(
 }
 
 function createTractorPackageManagerContext({
+  mode,
+  release,
   expectedPnpmVersion,
   environment = process.env,
   packageManagerRoot,
@@ -163,7 +167,11 @@ function createTractorPackageManagerContext({
     runImpl,
     workDir: packageManagerRoot,
   });
-  const env = createAcceptanceWorkspaceEnv(runtime.env);
+  const env = createAcceptanceWorkspaceEnv(runtime.env, {
+    mode,
+    release,
+    registryEnv,
+  });
   // An executable pnpm directory can itself contain a different node binary.
   // Keep the accepted interpreter first, including in that case.
   env.PATH = [
@@ -852,6 +860,8 @@ async function runTractorDownstreamAcceptance(
     path.join(os.tmpdir(), 'ultramodern-tractor-downstream-'),
   );
   const packageManager = createTractorPackageManagerContext({
+    mode,
+    release,
     expectedPnpmVersion: release.tools?.pnpm,
     packageManagerRoot,
     registryEnv,
@@ -868,6 +878,9 @@ async function runTractorDownstreamAcceptance(
     // the persistent Tractor adoption the published lane proves.
     mode,
     status: 'running',
+    sourceCandidateTrustPolicyExclude: JSON.parse(
+      env.pnpm_config_trust_policy_exclude ?? '[]',
+    ),
     startedAt: startedAt.toISOString(),
     release: {
       cohortDigest: release.cohortDigest,

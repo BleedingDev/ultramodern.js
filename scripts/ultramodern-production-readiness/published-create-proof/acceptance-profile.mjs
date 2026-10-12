@@ -58,6 +58,7 @@ import {
 import {
   acceptancePackageManagerRoot,
   createAcceptancePackageManagerEnv,
+  createAcceptanceWorkspaceEnv,
   roundDurationMs,
   run,
   runAsync,
@@ -150,23 +151,6 @@ function createAcceptanceReleaseAgeEnv(
       policy.minimumReleaseAgeStrict,
     ),
   };
-}
-function createAcceptanceWorkspaceEnv(runtimeEnv) {
-  const env = { ...runtimeEnv, pnpm_config_pm_on_fail: 'ignore' };
-  // Commands merge their environment with process.env again. Undefined values
-  // remove inherited overrides so the generated workspace owns its policy.
-  for (const name of new Set([
-    ...Object.keys(process.env),
-    ...Object.keys(runtimeEnv),
-  ])) {
-    const configName = name.replace(/[-_]/gu, '').toLowerCase();
-    if (
-      /^(?:npm|pnpm)config(?:minimumreleaseage|trustpolicy)/u.test(configName)
-    ) {
-      env[name] = undefined;
-    }
-  }
-  return env;
 }
 const operationalIndependenceChangedPaths = Object.freeze([
   'verticals/inventory/api/index.ts',
@@ -1403,14 +1387,23 @@ async function runAcceptanceProfile({
       commandExclusions,
       registryEnv,
     );
-    const packageManagerEnv = createAcceptanceWorkspaceEnv(runtimeEnv);
+    const packageManagerEnv = createAcceptanceWorkspaceEnv(runtimeEnv, {
+      mode,
+      release,
+      registryEnv,
+    });
     const receipt = createAcceptanceReceipt({
       release,
       mode,
       profile: options.selectedProfile,
       createPackage,
       runtime,
-      registry: registryReceiptMetadata({ mode, registryUrl }),
+      registry: {
+        ...registryReceiptMetadata({ mode, registryUrl }),
+        sourceCandidateTrustPolicyExclude: JSON.parse(
+          packageManagerEnv.pnpm_config_trust_policy_exclude ?? '[]',
+        ),
+      },
       runIdentity,
       now,
     });
@@ -1612,7 +1605,6 @@ export {
   createAcceptancePackageManagerEnv,
   createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
-  createAcceptanceWorkspaceEnv,
   createOperationalIndependenceCommit,
   createRuntimeArtifactBinding,
   inheritedPlaywrightBrowsersPath,

@@ -13,8 +13,8 @@ import {
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
-  createAcceptanceWorkspaceEnv,
 } from '../published-create-proof/acceptance-profile.mjs';
+import { createAcceptanceWorkspaceEnv } from '../published-create-proof/process.mjs';
 import { parseYamlFile } from '../published-create-proof/release-age-audit.mjs';
 import { registerOwnedRoot } from '../react-rsc-worker-proof/lifecycle.mjs';
 import { runCommand } from '../react-rsc-worker-proof/main.mjs';
@@ -199,24 +199,27 @@ export async function runProof(provided) {
       process.env,
       { storeDir: options.storeDir },
     );
-    const env = createAcceptanceWorkspaceEnv({
-      ...process.env,
-      ...options.env,
-      ...packageEnv,
-      CI: 'true',
-      FORCE_COLOR: '0',
-      PATH: [path.dirname(options.qualifiedNode), packageEnv.PATH]
-        .filter(Boolean)
-        .join(path.delimiter),
-      npm_config_store_dir: options.storeDir,
-      pnpm_config_store_dir: options.storeDir,
-      npm_config_package_import_method: 'clone-or-copy',
-      pnpm_config_package_import_method: 'clone-or-copy',
-      npm_config_cache: path.join(options.workDir, 'npm-cache'),
-      XDG_CACHE_HOME: path.join(options.workDir, 'xdg-cache'),
-      TMPDIR: path.join(options.workDir, 'runtime-temp'),
-      ULTRAMODERN_SOURCE_REVISION: release.source.commit,
-    });
+    const env = createAcceptanceWorkspaceEnv(
+      {
+        ...process.env,
+        ...options.env,
+        ...packageEnv,
+        CI: 'true',
+        FORCE_COLOR: '0',
+        PATH: [path.dirname(options.qualifiedNode), packageEnv.PATH]
+          .filter(Boolean)
+          .join(path.delimiter),
+        npm_config_store_dir: options.storeDir,
+        pnpm_config_store_dir: options.storeDir,
+        npm_config_package_import_method: 'clone-or-copy',
+        pnpm_config_package_import_method: 'clone-or-copy',
+        npm_config_cache: path.join(options.workDir, 'npm-cache'),
+        XDG_CACHE_HOME: path.join(options.workDir, 'xdg-cache'),
+        TMPDIR: path.join(options.workDir, 'runtime-temp'),
+        ULTRAMODERN_SOURCE_REVISION: release.source.commit,
+      },
+      { mode: registry ? 'source' : 'published', release, registryEnv },
+    );
     fs.mkdirSync(env.TMPDIR);
     for (const name of [
       'NODE_OPTIONS',
@@ -262,6 +265,9 @@ export async function runProof(provided) {
       trustPolicy: policy.trustPolicy,
       trustPolicyIgnoreAfter: policy.trustPolicyIgnoreAfter,
       pmOnFail: env.pnpm_config_pm_on_fail,
+      sourceCandidateTrustPolicyExclude: JSON.parse(
+        env.pnpm_config_trust_policy_exclude ?? '[]',
+      ),
     };
     receipt.fixture = fixture.fixture;
     receipt.origins = { ...origins, control: control.url };

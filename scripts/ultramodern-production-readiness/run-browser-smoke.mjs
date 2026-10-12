@@ -38,7 +38,7 @@ import {
   orderTargetsForLocalStartup,
 } from './browser-smoke/targets.mjs';
 
-import { createAcceptanceWorkspaceEnv } from './published-create-proof/acceptance-profile.mjs';
+import { createAcceptanceWorkspaceEnv } from './published-create-proof/process.mjs';
 import {
   parseYamlFile,
   validateExactExclusions,
