@@ -430,6 +430,8 @@ async function writeVerticalRelease(
     marker,
     sourceRevision = 'a'.repeat(40),
     platform = 'node',
+    pluginVersion = '2.9.1',
+    runtimeVersion = '2.9.1',
   } = {},
 ) {
   const app = {
@@ -446,9 +448,25 @@ async function writeVerticalRelease(
   writeJson(root, `${app.path}/package.json`, {
     name: '@fixture/inventory',
     version: '0.3.0',
-    dependencies: { '@module-federation/runtime': '2.9.1' },
+    dependencies: {
+      '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${runtimeVersion}`,
+    },
     devDependencies: { '@modern-js/ultramodern-app-tools': 'workspace:*' },
   });
+  const producerRoot = `${app.path}/node_modules/@module-federation/modern-js-v3`;
+  writeJson(root, `${producerRoot}/package.json`, {
+    name: '@module-federation/modern-js-v3',
+    version: '2.9.4',
+    main: 'index.js',
+  });
+  fs.writeFileSync(path.join(root, producerRoot, 'index.js'), '');
+  const enhancedRoot = `${producerRoot}/node_modules/@module-federation/enhanced`;
+  writeJson(root, `${enhancedRoot}/package.json`, {
+    name: '@module-federation/enhanced',
+    version: pluginVersion,
+    exports: { './rspack': './rspack.js' },
+  });
+  fs.writeFileSync(path.join(root, enhancedRoot, 'rspack.js'), '');
   const built = writeBuiltApp(root, app, sourceRevision, 'f'.repeat(64));
   const finalized = marker
     ? stampUltramodernBuildArtifactIdentity(built.finalized, {
@@ -495,8 +513,7 @@ async function writeVerticalRelease(
     });
     fs.writeFileSync(path.join(outputRoot, filename), 'module.exports = {};');
   }
-  if (!apiOnly)
-    writeJson(outputRoot, paths.mfManifest, { pluginVersion: '2.9.1' });
+  if (!apiOnly) writeJson(outputRoot, paths.mfManifest, { pluginVersion });
   let workerManifest;
   if (workerd && !apiOnly) {
     writeJson(outputRoot, 'server/route.json', {
@@ -938,6 +955,76 @@ test('browser smoke rejects schema 4 and incomplete API/backend declarations', a
     );
     assert.throws(() => releaseIdentity(root, built.app, 'node'), diagnostic);
   }
+});
+
+test('browser smoke binds the native manifest producer separately from the runtime fork', async t => {
+  const { releaseIdentity } = await import(
+    '../../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root, {
+    pluginVersion: '2.9.2',
+    runtimeVersion: '2.9.3',
+  });
+  const producerRoot = path.join(
+    root,
+    built.app.path,
+    'node_modules/@module-federation/modern-js-v3',
+  );
+  const enhancedRoot = path.join(
+    producerRoot,
+    'node_modules/@module-federation/enhanced',
+  );
+  // A direct app dependency must not replace the native plugin's actual producer.
+  writeJson(
+    root,
+    `${built.app.path}/node_modules/@module-federation/enhanced/package.json`,
+    {
+      name: '@module-federation/enhanced',
+      version: '99.0.0',
+      exports: { './rspack': './rspack.js' },
+    },
+  );
+  fs.writeFileSync(
+    path.join(
+      root,
+      built.app.path,
+      'node_modules/@module-federation/enhanced/rspack.js',
+    ),
+    '',
+  );
+  assert.deepEqual(
+    releaseIdentity(root, built.app, 'node').surfaces.frontend.moduleFederation,
+    [{ packageName: '@module-federation/runtime', version: '2.9.3' }],
+  );
+  for (const version of ['2.9.3', '^2.9.2', undefined]) {
+    writeJson(enhancedRoot, 'package.json', {
+      name: '@module-federation/enhanced',
+      version,
+      exports: { './rspack': './rspack.js' },
+    });
+    assert.throws(
+      () => releaseIdentity(root, built.app, 'node'),
+      version === '2.9.3'
+        ? /differs from installed producer/u
+        : /producer version is invalid/u,
+    );
+  }
+  const missingRoot = tempRoot();
+  t.after(() => fs.rmSync(missingRoot, { recursive: true, force: true }));
+  const missing = await writeVerticalRelease(missingRoot);
+  fs.rmSync(
+    path.join(
+      missingRoot,
+      missing.app.path,
+      'node_modules/@module-federation/modern-js-v3',
+    ),
+    { recursive: true, force: true },
+  );
+  assert.throws(() => releaseIdentity(missingRoot, missing.app, 'node'), {
+    code: 'MODULE_NOT_FOUND',
+  });
 });
 
 test('browser smoke still rejects deployed artifact bytes changed after envelope stamping', async t => {

@@ -200,6 +200,46 @@ function readAppPackageJson(projectDir, app) {
   );
 }
 
+function readModuleFederationManifestProducer(projectDir, app) {
+  const appRequire = createRequire(
+    path.join(projectDir, app.path, 'package.json'),
+  );
+  const pluginRequire = createRequire(
+    appRequire.resolve('@module-federation/modern-js-v3'),
+  );
+  // The native Rspack entrypoint stamps its plugin version, independently of
+  // the runtime fork's publication version.
+  let directory = path.dirname(
+    pluginRequire.resolve('@module-federation/enhanced/rspack'),
+  );
+  while (true) {
+    const filename = path.join(directory, 'package.json');
+    if (fs.existsSync(filename)) {
+      const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'));
+      if (manifest.name === '@module-federation/enhanced') {
+        if (
+          typeof manifest.version !== 'string' ||
+          !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(
+            manifest.version,
+          )
+        ) {
+          throw new Error(
+            `${app.id} installed Module Federation producer version is invalid`,
+          );
+        }
+        return { packageName: manifest.name, version: manifest.version };
+      }
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      throw new Error(
+        `${app.id} installed Module Federation producer package is missing`,
+      );
+    }
+    directory = parent;
+  }
+}
+
 function readRegularJson(root, logicalPath, label) {
   const segments = assertLogicalPath(logicalPath, label).split('/');
   const rootStat = fs.lstatSync(root);
@@ -750,6 +790,7 @@ function manifestModuleFederationCohort(
   logicalPath,
   appId,
   configuredCohort,
+  producer,
 ) {
   const manifest = JSON.parse(
     fs.readFileSync(artifactPath(location, logicalPath), 'utf8'),
@@ -763,12 +804,10 @@ function manifestModuleFederationCohort(
       `${appId} SHA-bound Module Federation manifest has no pluginVersion`,
     );
   }
-  for (const item of configuredCohort) {
-    if (item.version !== pluginVersion) {
-      throw new Error(
-        `${appId} runtime manifest Module Federation ${pluginVersion} differs from ${item.packageName}@${item.version}`,
-      );
-    }
+  if (producer.version !== pluginVersion) {
+    throw new Error(
+      `${appId} manifest Module Federation plugin ${pluginVersion} differs from installed producer ${producer.packageName}@${producer.version}`,
+    );
   }
   return configuredCohort;
 }
@@ -1139,6 +1178,7 @@ function releaseIdentity(
         frontendManifest,
         app.id,
         readModuleFederationCohort(projectDir, app),
+        readModuleFederationManifestProducer(projectDir, app),
       );
   const identity = {
     buildMarker: location.envelope.identity.buildMarker,
