@@ -66,22 +66,21 @@ jobs:
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           version: 2026.9.18
+          cache_save: false
 
       - name: Resolve pnpm store path
         id: pnpm-store
         run: echo "path=$(mise exec -- pnpm store path)" >> "$GITHUB_OUTPUT"
 
-      # Scoped cache namespace: this job installs only the 5-package
-      # @scripts/ultramodern-production-readiness closure, so it restores a
-      # store sized to that closure instead of the full-monorepo store the
-      # qualify/prepare jobs need.
+      # PR callers restore the shared key seeded by ci-cache.yml; this
+      # reusable job never saves a branch-scoped cache.
       - name: Restore pnpm store cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-store-accept-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            pnpm-store-accept-${{ runner.os }}-
+            pnpm-store-${{ runner.os }}-
 
       - name: Install acceptance runner dependencies
         run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
@@ -109,7 +108,7 @@ jobs:
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
       - name: Restore Playwright chromium cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.browser-runtime.outputs.cache_path }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
