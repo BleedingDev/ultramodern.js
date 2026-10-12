@@ -1,11 +1,18 @@
+import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import { parsePnpmLockfile } from '../../scripts/lib/parse-pnpm-lockfile.mjs';
+import { inspectNpmTarball } from '../../scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { startSidecarRegistry } from '../../scripts/ultramodern-publish/qualify-sidecar-bundle.mjs';
 import { stripPackedFrameworkSources } from './packedConsumerSources.mjs';
-import { bleedingdevEdges, runPnpm } from './runWithPrerequisites.mjs';
+import {
+  bleedingdevEdges,
+  runPnpm,
+  runPnpmAsync,
+} from './runWithPrerequisites.mjs';
 
 const { dump, load } = yaml;
 
@@ -62,16 +69,61 @@ export function bleedingdevOverrides(
   return overrides;
 }
 
-/** Preserve override selectors while transporting their fork aliases locally. */
-export function packedWorkspaceOverrides(
-  overrides: Record<string, string>,
+/** Bind registry-resolved sidecars to this run's authenticated packed bytes. */
+export function assertPackedRegistrySidecars(
+  packages: Record<
+    string,
+    { resolution?: { tarball?: string; integrity?: string } }
+  >,
   sidecars: Record<string, PackedSidecar>,
-): Record<string, string> {
-  const transported = { ...overrides };
-  for (const edge of bleedingdevEdges({ dependencies: overrides })) {
-    transported[edge.name] = packedBleedingdevSpecifier(edge, sidecars);
+  registryUrl: string,
+): void {
+  for (const [key, entry] of Object.entries(packages)) {
+    if (!key.startsWith('@bleedingdev/') || key.includes('@file:')) continue;
+    const match = /^(@bleedingdev\/[^@]+)@([^(@]+)(?:\(|$)/u.exec(key);
+    assert.ok(
+      match,
+      'Generated workspace resolved an unaccepted sidecar: ' + key,
+    );
+    const packed = sidecars[match[1]];
+    assert.ok(
+      packed && packed.version === match[2],
+      'Generated workspace resolved an unaccepted sidecar: ' + key,
+    );
+    const bytes = fs.readFileSync(packed.tarball);
+    assertPacked(packed.tarball, match[1], packed.integrity);
+    assert.equal(
+      entry.resolution?.tarball,
+      registryUrl + 'tarballs/' + encodeURIComponent(match[1]) + '.tgz',
+      'Generated workspace sidecar escaped its packed registry: ' + key,
+    );
+    assert.equal(
+      entry.resolution?.integrity,
+      'sha512-' + createHash('sha512').update(bytes).digest('base64'),
+      'Generated workspace sidecar integrity drift: ' + key,
+    );
   }
-  return transported;
+}
+
+function registrySidecars(sidecars: Record<string, PackedSidecar>) {
+  return Object.entries(sidecars).map(([name, packed]) => {
+    assertPacked(packed.tarball, name, packed.integrity);
+    const bytes = fs.readFileSync(packed.tarball);
+    const packageJson = JSON.parse(
+      inspectNpmTarball(bytes).packageJsonBytes.toString('utf8'),
+    );
+    assert.equal(packageJson.name, name);
+    assert.equal(packageJson.version, packed.version);
+    return {
+      name,
+      version: packed.version,
+      packageJson,
+      bytes,
+      integrity:
+        'sha512-' + createHash('sha512').update(bytes).digest('base64'),
+      shasum: createHash('sha1').update(bytes).digest('hex'),
+    };
+  });
 }
 
 function packedPrerequisites() {
@@ -164,37 +216,41 @@ function prepareSourceUnavailableConsumer(
 }
 
 /** pnpm owns workspace links, per-package versions, peer resolution and builds. */
-export function materializeGeneratedWorkspaceDependencies(
+export async function materializeGeneratedWorkspaceDependencies(
   workspaceDir: string,
-): void {
+): Promise<void> {
   const {
     overrides: packedOverrides,
+    framework,
     sidecars,
     minimumReleaseAgeExclude,
   } = packedPrerequisites();
-  const overrides = {
-    ...packedOverrides,
-    ...bleedingdevOverrides(
-      fs
-        .globSync('**/package.json', {
-          cwd: workspaceDir,
-          exclude: ['**/node_modules'],
-        })
-        .flatMap(manifest =>
-          bleedingdevEdges(
-            JSON.parse(
-              fs.readFileSync(path.join(workspaceDir, manifest), 'utf8'),
-            ),
-          ),
-        ),
-      sidecars,
+  const overrides = Object.fromEntries(
+    Object.entries(packedOverrides).filter(([name]) =>
+      framework.includes(name),
     ),
-  };
+  );
+  const generatedEdges = fs
+    .globSync('**/package.json', {
+      cwd: workspaceDir,
+      exclude: ['**/node_modules'],
+    })
+    .flatMap(manifest =>
+      bleedingdevEdges(
+        JSON.parse(fs.readFileSync(path.join(workspaceDir, manifest), 'utf8')),
+      ),
+    );
+  // Validate authored alias versions without replacing the producer's policy.
+  bleedingdevOverrides(generatedEdges, sidecars);
   const workspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
   const workspace = load(fs.readFileSync(workspaceFile, 'utf8')) as {
     overrides?: Record<string, string>;
     minimumReleaseAgeExclude?: string[];
   };
+  bleedingdevOverrides(
+    bleedingdevEdges({ dependencies: workspace.overrides }),
+    sidecars,
+  );
   // Fresh dependency candidates use only the repository's exact reviewed selectors.
   // The published generator retains its normal release-age policy.
   // Keep the transport overrides installed: reverting them would invalidate
@@ -204,33 +260,47 @@ export function materializeGeneratedWorkspaceDependencies(
     dump({
       ...workspace,
       overrides: {
-        ...packedWorkspaceOverrides(workspace.overrides ?? {}, sidecars),
+        ...workspace.overrides,
         ...overrides,
       },
       minimumReleaseAgeExclude: [
         ...new Set([
           ...(workspace.minimumReleaseAgeExclude ?? []),
           ...minimumReleaseAgeExclude,
+          ...Object.keys(sidecars),
         ]),
       ],
     }),
   );
-  runPnpm(['install', '--no-frozen-lockfile'], {
-    cwd: workspaceDir,
-    env: { ...process.env, NODE_PATH: '', CI: 'true' },
-    stdio: 'pipe',
-  });
-  const { packages: locked } = parsePnpmLockfile(
-    fs.readFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), 'utf8'),
-  ) as { packages?: Record<string, unknown> };
-  const fromRegistry = Object.keys(locked ?? {}).filter(
-    key => key.startsWith('@bleedingdev/') && !key.includes('@file:'),
-  );
-  if (fromRegistry.length) {
-    throw new Error(
-      `Generated workspace resolved @bleedingdev packages from the registry: ${fromRegistry.join(', ')}. ` +
-        'Add them to scripts/ultramodern-supply/sidecars.json / staged cohort.',
+  const npmrcPath = path.join(workspaceDir, '.npmrc');
+  const originalNpmrc = fs.existsSync(npmrcPath)
+    ? fs.readFileSync(npmrcPath)
+    : undefined;
+  const registry = await startSidecarRegistry(registrySidecars(sidecars));
+  try {
+    fs.writeFileSync(
+      npmrcPath,
+      (originalNpmrc?.toString() ?? '') +
+        '\n@bleedingdev:registry=' +
+        registry.registryUrl +
+        '\n',
     );
+    await runPnpmAsync(['install', '--no-frozen-lockfile'], {
+      cwd: workspaceDir,
+      env: { ...process.env, NODE_PATH: '', CI: 'true' },
+      stdio: 'pipe',
+    });
+    const { packages: locked = {} } = parsePnpmLockfile(
+      fs.readFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), 'utf8'),
+    );
+    assertPackedRegistrySidecars(locked, sidecars, registry.registryUrl);
+  } finally {
+    try {
+      await registry.stop();
+    } finally {
+      if (originalNpmrc) fs.writeFileSync(npmrcPath, originalNpmrc);
+      else fs.rmSync(npmrcPath, { force: true });
+    }
   }
   prepareSourceUnavailableConsumer(workspaceDir, true);
 }

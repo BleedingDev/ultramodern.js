@@ -114,7 +114,7 @@ describe('create-bff-runtime', () => {
       ['--bff-runtime', 'effect', '--lang', 'en'],
       ['greetings', '--vertical', '--bff-runtime', 'effect', '--lang', 'en'],
     );
-    materializeGeneratedWorkspaceDependencies(workspaceDir);
+    await materializeGeneratedWorkspaceDependencies(workspaceDir);
     const verticalDir = path.join(workspaceDir, 'verticals/greetings');
     const buildResult = await modernBuild(verticalDir, [], {
       modernBin: generatedModernBin(verticalDir),
