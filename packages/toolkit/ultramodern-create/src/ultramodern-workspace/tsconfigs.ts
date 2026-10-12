@@ -5,48 +5,11 @@ import {
   resolveRemoteRefs,
   sharedPackages,
 } from './descriptors';
-import { effectDiagnosticSeverity } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
 import { resolveAppGenerationProfile } from './renderer-profile';
 import type { JsonObject, JsonValue, WorkspaceApp } from './types';
 export function createTsConfigBase(): JsonValue {
-  return {
-    compilerOptions: {
-      target: 'ESNext',
-      types: ['node'],
-      lib: ['ESNext', 'DOM', 'DOM.Iterable'],
-      module: 'preserve',
-      moduleResolution: 'Bundler',
-      moduleDetection: 'force',
-      jsx: 'preserve',
-      isolatedModules: true,
-      verbatimModuleSyntax: true,
-      strict: true,
-      noEmit: true,
-      allowImportingTsExtensions: true,
-      allowJs: true,
-      esModuleInterop: true,
-      noUncheckedIndexedAccess: true,
-      exactOptionalPropertyTypes: true,
-      noImplicitOverride: true,
-      noFallthroughCasesInSwitch: true,
-      noPropertyAccessFromIndexSignature: true,
-      noImplicitReturns: true,
-      resolveJsonModule: true,
-      plugins: [
-        {
-          name: '@effect/language-service',
-          diagnostics: true,
-          includeSuggestionsInTsc: true,
-          ignoreEffectSuggestionsInTscExitCode: true,
-          ignoreEffectWarningsInTscExitCode: false,
-          ignoreEffectErrorsInTscExitCode: false,
-          skipDisabledOptimization: true,
-          diagnosticSeverity: effectDiagnosticSeverity,
-        },
-      ],
-    },
-  };
+  return { extends: '@modern-js/ultramodern-create/tsconfig' };
 }
 
 function createTsBuildInfoFile(packageDir: string): string {

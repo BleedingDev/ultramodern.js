@@ -589,6 +589,34 @@ test('continuation preserves all SDK packages while proving the runtime package'
   }
 });
 
+test('continuation and its receipt bind executed identities to the authenticated runtime sidecar', async () => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const { record, release, runIdentity } =
+    await createAcceptanceContinuationFixture({
+      moduleFederationDependencies: { '@module-federation/runtime': '2.9.2' },
+      runtimeSidecarVersion: '2.9.3',
+    });
+  assert.equal(
+    assertAcceptanceContinuation(record, { release, runIdentity }),
+    record,
+  );
+  assert.deepEqual(record.binding.artifacts.moduleFederation, [
+    { packageName: '@module-federation/runtime', version: '2.9.2' },
+  ]);
+  assert.deepEqual(record.binding.artifacts.runtimeModuleFederation, [
+    { packageName: '@module-federation/runtime', version: '2.9.3' },
+  ]);
+  changeRuntimeReport(record, 'workerd', report => {
+    report.evidence[
+      'release-identity'
+    ].apps[0].surfaces.frontend.moduleFederation[0].version = '2.9.2';
+  });
+  assert.throws(
+    () => assertAcceptanceContinuation(record, { release, runIdentity }),
+    /Module Federation cohort differs/u,
+  );
+});
+
 test('continuation rejects an observed runtime outside the authenticated SDK cohort', async () => {
   const { assertAcceptanceContinuation } = await import(continuationModule);
   const { record, release, runIdentity } =

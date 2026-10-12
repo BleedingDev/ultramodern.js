@@ -67,7 +67,7 @@ export type MicroVerticalApiSourceRule = (
 export interface MicroVerticalApiCheckOptions {
   readonly workspaceRoot: string;
   readonly configuredApps?: readonly MicroVerticalConfiguredApp[];
-  /** Explicit expected installed owner, useful for isolated/non-hoisted installations. */
+  /** Exact installed owner constraint; otherwise resolve each contract’s native owner. */
   readonly baselinePackageDirectory?: string;
   /** Rules run once per workspace TypeScript/JavaScript source file. */
   readonly sourceRules?: readonly MicroVerticalApiSourceRule[];
@@ -593,7 +593,6 @@ function check(
           if (violation) diagnostics.push(`${file}: ${violation}`);
         }
       });
-    let owner: string | undefined;
     for (const appPath of appDirectories)
       guarded(appPath, () => {
         const app = byPath.get(appPath);
@@ -688,9 +687,11 @@ function check(
             ['RpcGroup.make', 'Rpc.make', 'Schema.Struct'],
           );
         } else if (exists(contract)) {
-          owner ??=
+          // Each app's native resolver selects its own installed peer context.
+          // An explicit owner remains an exact identity constraint.
+          const owner =
             options.baselinePackageDirectory ??
-            resolveBaselinePackageDirectory(path.join(root, 'package.json'));
+            resolveBaselinePackageDirectory(absolute(contract));
           const apiPrefix = app?.api?.prefix ?? `/${stem}-api`;
           const basePath = `${apiPrefix}/${stem}`;
           const expectation: MicroVerticalApiBaselineExpectation = {

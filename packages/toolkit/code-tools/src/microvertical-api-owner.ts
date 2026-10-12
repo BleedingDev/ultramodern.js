@@ -54,6 +54,7 @@ function importTarget(value: unknown): string | undefined {
 export function baselinePublicIdentityIsExact(
   fromFile: string,
   expectation: MicroVerticalApiBaselineExpectation,
+  reportMismatch?: (message: string) => void,
 ): boolean {
   const owner = fs.realpathSync(expectation.baselinePackageDirectory);
   const manifest = JSON.parse(
@@ -76,7 +77,12 @@ export function baselinePublicIdentityIsExact(
       return false;
     throw error;
   }
-  if (resolvedOwner !== owner) return false;
+  if (resolvedOwner !== owner) {
+    reportMismatch?.(
+      `selected owner ${owner}; consumer resolves ${resolvedOwner}`,
+    );
+    return false;
+  }
   const target = importTarget(manifest.exports?.['./microvertical-api']);
   if (!target?.startsWith('./')) return false;
   const modules = new Map<string, t.File>();

@@ -280,6 +280,55 @@ test('renderer binding accepts current UI-only envelopes and rejects schema 4', 
   );
 });
 
+test('renderer binding accepts native Shell envelopes and rejects invalid Shell producers and schemas', () => {
+  for (const target of ['node', 'cloudflare']) {
+    const value = envelope();
+    value.kind = 'ultramodern-target-shell-release-envelope';
+    value.target = target;
+    delete value.surfaces.backendFederation;
+    seal(value);
+    assert.deepEqual(assertReleaseEnvelopeRendererBinding(value), value.ui);
+    assert.deepEqual(
+      assertRendererReleaseArtifactBinding(value, buildArtifact(value)),
+      value.ui,
+    );
+    const producer = structuredClone(value);
+    producer.surfaces.backendFederation = {
+      manifest: 'backend-mf-manifest.json',
+      container: 'backendRemoteEntry.cjs',
+    };
+    assert.throws(
+      () => assertReleaseEnvelopeRendererBinding(seal(producer)),
+      /Shell cannot declare a backend federation producer/u,
+    );
+    const headless = structuredClone(value);
+    headless.surfaces.uiClient = [];
+    headless.surfaces.ssr = [];
+    delete headless.ui;
+    assert.throws(
+      () => assertReleaseEnvelopeRendererBinding(seal(headless)),
+      /Shell must declare UI\/client and SSR surfaces/u,
+    );
+    for (const unsupported of [
+      { schemaVersion: 4 },
+      { kind: 'unknown-release-envelope' },
+    ]) {
+      assert.throws(
+        () =>
+          assertReleaseEnvelopeRendererBinding(
+            seal({ ...value, ...unsupported }),
+          ),
+        /unsupported release envelope schema/u,
+      );
+    }
+    value.surfaces.apiBackend = [];
+    assert.deepEqual(
+      assertReleaseEnvelopeRendererBinding(seal(value)),
+      value.ui,
+    );
+  }
+});
+
 test('renderer release evidence rejects malformed fields before accepting a valid digest', () => {
   const cases = [
     [
@@ -883,6 +932,18 @@ test('the executed artifact reader accepts each renderer and exposes schema 5 re
     assert.equal(evidence.schemaVersion, 5);
     assert.deepEqual(evidence.ui, fixture.value.ui);
   }
+});
+
+test('the executed artifact reader accepts a native full-stack Shell without a federation producer', t => {
+  const fixture = runtimeFixture(t, { finalized: true });
+  fixture.app.kind = 'shell';
+  fixture.value.kind = 'ultramodern-target-shell-release-envelope';
+  delete fixture.value.surfaces.backendFederation;
+  fixture.reseal();
+  const evidence = releaseIdentity(fixture.projectDir, fixture.app, 'node');
+  assert.equal(evidence.schemaVersion, 5);
+  assert.deepEqual(evidence.ui, fixture.value.ui);
+  assert.ok(evidence.surfaces.api);
 });
 
 test('the executed artifact reader accepts a headless schema 5 release without renderer evidence', t => {

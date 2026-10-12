@@ -385,7 +385,43 @@ test('explicit offline provenance fails closed on missing or tampered tarballs',
   }
 });
 
-test('reconstruction drops node_modules the upstream tarball shipped but pnpm never installs', async () => {
+test('transient upstream timeouts stop after three authenticated-input attempts', async t => {
+  let attempts = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    attempts++;
+    throw new DOMException('transport timed out', 'TimeoutError');
+  });
+  await assert.rejects(verifySidecar('mf-rspack'), error => {
+    assert.match(error.message, /after 3 attempt\(s\)/);
+    assert.equal(error.cause.name, 'TimeoutError');
+    return true;
+  });
+  assert.equal(attempts, 3);
+});
+
+test('upstream HTTP errors and tampered tarballs are never retried', async t => {
+  for (const response of [
+    new Response('', { status: 404 }),
+    new Response('untrusted bytes'),
+  ]) {
+    let attempts = 0;
+    const mock = t.mock.method(globalThis, 'fetch', async () => {
+      attempts++;
+      return response;
+    });
+    try {
+      await assert.rejects(
+        verifySidecar('mf-rspack'),
+        /upstream fetch failed: 404|upstream tarball integrity/,
+      );
+      assert.equal(attempts, 1);
+    } finally {
+      mock.mock.restore();
+    }
+  }
+});
+
+test('reconstruction retries a transient timeout and drops node_modules the authenticated upstream tarball shipped but pnpm never installs', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-node-'));
   try {
     const recipe = JSON.parse(
@@ -396,7 +432,8 @@ test('reconstruction drops node_modules the upstream tarball shipped but pnpm ne
     });
     assert.ok(response.ok);
     const tarball = path.join(directory, 'mf-node.tgz');
-    fs.writeFileSync(tarball, Buffer.from(await response.arrayBuffer()));
+    const bytes = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(tarball, bytes);
     const shipped = execFileSync('tar', ['-tzf', tarball], {
       encoding: 'utf8',
     })
@@ -404,10 +441,17 @@ test('reconstruction drops node_modules the upstream tarball shipped but pnpm ne
       .filter(entry => entry.split('/').includes('node_modules'));
     assert.ok(shipped.length > 0, 'upstream fixture still ships node_modules');
     const packageDir = path.join(directory, 'reconstructed');
+    let attempts = 0;
+    t.mock.method(globalThis, 'fetch', async url => {
+      assert.equal(url, recipe.upstream.tarball);
+      if (++attempts === 1)
+        throw new DOMException('transport timed out', 'TimeoutError');
+      return new Response(bytes);
+    });
     await verifySidecar('mf-node', {
-      artifactsDir: directory,
       materializeTo: packageDir,
     });
+    assert.equal(attempts, 2);
     const stack = [packageDir];
     while (stack.length) {
       const current = stack.pop();

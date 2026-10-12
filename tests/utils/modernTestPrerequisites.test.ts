@@ -127,7 +127,20 @@ test.each([
     const options = command(`
     const fs = require('node:fs');
     const { spawn } = require('node:child_process');
-    const child = spawn(process.execPath, ['-e', "setInterval(() => {}, 1000); process.send('ready');"], {
+    const child = spawn(process.execPath, ['-e', ${JSON.stringify(`
+      setInterval(() => {}, 1000);
+      if (process.platform === 'linux') {
+        process.once('SIGTERM', () => {
+          // Closing inherited pipes does not mean this process has exited.
+          // Make that interval deterministic instead of relying on CI timing.
+          process.stdout.end();
+          process.stderr.end();
+          if (process.connected) process.disconnect();
+          setTimeout(() => process.exit(0), 150);
+        });
+      }
+      process.send('ready');
+    `)}], {
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });
     child.once('message', () => {

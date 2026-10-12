@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { SHELL_RELEASE_ENVELOPE_KIND } from '../../../packages/solutions/app-tools-extensions/src/release-envelope/contract.mjs';
 import {
   assertReleaseEnvelopeRendererBinding,
   assertRendererReleaseArtifactBinding,
@@ -733,13 +734,6 @@ function verifyEnvelope(location, appId, apiOnly = false) {
         )
       : undefined,
   };
-  if (
-    surfaces.apiBackend.length > 0 !==
-    Boolean(envelope.surfaces.backendFederation)
-  )
-    throw new Error(
-      `${appId} API/backend and backend federation surfaces must be declared together`,
-    );
   if (apiOnly && (surfaces.uiClient.length > 0 || surfaces.ssr.length > 0)) {
     throw new Error(
       `${appId} API-only release declares an unexpected UI or SSR surface`,
@@ -1253,13 +1247,16 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
       throw new Error(
         `${app.id} Cloudflare shell envelope identity.${field} differs from its finalized compiler identity`,
       );
-  const emitsApi = app.surfaceProfile !== 'ui-only';
+  const hasApiArtifacts = location.envelope.surfaces.apiBackend.length > 0;
+  const reservesApiIdentity = app.surfaceProfile !== 'ui-only';
   if (
+    location.envelope.kind !== SHELL_RELEASE_ENVELOPE_KIND ||
     !location.envelope.ui ||
     location.envelope.surfaces.uiClient.length === 0 ||
     location.envelope.surfaces.ssr.length === 0 ||
-    location.envelope.surfaces.apiBackend.length > 0 !== emitsApi ||
-    Boolean(location.envelope.surfaces.backendFederation) !== emitsApi
+    (app.surfaceProfile === 'ui-only' && hasApiArtifacts) ||
+    (app.api !== undefined && !hasApiArtifacts) ||
+    location.envelope.surfaces.backendFederation
   )
     throw new Error(
       `${app.id} Cloudflare shell envelope surfaces differ from its declared application surface profile`,
@@ -1285,7 +1282,7 @@ function verifyShellWorkerdIdentity(projectDir, app, identity) {
       );
     }
   }
-  const expectedSurfaces = emitsApi ? ['api', 'ui'] : ['ui'];
+  const expectedSurfaces = reservesApiIdentity ? ['api', 'ui'] : ['ui'];
   if (
     !isRecord(stamped.surfaces) ||
     canonical(Object.keys(stamped.surfaces).sort()) !==

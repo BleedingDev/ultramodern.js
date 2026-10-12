@@ -15,7 +15,10 @@ import {
   createUltramodernReleaseEnvelopePlugin,
   type ReleaseEnvelopePluginApi,
 } from '@modern-js/app-tools-extensions/release-envelope/plugin';
-import type { MicroVerticalReleaseTarget } from '@modern-js/app-tools-extensions/release-envelope/types';
+import {
+  type MicroVerticalReleaseTarget,
+  SHELL_RELEASE_ENVELOPE_KIND,
+} from '@modern-js/app-tools-extensions/release-envelope/types';
 import {
   createUltramodernBuildArtifact,
   DELIVERY_UNIT_DEPLOY_PROFILE,
@@ -161,18 +164,20 @@ const createTargetBuildOutput = async (
     });
   if (uiOnly) {
     await writeJson(path.join(root, 'topology/reference-topology.json'), {
-      shell: {
-        id: unit.appId,
-        kind: 'shell',
-        path: '.',
-        surfaceProfile: 'ui-only',
-        deliveryUnit: unit,
-        renderer: ui.identity.renderer,
-        rendererIdentity: ui.identity,
-        rendererProfile: ui.profile,
-        routerBindings: ui.routerBindings,
-      },
-      verticals: [],
+      shell: { id: 'host', kind: 'shell', path: 'apps/host' },
+      verticals: [
+        {
+          id: unit.appId,
+          kind: 'vertical',
+          path: '.',
+          surfaceProfile: 'ui-only',
+          deliveryUnit: unit,
+          renderer: ui.identity.renderer,
+          rendererIdentity: ui.identity,
+          rendererProfile: ui.profile,
+          routerBindings: ui.routerBindings,
+        },
+      ],
     });
   }
   return { distDirectory, root, deliveryUnit: unit, ui };
@@ -280,6 +285,7 @@ const createCloudflareStaging = async (
   distDirectory: string,
   outputDirectory: string,
   uiOnly = false,
+  shellConsumer = false,
 ) => {
   await fs.mkdir(path.join(outputDirectory, 'public'), { recursive: true });
   for (const [from, to] of [
@@ -289,7 +295,7 @@ const createCloudflareStaging = async (
     ...(uiOnly
       ? [['routes-manifest.json', 'public/routes-manifest.json']]
       : []),
-    ...(!uiOnly
+    ...(!uiOnly && !shellConsumer
       ? [
           ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
           ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
@@ -336,6 +342,153 @@ afterEach(async () => {
 });
 
 describe('framework target-specific MicroVertical release-envelope integration', () => {
+  it.each([
+    ['node', false],
+    ['node', true],
+    ['cloudflare', false],
+    ['cloudflare', true],
+  ] as const)(
+    'infers the Shell role from canonical topology for %s with local API=%s without a config override',
+    async (target, hasApi) => {
+      const fixture = await createTargetBuildOutput(target);
+      const apiPath =
+        target === 'node' ? 'api/index.js' : 'worker/__modern_bff_effect.js';
+      for (const file of [
+        'backend-mf-manifest.json',
+        'backendRemoteEntry.cjs',
+        ...(!hasApi ? [apiPath] : []),
+      ])
+        await fs.unlink(path.join(fixture.distDirectory, file));
+      await writeJson(
+        path.join(fixture.root, 'shared/ultramodern-build.json'),
+        createUltramodernBuildArtifact(fixture.deliveryUnit, {
+          ui: fixture.ui,
+        }),
+      );
+      await writeJson(
+        path.join(fixture.root, 'topology/reference-topology.json'),
+        {
+          shell: {
+            id: fixture.deliveryUnit.appId,
+            kind: 'shell',
+            path: '.',
+            deliveryUnit: fixture.deliveryUnit,
+            renderer: fixture.ui.identity.renderer,
+            rendererIdentity: fixture.ui.identity,
+            rendererProfile: fixture.ui.profile,
+            routerBindings: fixture.ui.routerBindings,
+          },
+          verticals: [],
+        },
+      );
+      const options = {
+        apiOnly: false,
+        appDirectory: fixture.root,
+        distDirectory: fixture.distDirectory,
+        target,
+      };
+      if (target === 'node') {
+        const afterBuild: Array<() => Promise<void>> = [];
+        createUltramodernReleaseEnvelopePlugin().setup({
+          getAppContext: () => ({
+            ...options,
+            metaName: 'ultramodern',
+            deployTarget: { target, explicit: true },
+          }),
+          getNormalizedConfig: () => ({}),
+          onAfterBuild: handler => afterBuild.push(handler),
+          onBeforeDeploy: () => {},
+          onAfterDeploy: () => {},
+        });
+        await afterBuild[0]!();
+      } else {
+        await emitFrameworkMicroVerticalReleaseEnvelope(options);
+      }
+      const envelope = JSON.parse(
+        await fs.readFile(
+          path.join(fixture.distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH),
+          'utf8',
+        ),
+      );
+      expect(envelope.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+      expect(envelope?.surfaces.backendFederation).toBeUndefined();
+      expect(envelope.surfaces.apiBackend).toEqual(hasApi ? [apiPath] : []);
+      await verifyBuildOutputReleaseEnvelope(fixture.distDirectory, target);
+      const outputDirectory = path.join(fixture.root, '.output');
+      if (target === 'node') await stageNodeOutput(fixture, '.output');
+      else
+        await createCloudflareStaging(
+          fixture.distDirectory,
+          outputDirectory,
+          false,
+          true,
+        );
+      const staged =
+        target === 'node'
+          ? await emitNodeStagedReleaseEnvelope({
+              distDirectory: fixture.distDirectory,
+              outputDirectory,
+            })
+          : await emitCloudflareStagedReleaseEnvelope({
+              distDirectory: fixture.distDirectory,
+              outputDirectory,
+            });
+      expect(staged.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+      expect(staged.surfaces.apiBackend).toEqual(hasApi ? [apiPath] : []);
+      await expect(
+        emitFrameworkMicroVerticalReleaseEnvelope({
+          ...options,
+          role: 'microvertical',
+        }),
+      ).rejects.toThrow(/Configured release role disagrees/u);
+      const topologyPath = path.join(
+        fixture.root,
+        'topology/reference-topology.json',
+      );
+      const topology = JSON.parse(await fs.readFile(topologyPath, 'utf8'));
+      await writeJson(topologyPath, {
+        ...topology,
+        shell: { ...topology.shell, kind: 'vertical' },
+      });
+      await expect(
+        emitFrameworkMicroVerticalReleaseEnvelope(options),
+      ).rejects.toThrow(/Declared app kind disagrees/u);
+      await writeJson(topologyPath, topology);
+      const identityPath = path.join(
+        fixture.distDirectory,
+        'ultramodern-build.json',
+      );
+      const finalizedIdentity = await fs.readFile(identityPath, 'utf8');
+      await fs.unlink(identityPath);
+      await expect(
+        emitFrameworkMicroVerticalReleaseEnvelope(options),
+      ).rejects.toThrow(
+        /Shell is missing its native compiled delivery-unit identity/u,
+      );
+      await fs.writeFile(identityPath, finalizedIdentity);
+      await fs.writeFile(
+        path.join(fixture.distDirectory, 'backendRemoteEntry.cjs'),
+        compiledModule(true),
+      );
+      await expect(
+        emitFrameworkMicroVerticalReleaseEnvelope(options),
+      ).rejects.toThrow(/Shell.*cannot declare a backend federation producer/u);
+    },
+  );
+
+  it('rejects a Shell config override on a declared MicroVertical', async () => {
+    const fixture = await createTargetBuildOutput('node', { uiOnly: true });
+    await expect(
+      emitFrameworkMicroVerticalReleaseEnvelope({
+        apiOnly: false,
+        appDirectory: fixture.root,
+        distDirectory: fixture.distDirectory,
+        role: 'shell',
+        target: 'node',
+      }),
+    ).rejects.toThrow(/Configured release role disagrees/u);
+  });
+
   it('keeps an ordinary UI build and fresh Node deploy outside the delivery-unit lifecycle', async () => {
     const fixture = await createTargetBuildOutput('node', { uiOnly: true });
     await fs.unlink(path.join(fixture.distDirectory, 'ultramodern-build.json'));

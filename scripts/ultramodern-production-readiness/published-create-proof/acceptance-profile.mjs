@@ -30,6 +30,7 @@ import {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  projectRuntimeArtifactBinding,
   resolutionParityResultId,
   runtimeAcceptanceDimensions,
   runtimeAcceptanceInvocation,
@@ -100,18 +101,7 @@ const requiredPnpmCommands = Object.freeze({
 });
 
 function createRuntimeArtifactBinding(release) {
-  const artifactBinding = createReleaseArtifactBinding(release);
-  // The receipt audits every packed SDK dependency. Executed app surfaces
-  // attest the exact runtime package declared by that application.
-  const moduleFederation = artifactBinding.moduleFederation.filter(
-    item => item.packageName === '@module-federation/runtime',
-  );
-  if (moduleFederation.length !== 1) {
-    throw new Error(
-      'Release acceptance requires one exact Module Federation runtime in its verified artifact cohort',
-    );
-  }
-  return { ...artifactBinding, moduleFederation };
+  return projectRuntimeArtifactBinding(createReleaseArtifactBinding(release));
 }
 
 function createAcceptanceReleaseAgeEnv(

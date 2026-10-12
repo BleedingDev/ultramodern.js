@@ -9,11 +9,13 @@ import {
   createTsConfigBase,
 } from '../src/ultramodern-workspace/tsconfigs';
 import { createWorkspaceRootScriptPlan } from '../src/ultramodern-workspace/workspace-script-plan';
+import { linkInstalledCompilerPolicy } from './helpers/workspace-kit';
 
 test('generated root typecheck follows references and includes Node types under TypeScript 7', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-node-types-'));
   const require = createRequire(import.meta.url);
   try {
+    linkInstalledCompilerPolicy(root);
     const source = path.join(root, 'packages/shared-contracts/src');
     fs.mkdirSync(source, { recursive: true });
     fs.mkdirSync(path.join(root, 'node_modules/@types'), { recursive: true });

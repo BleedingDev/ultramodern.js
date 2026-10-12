@@ -10,14 +10,14 @@ const RemoteUnavailable = () => {
 const createRemoteComponent = (
   remote: string,
   expose: string,
-  loader: () => Promise<RemoteComponentModule>,
+  moduleId: string,
 ) =>
   createDistributedSsrComponent({
     createComponent: options =>
       createLazyComponent({
         ...options,
         instance: getInstance(),
-        loader,
+        loader: () => loadRemote<RemoteComponentModule>(moduleId) as Promise<RemoteComponentModule>,
       }),
     expose,
     fallback: <RemoteUnavailable />,

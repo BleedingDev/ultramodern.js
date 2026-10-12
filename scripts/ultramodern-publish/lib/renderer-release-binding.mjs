@@ -2,6 +2,7 @@ import {
   MICROVERTICAL_RELEASE_ENVELOPE_KIND as releaseEnvelopeKind,
   MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION as releaseEnvelopeSchemaVersion,
   releaseEnvelopePayload,
+  SHELL_RELEASE_ENVELOPE_KIND as shellReleaseEnvelopeKind,
 } from '../../../packages/solutions/app-tools-extensions/src/release-envelope/contract.mjs';
 const renderers = ['react', 'solid', 'octane'];
 const sourceRevisionPattern = /^(?:[a-f\d]{40}|[a-f\d]{64})$/u;
@@ -276,7 +277,7 @@ function assertReleaseEnvelopeRendererBinding(
   assertRecord(envelope, label);
   if (
     envelope.schemaVersion !== releaseEnvelopeSchemaVersion ||
-    envelope.kind !== releaseEnvelopeKind
+    ![releaseEnvelopeKind, shellReleaseEnvelopeKind].includes(envelope.kind)
   ) {
     throw new Error(`${label} has an unsupported release envelope schema.`);
   }
@@ -329,12 +330,17 @@ function assertReleaseEnvelopeRendererBinding(
   if ((envelope.surfaces.uiClient.length > 0) !== (envelope.surfaces.ssr.length > 0))
     throw new Error(`${label} UI/client and SSR surfaces must be declared together.`);
   const hasApi = envelope.surfaces.apiBackend.length > 0;
-  if (hasApi !== hasBackendFederation)
+  const shellConsumer = envelope.kind === shellReleaseEnvelopeKind;
+  if (shellConsumer && hasBackendFederation)
+    throw new Error(`${label} Shell cannot declare a backend federation producer.`);
+  if (!shellConsumer && hasApi !== hasBackendFederation)
     throw new Error(`${label} API/backend and backend federation surfaces must be declared together.`);
   if (hasBackendFederation)
     assertExactKeys(envelope.surfaces.backendFederation, ['manifest', 'container'], `${label}.surfaces.backendFederation`);
   const hasUi =
     envelope.surfaces.uiClient.length > 0 || envelope.surfaces.ssr.length > 0;
+  if (shellConsumer && !hasUi)
+    throw new Error(`${label} Shell must declare UI/client and SSR surfaces.`);
   if (!hasUi && !hasApi)
     throw new Error(`${label} must declare a UI or API/backend surface.`);
   if (!hasUi) {

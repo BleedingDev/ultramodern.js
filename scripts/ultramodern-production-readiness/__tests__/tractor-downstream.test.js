@@ -13,6 +13,12 @@ const producerEffectDependencies = {
   '@effect/opentelemetry': '4.0.0',
   '@effect/tsgo': '0.47.2',
 };
+const producerReactDependencies = {
+  react: '19.3.0',
+  'react-dom': '19.3.0',
+  '@types/react': '19.3.0',
+  '@types/react-dom': '19.3.0',
+};
 const releaseAgePromise = import(
   '../published-create-proof/release-age-audit.mjs'
 );
@@ -66,6 +72,24 @@ function fixture() {
   fs.writeFileSync(
     path.join(root, '.mise.toml'),
     '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',
+  );
+  fs.writeFileSync(
+    path.join(root, 'tsconfig.base.json'),
+    JSON.stringify({
+      extends: './authored-compiler.json',
+      compilerOptions: {
+        strict: true,
+        paths: { '@tractor/*': ['./shared/*'] },
+        plugins: [
+          {
+            name: '@effect/language-service',
+            ignoreEffectSuggestionsInTscExitCode: false,
+            diagnosticSeverity: { unstableApiUsage: 'error' },
+          },
+        ],
+      },
+      exclude: ['authored-fixtures'],
+    }),
   );
   fs.writeFileSync(
     path.join(root, 'pnpm-workspace.yaml'),
@@ -455,7 +479,12 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
       fs.mkdirSync(workspace);
       fs.writeFileSync(
         path.join(workspace, 'package.json'),
-        JSON.stringify({ devDependencies: producerEffectDependencies }),
+        JSON.stringify({
+          devDependencies: {
+            ...producerEffectDependencies,
+            ...producerReactDependencies,
+          },
+        }),
       );
       fs.writeFileSync(
         path.join(workspace, 'pnpm-workspace.yaml'),
@@ -465,6 +494,7 @@ test('Tractor obtains native policy from the exact generator and cleans its temp
   });
   assert.deepEqual(producerPolicy, {
     producerEffectDependencies,
+    producerReactDependencies,
     pnpmOverrides: {
       'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
       'sharp@>=0.35.0 <0.35.5': '0.35.5',
@@ -1321,6 +1351,15 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       'apps/shell-super-app/locales/en/shell.json',
     );
     const beforeUi = fs.readFileSync(uiFile, 'utf8');
+    const rootManifestFile = path.join(root, 'package.json');
+    const rootManifest = JSON.parse(fs.readFileSync(rootManifestFile, 'utf8'));
+    rootManifest.devDependencies = {
+      react: '19.2.8',
+      'react-dom': '19.2.8',
+      '@types/react': '^19.2.18',
+      '@types/react-dom': '^19.2.7',
+    };
+    fs.writeFileSync(rootManifestFile, JSON.stringify(rootManifest));
     const beforeManifest = fs.readFileSync(
       path.join(root, 'package.json'),
       'utf8',
@@ -1344,7 +1383,15 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
         file,
         JSON.stringify({
           name: path.basename(path.dirname(file)),
-          dependencies: { effect: '4.0.0-rc.117' },
+          dependencies: {
+            effect: '4.0.0-rc.117',
+            react: '19.2.8',
+            'react-dom': '19.2.8',
+          },
+          devDependencies: {
+            '@types/react': '^19.2.18',
+            '@types/react-dom': '^19.2.7',
+          },
         }),
       );
       fs.writeFileSync(
@@ -1360,11 +1407,16 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
           dependencies: {
             '@module-federation/modern-js-v3':
               'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
-            react: '19.3.0',
+            react: '19.2.8',
+            'react-dom': '19.2.8',
             effect: '4.0.0-rc.117',
             '@effect/opentelemetry': 'catalog:',
           },
-          devDependencies: { '@effect/tsgo': '0.41.0' },
+          devDependencies: {
+            '@effect/tsgo': '0.41.0',
+            '@types/react': '^19.2.18',
+            '@types/react-dom': '^19.2.7',
+          },
         },
         null,
         2,
@@ -1382,7 +1434,12 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       effect: '4.0.0-rc.117',
       '@effect/opentelemetry': '4.0.0-rc.117',
       '@effect/tsgo': '0.41.0',
+      react: '19.2.8',
+      'react-dom': '19.2.8',
+      '@types/react': '^19.2.18',
+      '@types/react-dom': '^19.2.7',
     });
+    baselinePolicy.catalogs.renderer = { ...baselinePolicy.catalog };
     Object.assign(baselinePolicy.overrides, {
       'parent>effect': 'npm:@bleedingdev/effect@4.0.0-rc.117',
       '@effect/opentelemetry': '4.0.0-rc.117',
@@ -1398,6 +1455,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     };
     const producerOptions = {
       producerEffectDependencies,
+      producerReactDependencies,
       pnpmOverrides,
       minimumReleaseAgeExclude: [
         ...Object.values(next.aliases).map(
@@ -1416,6 +1474,19 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       producerOptions,
     );
     assert.equal(result.dependencyCount, 1);
+    const compilerFile = path.join(root, 'tsconfig.base.json');
+    const compilerConfig = JSON.parse(fs.readFileSync(compilerFile, 'utf8'));
+    assert.deepEqual(compilerConfig, {
+      extends: [
+        './authored-compiler.json',
+        '@modern-js/ultramodern-create/tsconfig',
+      ],
+      compilerOptions: {
+        strict: true,
+        paths: { '@tractor/*': ['./shared/*'] },
+      },
+      exclude: ['authored-fixtures'],
+    });
     const policyText = fs.readFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
       'utf8',
@@ -1431,7 +1502,12 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     assert.deepEqual(parseYaml(policyText).catalog, {
       ipx: 'npm:@bleedingdev/ipx@3.2.2',
       ...producerEffectDependencies,
+      ...producerReactDependencies,
     });
+    assert.deepEqual(
+      parseYaml(policyText).catalogs.renderer,
+      parseYaml(policyText).catalog,
+    );
     assert.deepEqual(parseYaml(policyText).overrides, {
       zod: 'npm:@bleedingdev/zod@4.6.5',
       '@scope/other@^1': '1.2.3',
@@ -1461,6 +1537,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
         '@module-federation/modern-js-v3':
           'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
         react: '19.3.0',
+        'react-dom': '19.3.0',
         effect: '4.0.0',
         '@effect/opentelemetry': 'catalog:',
         '@modern-js/backend-federation-contracts': 'catalog:ultramodern',
@@ -1468,18 +1545,33 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     );
     assert.deepEqual(
       JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).devDependencies,
-      { '@effect/tsgo': '0.47.2' },
+      {
+        '@effect/tsgo': '0.47.2',
+        '@types/react': '19.3.0',
+        '@types/react-dom': '19.3.0',
+      },
     );
     for (const file of verticalManifests)
       assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).dependencies, {
         effect: '4.0.0',
+        react: '19.3.0',
+        'react-dom': '19.3.0',
         '@modern-js/backend-federation-contracts': 'catalog:ultramodern',
       });
+    for (const file of verticalManifests)
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(file, 'utf8')).devDependencies,
+        { '@types/react': '19.3.0', '@types/react-dom': '19.3.0' },
+      );
     fs.rmSync(shellManifestFile);
     assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
     assert.deepEqual(
       JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')),
-      { ...JSON.parse(beforeManifest), packageManager: 'pnpm@12.8.1' },
+      {
+        ...JSON.parse(beforeManifest),
+        devDependencies: producerReactDependencies,
+        packageManager: 'pnpm@12.8.1',
+      },
     );
     assert.equal(
       fs.readFileSync(path.join(root, '.mise.toml'), 'utf8'),
@@ -1497,6 +1589,46 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       path.join(root, 'pnpm-workspace.yaml'),
       'utf8',
     );
+    const foreignCompilerConfig = {
+      ...compilerConfig,
+      compilerOptions: {
+        ...compilerConfig.compilerOptions,
+        plugins: [{ name: 'authored-language-service' }],
+      },
+    };
+    fs.writeFileSync(compilerFile, JSON.stringify(foreignCompilerConfig));
+    assert.throws(
+      () => prepareTractorCohortInstallation(root, next, producerOptions),
+      /compiler plugins must contain only its copied Effect policy/u,
+    );
+    assert.equal(
+      fs.readFileSync(compilerFile, 'utf8'),
+      JSON.stringify(foreignCompilerConfig),
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      selectedPolicy,
+    );
+    fs.writeFileSync(compilerFile, JSON.stringify(compilerConfig));
+    for (const invalidReact of [
+      undefined,
+      {},
+      { ...producerReactDependencies, react: '19.2.8' },
+      { ...producerReactDependencies, '@types/react': '^19.3.0' },
+    ]) {
+      assert.throws(
+        () =>
+          prepareTractorCohortInstallation(root, next, {
+            ...producerOptions,
+            producerReactDependencies: invalidReact,
+          }),
+        /Exact producer React dependencies/u,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        selectedPolicy,
+      );
+    }
     for (const invalidEffect of [
       undefined,
       {},

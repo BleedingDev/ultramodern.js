@@ -693,6 +693,9 @@ export function assertCompilerArchitecture(
             : nativeModuleFederationApps.get(moduleFederationAppPath);
         const tailwindFactories = new Set<string>();
         const presetFactories = new Set<string>();
+        const nativeRemoteLoaders = new Set<string>();
+        const nativeBridgeFactories = new Set<string>();
+        const nativeLoaderCalls = new Set<ts.Node>();
         for (const statement of sourceFile.statements) {
           if (
             !typescript.isImportDeclaration(statement) ||
@@ -707,6 +710,19 @@ export function assertCompilerArchitecture(
           for (const binding of bindings.elements) {
             if (binding.isTypeOnly) continue;
             const imported = (binding.propertyName ?? binding.name).text;
+            if (
+              statement.moduleSpecifier.text ===
+                '@module-federation/modern-js-v3/runtime' &&
+              imported === 'loadRemote'
+            )
+              nativeRemoteLoaders.add(binding.name.text);
+            if (
+              statement.moduleSpecifier.text ===
+                '@module-federation/modern-js-v3/react' &&
+              imported === 'createLazyComponent'
+            )
+              nativeBridgeFactories.add(binding.name.text);
+
             if (
               statement.moduleSpecifier.text ===
                 '@rsbuild/plugin-tailwindcss' &&
@@ -728,6 +744,38 @@ export function assertCompilerArchitecture(
         );
         let insideDefaultExport = false;
         const visit = (node: ts.Node): void => {
+          if (
+            isCallNamed(node, nativeBridgeFactories) &&
+            typescript.isIdentifier(node.expression)
+          ) {
+            const options = node.arguments[0];
+            if (
+              options !== undefined &&
+              typescript.isObjectLiteralExpression(options)
+            ) {
+              const loader = objectLiteralProperty(
+                options,
+                'loader',
+              )?.initializer;
+              if (
+                loader !== undefined &&
+                typescript.isArrowFunction(loader) &&
+                loader.parameters.length === 0
+              ) {
+                let body: ts.Node = loader.body;
+                while (
+                  typescript.isAsExpression(body) ||
+                  typescript.isParenthesizedExpression(body)
+                )
+                  body = body.expression;
+                if (
+                  isCallNamed(body, nativeRemoteLoaders) &&
+                  typescript.isIdentifier(body.expression)
+                )
+                  nativeLoaderCalls.add(body);
+              }
+            }
+          }
           const previousDefaultExport = insideDefaultExport;
           if (typescript.isExportAssignment(node) && !node.isExportEquals) {
             insideDefaultExport = true;
@@ -843,8 +891,14 @@ export function assertCompilerArchitecture(
             if (
               isCallNamed(
                 node,
-                new Set(['hydrateRoot', 'loadRemote', 'loadShare']),
-              )
+                new Set([
+                  'hydrateRoot',
+                  'loadRemote',
+                  'loadShare',
+                  ...nativeRemoteLoaders,
+                ]),
+              ) &&
+              !nativeLoaderCalls.has(node)
             ) {
               compilerFailure(
                 sourceFile,

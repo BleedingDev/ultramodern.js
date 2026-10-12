@@ -72,7 +72,8 @@
         "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
       },
       "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
-    }
+    },
+    "./tsconfig": "./templates/tsconfig.base.json"
   },
   "files": [
     "release-cohort.json",
@@ -166,7 +167,8 @@
           "require": "./dist/cjs/ultramodern-workspace/codesmith.cjs"
         },
         "default": "./dist/esm-node/ultramodern-workspace/codesmith.js"
-      }
+      },
+      "./tsconfig": "./templates/tsconfig.base.json"
     }
   },
   "modern:source": "./src/index.ts"

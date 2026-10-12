@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -18,7 +19,10 @@ import type {
   ApplicationRenderer,
   UltramodernWorkspaceOptions,
 } from '../src/ultramodern-workspace/types';
-import { snapshotWorkspace } from './helpers/workspace-kit';
+import {
+  linkInstalledCompilerPolicy,
+  snapshotWorkspace,
+} from './helpers/workspace-kit';
 
 const renderers: ApplicationRenderer[] = ['react', 'solid', 'octane'];
 const appDirectory = 'apps/shell-super-app';
@@ -47,6 +51,18 @@ for (const renderer of renderers) {
       const manifest = JSON.parse(files[`${appDirectory}/package.json`]!);
       const rootManifest = JSON.parse(files['package.json']!);
       const baseTsconfig = JSON.parse(files['tsconfig.base.json']!);
+      assert.deepEqual(baseTsconfig, {
+        extends: '@modern-js/ultramodern-create/tsconfig',
+      });
+      linkInstalledCompilerPolicy(targetDir);
+      const inheritedTsconfig = JSON.parse(
+        fs.readFileSync(
+          createRequire(path.join(targetDir, 'package.json')).resolve(
+            baseTsconfig.extends,
+          ),
+          'utf8',
+        ),
+      );
       const tsconfig = JSON.parse(files[`${appDirectory}/tsconfig.json`]!);
       const topology = JSON.parse(files['topology/reference-topology.json']!);
       const profile = getRendererGenerationProfile(renderer);
@@ -91,7 +107,8 @@ for (const renderer of renderers) {
         profile.jsxImportSource,
       );
       assert.deepEqual(
-        tsconfig.compilerOptions.types ?? baseTsconfig.compilerOptions.types,
+        tsconfig.compilerOptions.types ??
+          inheritedTsconfig.compilerOptions.types,
         renderer === 'react' ? ['node'] : [],
       );
       assert.match(config, /from ['"]@modern-js\/ultramodern-app-tools['"]/u);

@@ -941,8 +941,13 @@ export const microVerticalApiBaselineViolation = (
     const [mutation] = graph.root.mutations;
     if (mutation)
       return `MicroVertical root contract must be valid TypeScript syntax (contract bindings must be immutable at ${mutation.start})`;
-    if (!baselinePublicIdentityIsExact(filePath, expectation))
-      return 'MicroVertical baseline imports must resolve the exact framework owner public export and schema identity';
+    let identityMismatch: string | undefined;
+    if (
+      !baselinePublicIdentityIsExact(filePath, expectation, message => {
+        identityMismatch = message;
+      })
+    )
+      return `MicroVertical baseline imports must resolve the exact framework owner public export and schema identity${identityMismatch ? ` (${identityMismatch})` : ''}`;
     return validateParsedContract(graph, stem, expectation);
   } catch (error) {
     if (error instanceof SourceSyntaxError)

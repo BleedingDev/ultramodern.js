@@ -156,6 +156,12 @@ function writeTractorWorkspace(workspace) {
     packageManager: 'pnpm@11.24.0',
     dependencies: { '@modern-js/i18n-utils': 'catalog:ultramodern' },
   });
+  writeJson(path.join(workspace, 'tsconfig.base.json'), {
+    compilerOptions: {
+      strict: true,
+      plugins: [{ name: '@effect/language-service' }],
+    },
+  });
   fs.writeFileSync(
     path.join(workspace, '.mise.toml'),
     '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',
@@ -228,6 +234,10 @@ async function runTractorAcceptanceFixture({
           effect: '4.0.0',
           '@effect/opentelemetry': '4.0.0',
           '@effect/tsgo': '0.47.2',
+          react: '19.3.0',
+          'react-dom': '19.3.0',
+          '@types/react': '19.3.0',
+          '@types/react-dom': '19.3.0',
         },
       });
       fs.writeFileSync(

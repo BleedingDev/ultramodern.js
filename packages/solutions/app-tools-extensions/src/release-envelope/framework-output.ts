@@ -15,6 +15,7 @@ import {
 import { readBuildIdentity } from '../backend-federation-build/config';
 import {
   resolveTopologyDeliveryUnit,
+  resolveTopologyReleaseRole,
   resolveWorkerDeliveryUnitStamp,
 } from '../cloudflare/delivery-unit';
 import {
@@ -711,7 +712,11 @@ const createReleaseArtifactInputs = async (
         )
       : effectWorkerPaths;
 
-  if (!uiOnly && target === 'cloudflare' && effectWorkerPaths.length === 0) {
+  if (
+    backendProducer &&
+    target === 'cloudflare' &&
+    effectWorkerPaths.length === 0
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] cloudflare MicroVertical has no actual Effect API/BFF worker artifact.',
     );
@@ -737,7 +742,7 @@ const createReleaseArtifactInputs = async (
       '[ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.',
     );
   if (
-    !uiOnly &&
+    backendProducer &&
     ((target === 'node' && nodeApiEntryPaths.length === 0) ||
       apiBackendPaths.length === 0)
   ) {
@@ -829,7 +834,7 @@ const createReleaseArtifactInputs = async (
     distDirectory,
     identity,
     {
-      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(apiBackendPaths.length > 0 ? { apiBackend: apiBackendPaths } : {}),
       ...(backendProducer
         ? {
             backendFederation: [
@@ -904,7 +909,7 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   distDirectory,
   requirePromotable = true,
   expectedRendererProfile,
-  role = 'microvertical',
+  role,
   target,
 }: {
   apiOnly: boolean;
@@ -915,7 +920,19 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   role?: 'microvertical' | 'shell';
   target: MicroVerticalReleaseTarget;
 }): Promise<ReleaseEnvelope | undefined> => {
-  const shellConsumer = role === 'shell';
+  const declaredRole = appDirectory
+    ? await resolveTopologyReleaseRole(appDirectory)
+    : undefined;
+  if (
+    role !== undefined &&
+    declaredRole !== undefined &&
+    role !== declaredRole
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] Configured release role disagrees with the declared topology app.',
+    );
+  }
+  const shellConsumer = (declaredRole ?? role ?? 'microvertical') === 'shell';
   const backendManifestPath = path.join(
     distDirectory,
     BACKEND_FEDERATION_MANIFEST_FILE,
@@ -1283,7 +1300,7 @@ const createNodeStagedReleaseArtifactInputs = async (
   ] as const) {
     if (
       paths.length === 0 &&
-      (surface === 'Node API/backend' ? !uiOnly : !apiOnly)
+      (surface === 'Node API/backend' ? backendProducer : !apiOnly)
     ) {
       throw new Error(
         `[ultramodern-release-envelope] final Node staging has no ${surface} artifacts.`,
@@ -1347,7 +1364,7 @@ const createNodeStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(apiBackendPaths.length > 0 ? { apiBackend: apiBackendPaths } : {}),
       ...(backendProducer
         ? {
             backendFederation: [
@@ -1503,7 +1520,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   const backendContainerPath = `public/${BACKEND_FEDERATION_REMOTE_ENTRY_FILE}`;
   const apiBackendPaths = effectBffWorkerArtifacts(files);
   if (
-    !uiOnly &&
+    backendProducer &&
     !files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))
   ) {
     throw new Error(
@@ -1569,7 +1586,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   ] as const) {
     if (
       paths.length === 0 &&
-      (surface === 'Cloudflare API/backend' ? !uiOnly : !apiOnly)
+      (surface === 'Cloudflare API/backend' ? backendProducer : !apiOnly)
     ) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging has no ${surface} artifacts.`,
@@ -1644,7 +1661,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(apiBackendPaths.length > 0 ? { apiBackend: apiBackendPaths } : {}),
       ...(backendProducer
         ? { backendFederation: [backendManifestPath, backendContainerPath] }
         : {}),

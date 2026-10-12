@@ -8,6 +8,7 @@ import {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  projectRuntimeArtifactBinding,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
   resolutionParityResultId,
@@ -514,7 +515,12 @@ function assertAcceptanceReceipt(
   );
   assertExactKeys(
     receipt.binding.artifacts,
-    ['moduleFederation', 'packages', 'sourceRevision'],
+    [
+      'moduleFederation',
+      'packages',
+      'runtimeModuleFederation',
+      'sourceRevision',
+    ],
     'Acceptance receipt binding.artifacts',
   );
   assertCondition(
@@ -565,14 +571,9 @@ function assertAcceptanceReceipt(
       'Acceptance receipt Module Federation package identity is invalid',
     );
   }
-  const runtimeModuleFederation =
-    receipt.binding.artifacts.moduleFederation.filter(
-      item => item.packageName === '@module-federation/runtime',
-    );
-  assertCondition(
-    runtimeModuleFederation.length === 1,
-    'Acceptance receipt requires one exact Module Federation runtime in its artifact cohort',
-  );
+  const runtimeModuleFederation = projectRuntimeArtifactBinding(
+    receipt.binding.artifacts,
+  ).moduleFederation;
   assertCondition(
     receipt.binding.artifacts.sourceRevision === receipt.binding.source.commit,
     'Acceptance receipt artifact sourceRevision is stale or mixed',
@@ -631,16 +632,40 @@ function assertAcceptanceReceipt(
   assertRuntime(receipt.runtime);
   assertExactKeys(
     receipt.registry,
-    ['cohortPackages', 'externalDependencies', 'resolution', 'url'],
+    [
+      'cohortPackages',
+      'externalDependencies',
+      'resolution',
+      'sourceCandidateTrustPolicyExclude',
+      'url',
+    ],
     'Acceptance receipt registry',
   );
-  for (const field of Object.keys(receipt.registry)) {
+  for (const field of [
+    'cohortPackages',
+    'externalDependencies',
+    'resolution',
+    'url',
+  ]) {
     assertCondition(
       typeof receipt.registry[field] === 'string' &&
         receipt.registry[field].length > 0,
       `Acceptance receipt registry.${field} is missing`,
     );
   }
+
+  const expectedTrustExclusions =
+    receipt.mode === 'source'
+      ? receipt.binding.artifacts.packages
+          .map(item => `${item.targetName}@${item.version}`)
+          .sort()
+      : [];
+  assertCondition(
+    Array.isArray(receipt.registry.sourceCandidateTrustPolicyExclude) &&
+      JSON.stringify(receipt.registry.sourceCandidateTrustPolicyExclude) ===
+        JSON.stringify(expectedTrustExclusions),
+    'Acceptance receipt registry trust exclusions must equal the exact source cohort and be empty after publication',
+  );
 
   const resultIds = Array.isArray(receipt.results)
     ? receipt.results.map(result => result.id)

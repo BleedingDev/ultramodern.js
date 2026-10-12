@@ -756,8 +756,12 @@ test('browser smoke rejects wrong-path or symbolic-link Cloudflare compiler mani
   );
 });
 
-for (const uiOnly of [true, false]) {
-  test(`browser smoke requires the declared ${uiOnly ? 'UI-only' : 'full-stack'} Cloudflare shell surface identities`, async t => {
+for (const { uiOnly, surfaceProfile } of [
+  { uiOnly: true, surfaceProfile: 'ui-only' },
+  { uiOnly: true, surfaceProfile: 'full-stack' },
+  { uiOnly: false, surfaceProfile: 'full-stack' },
+]) {
+  test(`browser smoke binds ${surfaceProfile} Cloudflare Shell surfaces with ${uiOnly ? 'no' : 'an'} owned API`, async t => {
     const { bindContractToExpectedReleaseIdentities } = await import(
       '../../browser-smoke/runtime-evidence.mjs'
     );
@@ -768,7 +772,43 @@ for (const uiOnly of [true, false]) {
       platform: 'workerd',
     });
     built.app.kind = 'shell';
-    built.app.surfaceProfile = uiOnly ? 'ui-only' : 'full-stack';
+    built.app.surfaceProfile = surfaceProfile;
+    if (surfaceProfile === 'full-stack' && uiOnly) {
+      built.workerManifest.deliveryUnit.surfaces.api =
+        built.finalized.surfaces.api;
+      writeJson(
+        built.outputRoot,
+        'server/modern-worker-manifest.json',
+        built.workerManifest,
+      );
+      fs.writeFileSync(
+        path.join(built.outputRoot, 'server/index.mjs'),
+        `export const modernWorkerManifest = ${JSON.stringify(built.workerManifest)};`,
+      );
+    }
+    const { createMicroVerticalReleaseEnvelope, SHELL_RELEASE_ENVELOPE_KIND } =
+      built.ownerRequire('@modern-js/app-tools-extensions/release-envelope');
+    const { backendFederation: _producer, ...shellSurfaces } =
+      built.envelope.surfaces;
+    const shellEnvelopeInput = {
+      artifactRoot: built.outputRoot,
+      kind: SHELL_RELEASE_ENVELOPE_KIND,
+      target: 'cloudflare',
+      identity: built.envelope.identity,
+      ui: built.envelope.ui,
+      artifacts: built.envelope.artifacts.map(({ logicalPath, runtime }) => ({
+        logicalPath,
+        runtime,
+      })),
+      surfaces: shellSurfaces,
+    };
+    built.envelope =
+      await createMicroVerticalReleaseEnvelope(shellEnvelopeInput);
+    writeJson(
+      built.outputRoot,
+      'release/microvertical-release-envelope.json',
+      built.envelope,
+    );
     const bind = () =>
       bindContractToExpectedReleaseIdentities({
         contract: built.contract,
@@ -777,11 +817,19 @@ for (const uiOnly of [true, false]) {
         projectDir: root,
       });
     assert.equal(bind().apps[0].marker.buildMarker, built.manifest.buildId);
+    if (surfaceProfile === 'full-stack' && uiOnly) {
+      built.app.api = { prefix: '/api', stem: 'inventory' };
+      assert.throws(
+        bind,
+        /shell envelope surfaces differ from its declared application surface profile/u,
+      );
+      delete built.app.api;
+    }
     assert.deepEqual(
       Object.keys(built.workerManifest.deliveryUnit.surfaces).sort(),
-      uiOnly ? ['ui'] : ['api', 'ui'],
+      surfaceProfile === 'ui-only' ? ['ui'] : ['api', 'ui'],
     );
-    if (uiOnly)
+    if (surfaceProfile === 'ui-only')
       built.workerManifest.deliveryUnit.surfaces.api =
         built.finalized.surfaces.api;
     else delete built.workerManifest.deliveryUnit.surfaces.api;
@@ -792,20 +840,8 @@ for (const uiOnly of [true, false]) {
     );
     // Bind the deliberate unit-fixture mutation with the genuine public factory
     // so the rejection must come from declared surfaces, not an obsolete SHA.
-    const { createMicroVerticalReleaseEnvelope } = built.ownerRequire(
-      '@modern-js/app-tools-extensions/release-envelope',
-    );
-    const envelope = await createMicroVerticalReleaseEnvelope({
-      artifactRoot: built.outputRoot,
-      target: 'cloudflare',
-      identity: built.envelope.identity,
-      ui: built.envelope.ui,
-      artifacts: built.envelope.artifacts.map(({ logicalPath, runtime }) => ({
-        logicalPath,
-        runtime,
-      })),
-      surfaces: built.envelope.surfaces,
-    });
+    const envelope =
+      await createMicroVerticalReleaseEnvelope(shellEnvelopeInput);
     writeJson(
       built.outputRoot,
       'release/microvertical-release-envelope.json',

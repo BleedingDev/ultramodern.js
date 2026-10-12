@@ -146,6 +146,12 @@ async function createEvidenceFixture() {
       profile: { id: 'erp-10', verticalCount: 10 },
       registry: {
         cohortPackages: 'verified',
+        sourceCandidateTrustPolicyExclude:
+          mode === 'source'
+            ? acceptanceRelease.packages
+                .map(item => `${item.targetName}@${item.version}`)
+                .sort()
+            : [],
         externalDependencies: 'verified',
         resolution: 'verified',
         url: 'https://registry.npmjs.org/',

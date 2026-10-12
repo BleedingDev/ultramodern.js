@@ -1848,7 +1848,10 @@ test('rejects nested package decoys and escaping symlinks, accepts owner symlink
   expect(validate()).toBeUndefined();
   fs.unlinkSync(nested);
   fs.cpSync(owner, nested, { recursive: true });
-  expect(validate()).toContain('exact framework owner');
+  const mismatch = validate();
+  expect(mismatch).toContain('exact framework owner');
+  expect(mismatch).toContain(`selected owner ${fs.realpathSync(owner)}`);
+  expect(mismatch).toContain(`consumer resolves ${fs.realpathSync(nested)}`);
   fs.rmSync(nested, { recursive: true });
   write(path.join(root, 'outside.js'), exportsSource);
   fs.rmSync(path.join(owner, 'index.js'));
@@ -1900,6 +1903,67 @@ test('full and files phases both report a clean workspace', () => {
     checkMicroVerticalApiConsumerFiles({ workspaceRoot: root }).diagnostics,
   ).toEqual([]);
 });
+test('defaults to each app native owner while an explicit owner stays exact', () => {
+  write(file, contract);
+  const appDirectory = path.join(root, 'verticals/catalog');
+  const ordersDirectory = path.join(root, 'verticals/orders');
+  fs.cpSync(appDirectory, ordersDirectory, { recursive: true });
+  for (const relative of [
+    'package.json',
+    'shared/api.ts',
+    'api/index.ts',
+    'src/api/catalog-client.ts',
+  ]) {
+    const target = path.join(ordersDirectory, relative);
+    write(
+      target,
+      fs
+        .readFileSync(target, 'utf8')
+        .replaceAll('catalog', 'orders')
+        .replaceAll('Catalog', 'Orders'),
+    );
+  }
+  fs.renameSync(
+    path.join(ordersDirectory, 'src/api/catalog-client.ts'),
+    path.join(ordersDirectory, 'src/api/orders-client.ts'),
+  );
+  const appOwners = [appDirectory, ordersDirectory].map(directory => {
+    const installed = path.join(
+      directory,
+      'node_modules/@modern-js/bff-effect',
+    );
+    fs.cpSync(owner, installed, { recursive: true });
+    return installed;
+  });
+  const options = {
+    workspaceRoot: root,
+    configuredApps: ['catalog', 'orders'].map(id => ({
+      id,
+      path: `verticals/${id}`,
+      kind: 'vertical' as const,
+      api: {},
+    })),
+  };
+  for (const check of [
+    checkMicroVerticalApiBoundaries,
+    checkMicroVerticalApiConsumerFiles,
+  ]) {
+    expect(check(options)).toMatchObject({ diagnostics: [], toolErrors: [] });
+    const constrained = check({ ...options, baselinePackageDirectory: owner });
+    expect(constrained.toolErrors).toEqual([]);
+    expect(
+      constrained.diagnostics.filter(message =>
+        message.includes('exact framework owner'),
+      ),
+    ).toHaveLength(2);
+    write(path.join(appOwners[1]!, 'index.js'), 'export const unrelated = {};');
+    expect(check(options).diagnostics.join('\n')).toContain(
+      'verticals/orders/shared/api.ts: MicroVertical baseline imports must resolve the exact framework owner',
+    );
+    write(path.join(appOwners[1]!, 'index.js'), exportsSource);
+  }
+});
+
 test('config errors and missing owners fail closed as tool failures', () => {
   write(
     path.join(root, 'topology/reference-topology.json'),

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { runStableTypeScript } from './helpers/stable-typescript';
+import { linkInstalledCompilerPolicy } from './helpers/workspace-kit';
 
 const packagesRoot = path.resolve(import.meta.dirname, '../../..');
 const rendererOctane = path.join(packagesRoot, 'runtime/renderer-octane');
@@ -44,6 +45,7 @@ test('a generated Octane app typechecks its routes under TypeScript 7', async ()
       packageSource: { strategy: 'workspace' },
     });
     const app = path.join(targetDir, 'apps/shell-super-app');
+    linkInstalledCompilerPolicy(targetDir);
     for (const relative of [
       'src/routes/page.head.ts',
       'src/routes/about/page.head.ts',

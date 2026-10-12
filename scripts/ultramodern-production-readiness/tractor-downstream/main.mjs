@@ -46,13 +46,16 @@ import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
   assertTractorEffectDependencies,
+  assertTractorReactDependencies,
   prepareTractorCohortInstallation,
   tractorEffectPackages,
+  tractorReactPackages,
 } from './cohort-install.mjs';
 import {
   assertNativeTanStackSearch,
   assertTractorAcceptanceReport,
   assertVisibleTractorUi,
+  collectPackageJsonFiles,
   promotableTractorAcceptanceMode,
   requiredVisibleRuntimePlatforms,
   tractorAcceptanceModes,
@@ -246,7 +249,28 @@ function readTractorProducerOverrides({
     const producerManifest = JSON.parse(
       fs.readFileSync(path.join(workspace, 'package.json'), 'utf8'),
     );
+    const producerReactDependencies = assertTractorReactDependencies(
+      Object.fromEntries(
+        tractorReactPackages.map(name => {
+          const requests = new Set(
+            collectPackageJsonFiles(workspace).flatMap(file => {
+              const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+              return [
+                manifest.dependencies?.[name],
+                manifest.devDependencies?.[name],
+              ].filter(value => value !== undefined);
+            }),
+          );
+          if (requests.size !== 1)
+            throw new Error(
+              `Exact producer must select one ${name} dependency`,
+            );
+          return [name, [...requests][0]];
+        }),
+      ),
+    );
     return {
+      producerReactDependencies,
       producerEffectDependencies: assertTractorEffectDependencies(
         Object.fromEntries(
           tractorEffectPackages.map(name => [
@@ -990,6 +1014,7 @@ async function runTractorDownstreamAcceptance(
       detail: {
         dependencyObservationCount: dependencyObservations.length,
         producerEffectDependencies: producerPolicy.producerEffectDependencies,
+        producerReactDependencies: producerPolicy.producerReactDependencies,
         generatedCohort,
       },
     });

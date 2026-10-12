@@ -13,12 +13,13 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
-  native-compatibility:
-    name: native-compatibility
-    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
+  native-framework-contracts:
+    name: Native framework contracts
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 90
 
     steps:
@@ -77,3 +78,107 @@ jobs:
 
       - name: Test native compatibility
         run: pnpm run validate:native-compatibility --prepared
+
+  pack-candidate:
+    name: Pack the consumer candidate
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    outputs:
+      producer_artifact_identity: ${{ steps.identity.outputs.artifact_identity }}
+      producer_run_attempt: ${{ github.run_attempt }}
+      producer_run_identity: ${{ steps.identity.outputs.run_identity }}
+      release_source_commit: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+          install: true
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the publishable cohort
+        run: pnpm ultramodern:build-bleedingdev-publish
+
+      - name: Prepare the exact candidate and sidecars
+        id: identity
+        run: |
+          stable_version="$(node -p 'require("./packages/toolkit/create/package.json").version')"
+          pnpm ultramodern:prepare-bleedingdev-publish -- \
+            --version "${stable_version}-ultramodern.${GITHUB_RUN_ID}" \
+            --tag ci \
+            --include-sidecars
+          echo "artifact_identity=run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "run_identity=github:${GITHUB_REPOSITORY}:run:${GITHUB_RUN_ID}:attempt:${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the immutable candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bleedingdev-release-bundle-${{ steps.identity.outputs.artifact_identity }}
+          path: .modern/bleedingdev-publish
+          if-no-files-found: error
+          include-hidden-files: true
+
+  packed-erp:
+    needs: pack-candidate
+    uses: ./.github/workflows/ultramodern-release-acceptance.yml
+    with:
+      producer_artifact_identity: ${{ needs.pack-candidate.outputs.producer_artifact_identity }}
+      producer_run_attempt: ${{ needs.pack-candidate.outputs.producer_run_attempt }}
+      producer_run_identity: ${{ needs.pack-candidate.outputs.producer_run_identity }}
+      release_source_commit: ${{ needs.pack-candidate.outputs.release_source_commit }}
+
+  packed-tractor:
+    needs: pack-candidate
+    uses: ./.github/workflows/ultramodern-tractor-downstream.yml
+    with:
+      mode: source
+      release_bundle_artifact: bleedingdev-release-bundle-${{ needs.pack-candidate.outputs.producer_artifact_identity }}
+
+  native-compatibility:
+    name: native-compatibility
+    if: always()
+    needs: [native-framework-contracts, pack-candidate, packed-erp, packed-tractor]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every consumer contract
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node --input-type=module -e '
+            const results = JSON.parse(process.env.RESULTS);
+            for (const name of ["native-framework-contracts", "pack-candidate", "packed-erp", "packed-tractor"]) {
+              if (results[name]?.result !== "success") {
+                console.error(name + ": " + (results[name]?.result ?? "missing"));
+                process.exitCode = 1;
+              }
+            }
+          '

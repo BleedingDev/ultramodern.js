@@ -417,6 +417,8 @@ test('generated primary and additional shells declare UI-only finalized Node and
           distDirectory,
         );
         assert.deepEqual(fullStack?.surfaces.api, finalized.surfaces.api);
+        // A Shell consumes remotes rather than publishing a backend container.
+        // Renderer identity alone still cannot replace executable build output.
         await assert.rejects(
           () =>
             emitFrameworkMicroVerticalReleaseEnvelope({
@@ -425,7 +427,7 @@ test('generated primary and additional shells declare UI-only finalized Node and
               distDirectory,
               target,
             }),
-          /backend federation manifest and container must be emitted together/u,
+          /full-stack MicroVertical has no UI\/client artifacts/u,
         );
         shell.surfaceProfile = 'ui-only';
         fs.writeFileSync(

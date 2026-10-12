@@ -28,6 +28,7 @@ import {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  projectRuntimeArtifactBinding,
   releaseIdentityCoherence,
   rendererReleaseCoherence,
   runtimeAcceptanceDimensions,
@@ -151,16 +152,7 @@ function releaseBinding(release) {
 }
 
 function createRuntimeArtifactBinding(artifactBinding) {
-  // Packed SDK build tools belong to the artifact cohort. Executed app surface
-  // identities attest the runtime package declared by that application.
-  const moduleFederation = artifactBinding.moduleFederation.filter(
-    item => item.packageName === '@module-federation/runtime',
-  );
-  assertCondition(
-    moduleFederation.length === 1,
-    'Acceptance continuation requires one exact Module Federation runtime in its verified artifact cohort',
-  );
-  return { ...artifactBinding, moduleFederation };
+  return projectRuntimeArtifactBinding(artifactBinding);
 }
 
 function assertNativeOutputSnapshots(
