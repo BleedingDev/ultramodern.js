@@ -513,3 +513,138 @@ test('invalid source-registry stores fail before integrity, allocation, or child
     }
   });
 });
+
+function registryPhaseFixture(
+  rootDir,
+  { failSeed = false, failRestart = false } = {},
+) {
+  const { EventEmitter } = require('node:events');
+  const events = [];
+  const configs = [];
+  const children = [];
+  let seedVerified = false;
+  const spawnImpl = () => {
+    const phase = children.length;
+    configs.push(fs.readFileSync(path.join(rootDir, 'verdaccio.yaml'), 'utf8'));
+    const child = new EventEmitter();
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = signal => {
+      events.push(`stop:${phase}`);
+      queueMicrotask(() => {
+        child.signalCode = signal;
+        child.emit('exit', null, signal);
+      });
+    };
+    children.push(child);
+    events.push(`start:${phase}`);
+    if (phase === 1) {
+      assert.equal(seedVerified, true);
+      if (failRestart)
+        queueMicrotask(() => child.emit('error', new Error('restart failed')));
+    }
+    return child;
+  };
+  const fetchImpl = async url => {
+    if (String(url).includes('/-/user/')) {
+      events.push('authenticate');
+      return {
+        ok: true,
+        text: async () => JSON.stringify({ token: 'fixture-token' }),
+      };
+    }
+    return { ok: true };
+  };
+  const publishReleaseTarballsImpl = async (release, registry, token) => {
+    events.push('verify-seed');
+    assert.equal(token, 'fixture-token');
+    assert.equal(registry.registryUrl, 'http://127.0.0.1:12345/');
+    const config = configs[0];
+    const exactRule = config
+      .split('"@bleedingdev/cohort":')[1]
+      .split('"@bleedingdev/*":')[0];
+    // Simulate npm already holding this exact version: a proxy during PUT conflicts.
+    assert.equal(exactRule.includes('proxy:'), false);
+    if (failSeed) throw new Error('seed integrity mismatch');
+    seedVerified = true;
+    fs.mkdirSync(path.join(rootDir, 'storage'), { recursive: true });
+    fs.writeFileSync(
+      path.join(rootDir, 'storage', 'accepted'),
+      'verified artifact',
+    );
+    return [{ targetName: release.packages[0].targetName }];
+  };
+  return {
+    events,
+    configs,
+    children,
+    spawnImpl,
+    fetchImpl,
+    publishReleaseTarballsImpl,
+  };
+}
+
+for (const failure of [undefined, 'seed', 'restart']) {
+  test(`source registry isolates seed publication and restores consumer history${failure ? `; ${failure} failure stops the active child` : ''}`, async () => {
+    const { startEphemeralRegistry, VERDACCIO_INTEGRITY } = await import(
+      '../lib/source-create-proof/runtime-proof/registry.mjs'
+    );
+    await withTempDir(async rootDir => {
+      const fixture = registryPhaseFixture(rootDir, {
+        failSeed: failure === 'seed',
+        failRestart: failure === 'restart',
+      });
+      const operation = startEphemeralRegistry({
+        release: {
+          targetScope: 'bleedingdev',
+          packages: [{ targetName: '@bleedingdev/cohort', version: '1.0.0' }],
+        },
+        rootDir,
+        runImpl: () => JSON.stringify(VERDACCIO_INTEGRITY),
+        reservePortImpl: async () => 12345,
+        ...fixture,
+      });
+      if (failure) {
+        await assert.rejects(
+          operation,
+          failure === 'seed' ? /seed integrity mismatch/ : /restart failed/,
+        );
+      } else {
+        const registry = await operation;
+        assert.deepEqual(fixture.events, [
+          'start:0',
+          'authenticate',
+          'verify-seed',
+          'stop:0',
+          'start:1',
+        ]);
+        assert.equal(
+          fs.readFileSync(path.join(rootDir, 'storage', 'accepted'), 'utf8'),
+          'verified artifact',
+        );
+        assert.equal(
+          fixture.configs[1].includes('"@bleedingdev/cohort":'),
+          false,
+        );
+        assert.match(
+          fixture.configs[1],
+          /"@bleedingdev\/\*":\n {4}access: \$all\n {4}publish: \$authenticated\n {4}unpublish: \$authenticated\n {4}proxy: npmjs/,
+        );
+        const paths = config =>
+          config
+            .split('\n')
+            .filter(
+              line =>
+                line.startsWith('storage:') || line.trim().startsWith('file:'),
+            );
+        assert.deepEqual(paths(fixture.configs[0]), paths(fixture.configs[1]));
+        assert.equal(fixture.children[0].listenerCount('exit'), 0);
+        await registry.stop();
+      }
+      assert.ok(
+        fixture.children.every(child => child.signalCode === 'SIGTERM'),
+      );
+      assert.equal(fixture.children.length, failure === 'seed' ? 1 : 2);
+    });
+  });
+}
