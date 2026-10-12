@@ -73,6 +73,12 @@ async function createReceiptFixture(root, mode = 'source') {
     },
     registry: {
       cohortPackages: 'verified',
+      sourceCandidateTrustPolicyExclude:
+        mode === 'source'
+          ? release.packages
+              .map(item => `${item.targetName}@${item.version}`)
+              .sort()
+          : [],
       externalDependencies: 'verified',
       resolution: 'verified',
       url: 'https://registry.npmjs.org/',
@@ -434,6 +440,43 @@ test('producer receipt preserves runtime-only MF identity and distinct native ta
       assert.notEqual(result.status, 0, name);
       assert.match(result.stderr, message, name);
       fs.writeFileSync(fixture.receiptPath, fixture.receiptSource);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('receipt validates the recorded source trust exemptions and keeps published trust intact', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
+  try {
+    for (const mode of ['source', 'published']) {
+      const fixture = await createReceiptFixture(root, mode);
+      const receipt = JSON.parse(fixture.receiptSource);
+      const { assertAcceptanceReceipt } = fixture.receiptApi;
+      assertAcceptanceReceipt(receipt, { expectedMode: mode });
+      const expected = receipt.registry.sourceCandidateTrustPolicyExclude;
+      const invalid = [undefined, '*', ['*'], ['@bleedingdev/foreign@1.0.0']];
+      if (mode === 'source')
+        invalid.push(
+          [],
+          [...expected, ...expected],
+          [expected[0].replace('@3.4.0-ultramodern.2', '@3.4.0-ultramodern.1')],
+        );
+      else
+        invalid.push(
+          receipt.binding.artifacts.packages.map(
+            item => `${item.targetName}@${item.version}`,
+          ),
+        );
+      for (const value of invalid) {
+        const altered = structuredClone(receipt);
+        altered.registry.sourceCandidateTrustPolicyExclude = value;
+        assert.throws(
+          () => assertAcceptanceReceipt(altered, { expectedMode: mode }),
+          /registry|trust exclusions/u,
+          `${mode}: ${JSON.stringify(value)}`,
+        );
+      }
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

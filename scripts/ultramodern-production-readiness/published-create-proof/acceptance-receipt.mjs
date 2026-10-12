@@ -632,16 +632,40 @@ function assertAcceptanceReceipt(
   assertRuntime(receipt.runtime);
   assertExactKeys(
     receipt.registry,
-    ['cohortPackages', 'externalDependencies', 'resolution', 'url'],
+    [
+      'cohortPackages',
+      'externalDependencies',
+      'resolution',
+      'sourceCandidateTrustPolicyExclude',
+      'url',
+    ],
     'Acceptance receipt registry',
   );
-  for (const field of Object.keys(receipt.registry)) {
+  for (const field of [
+    'cohortPackages',
+    'externalDependencies',
+    'resolution',
+    'url',
+  ]) {
     assertCondition(
       typeof receipt.registry[field] === 'string' &&
         receipt.registry[field].length > 0,
       `Acceptance receipt registry.${field} is missing`,
     );
   }
+
+  const expectedTrustExclusions =
+    receipt.mode === 'source'
+      ? receipt.binding.artifacts.packages
+          .map(item => `${item.targetName}@${item.version}`)
+          .sort()
+      : [];
+  assertCondition(
+    Array.isArray(receipt.registry.sourceCandidateTrustPolicyExclude) &&
+      JSON.stringify(receipt.registry.sourceCandidateTrustPolicyExclude) ===
+        JSON.stringify(expectedTrustExclusions),
+    'Acceptance receipt registry trust exclusions must equal the exact source cohort and be empty after publication',
+  );
 
   const resultIds = Array.isArray(receipt.results)
     ? receipt.results.map(result => result.id)
