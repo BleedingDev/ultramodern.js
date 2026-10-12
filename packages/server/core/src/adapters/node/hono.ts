@@ -74,30 +74,27 @@ const noop = () => {};
 
 export const connectMid2HonoMid = (handler: ConnectMiddleware): Middleware => {
   return async (context: Context<ServerNodeEnv>, next: Next) => {
-    return new Promise((resolve, reject) => {
-      const { req, res: rawRes } = context.env.node;
-      const res = rawRes as EventedNodeResponse;
-      if (handler.length < 3) {
-        resolve(handler(req, res, noop));
-      } else {
-        // A middleware that answers the request never calls `next`; settle
-        // when its response finishes instead of leaving the chain pending.
-        const onFinish = () => {
-          const _ = context.res;
-          context.finalized = true;
-          resolve();
-        };
-        res.once?.('finish', onFinish);
-        handler(req, res, err => {
-          res.removeListener?.('finish', onFinish);
-          if (err) {
-            reject(err);
-          } else {
-            resolve(next());
-          }
-        });
-      }
+    const { req, res: rawRes } = context.env.node;
+    const res = rawRes as EventedNodeResponse;
+    if (handler.length < 3) return handler(req, res, noop);
+    const continueChain = await new Promise<boolean>((resolve, reject) => {
+      // A middleware that answers the request never calls `next`; settle
+      // when its response finishes instead of leaving the chain pending.
+      const onFinish = () => {
+        const _ = context.res;
+        context.finalized = true;
+        resolve(false);
+      };
+      res.once?.('finish', onFinish);
+      handler(req, res, err => {
+        res.removeListener?.('finish', onFinish);
+        if (err) reject(err);
+        else resolve(true);
+      });
     });
+    // Compiler completion may call back outside the request's async context.
+    // Resume downstream middleware in this handler's original continuation.
+    if (continueChain) await next();
   };
 };
 
@@ -109,29 +106,18 @@ export const connectMid2HonoMid = (handler: ConnectMiddleware): Middleware => {
 export const connectMockMid2HonoMid = (
   handler: ConnectMiddleware,
 ): Middleware => {
-  return async (context: Context<ServerNodeEnv>, next: Next) => {
-    return new Promise((resolve, reject) => {
+  if (handler.length >= 3) return connectMid2HonoMid(handler);
+  return async (context: Context<ServerNodeEnv>, _next: Next) => {
+    return new Promise<void>(resolve => {
       const { req, res: rawRes } = context.env.node;
       const res = rawRes as EventedNodeResponse;
-      // The function lenth < 3 means the handler is not a function with next
-      if (handler.length < 3) {
-        res.once?.('finish', () => {
-          // Fix: ensure context.res is initialized before setting finalized
-          // This prevents c.#res from being undefined in Hono
-          const _ = context.res;
-          context.finalized = true;
-          resolve();
-        });
-        handler(req, res, noop);
-      } else {
-        handler(req, res, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(next());
-          }
-        });
-      }
+      res.once?.('finish', () => {
+        // Ensure context.res is initialized before marking the response final.
+        const _ = context.res;
+        context.finalized = true;
+        resolve();
+      });
+      handler(req, res, noop);
     });
   };
 };
