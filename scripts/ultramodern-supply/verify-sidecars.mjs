@@ -12,6 +12,7 @@ import {
   MODULE_FEDERATION_VERSION,
   ULTRAMODERN_PACKAGE_PINS,
 } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
+import { packageMetadataRepository } from '../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
 import { sidecarProfile } from '../ultramodern-publish/sidecar-profiles.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -574,9 +575,8 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
       },
       repository: {
         type: 'git',
-        // Stable recipe versions retain their original package bytes after
-        // the GitHub transfer; changing this URL requires a new fork version.
-        url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+        // npm provenance must name the repository producing this artifact.
+        url: `git+https://github.com/${packageMetadataRepository()}.git`,
         directory: 'scripts/ultramodern-supply',
       },
     };

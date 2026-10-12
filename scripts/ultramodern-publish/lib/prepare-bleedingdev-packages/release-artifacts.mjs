@@ -857,7 +857,7 @@ function verifyPackageArtifact(item, artifactPath) {
   return verifyPackageArtifactBytes(item, bytes, artifactPath);
 }
 
-function verifySidecarArtifacts(outDir, descriptor) {
+function verifySidecarArtifacts(outDir, descriptor, { repository } = {}) {
   if (descriptor === null) {
     for (const relativePath of [sidecarManifestFile, sidecarTarballsDirectory]) {
       if (fs.lstatSync(path.join(outDir, relativePath), { throwIfNoEntry: false })) {
@@ -998,6 +998,17 @@ function verifySidecarArtifacts(outDir, descriptor) {
       throw new Error(
         `${item.name}@${item.version} sidecar tarball contains ${String(inspection.packageJson.name)}@${String(inspection.packageJson.version)}`,
       );
+    }
+    if (repository !== undefined) {
+      const url = inspection.packageJson.repository?.url;
+      const packageRepository =
+        typeof url === 'string'
+          ? url.replace(/^git\+/u, '').replace(/\.git$/u, '')
+          : undefined;
+      if (packageRepository !== `https://github.com/${repository}`)
+        throw new Error(
+          `${item.name} package repository does not match its producer source repository`,
+        );
     }
     names.push(item.name);
     tarballPaths.push(item.tarballPath);
@@ -1284,7 +1295,11 @@ function verifyReleaseArtifacts(outDir, expected = {}) {
     throw new Error('Detached release cohort digest mismatch');
   }
 
-  const sidecars = verifySidecarArtifacts(resolvedOutDir, manifest.sidecars);
+  const sidecars = verifySidecarArtifacts(
+    resolvedOutDir,
+    manifest.sidecars,
+    manifest.source,
+  );
 
   const tarballsDir = path.join(resolvedOutDir, tarballsDirectory);
   const tarballsStat = fs.lstatSync(tarballsDir, { throwIfNoEntry: false });
@@ -1469,7 +1484,8 @@ function createReleaseArtifacts({
   const projection = createReleaseCohortProjection({
     aliases,
     packages,
-    sidecarPackages: verifySidecarArtifacts(resolvedOutDir, sidecars)?.packages ?? [],
+    sidecarPackages:
+      verifySidecarArtifacts(resolvedOutDir, sidecars, source)?.packages ?? [],
     source,
     tag,
     version,

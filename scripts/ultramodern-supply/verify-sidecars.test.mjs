@@ -466,7 +466,7 @@ test('reconstruction retries a transient timeout and drops node_modules the auth
   }
 });
 
-test('stable sidecar reconstruction keeps identical manifests and packed bytes across the GitHub transfer', async () => {
+test('reconstructed sidecar tarballs bind repository metadata to their active provenance producer', async () => {
   const directory = fs.mkdtempSync(
     path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'sidecar-transfer-'),
   );
@@ -502,7 +502,7 @@ test('stable sidecar reconstruction keeps identical manifests and packed bytes a
       assert.equal(published.version, recipe.fork.version);
       assert.equal(
         published.repository.url,
-        'git+https://github.com/BleedingDev/ultramodern.js.git',
+        `git+https://github.com/${repository}.git`,
       );
       const packDir = path.join(directory, `packed-${index}`);
       fs.mkdirSync(packDir);
@@ -523,9 +523,9 @@ test('stable sidecar reconstruction keeps identical manifests and packed bytes a
         integrity: packed.integrity,
       });
     }
-    assert.deepEqual(outputs[0].manifest, outputs[1].manifest);
-    assert.deepEqual(outputs[0].tarball, outputs[1].tarball);
-    assert.equal(outputs[0].integrity, outputs[1].integrity);
+    assert.notDeepEqual(outputs[0].manifest, outputs[1].manifest);
+    assert.notDeepEqual(outputs[0].tarball, outputs[1].tarball);
+    assert.notEqual(outputs[0].integrity, outputs[1].integrity);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];

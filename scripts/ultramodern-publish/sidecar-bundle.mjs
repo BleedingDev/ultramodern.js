@@ -255,7 +255,11 @@ export function verifySidecarBundle(
   inputs ??= readSidecarBundleInputs(manifest.profile);
   assertBundleManifest(manifest, { env, source, tools, inputs });
   // The closed v2 verifier owns all tarball paths, digests, identities and file sets.
-  const sidecars = verifySidecarArtifacts(root, manifest.sidecars);
+  const sidecars = verifySidecarArtifacts(
+    root,
+    manifest.sidecars,
+    manifest.source,
+  );
   assertSidecarProfileDependencies(manifest.profile, sidecars.packages);
   assertSidecarStagingManifest(sidecars.manifest, {
     publishBefore: sidecarProfile(manifest.profile).publishBefore,
