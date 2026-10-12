@@ -258,7 +258,9 @@ export function createFederatedComponentsRegistry(
         ...options,
         instance: getInstance(),
         loader: () =>
-          import('${entry.remoteAlias}') as Promise<
+          loadRemote<RemoteComponentModule<${entry.exportName}Props>>(
+            '${entry.remoteAlias}',
+          ) as Promise<
             RemoteComponentModule<${entry.exportName}Props>
           >,
       }),
@@ -270,7 +272,7 @@ export function createFederatedComponentsRegistry(
     .join('\n');
   const runtimeImports = worker
     ? "import { DistributedSsrBoundary } from '@modern-js/federation-runtime/distributed-ssr';\nimport type { ComponentType, ReactNode } from 'react';"
-    : "import { createLazyComponent } from '@module-federation/modern-js-v3/react';\nimport { getInstance } from '@module-federation/modern-js-v3/runtime';\nimport { createDistributedSsrComponent } from '@modern-js/federation-runtime/distributed-ssr';\nimport type { ComponentType, FunctionComponent, ReactNode } from 'react';";
+    : "import { createLazyComponent } from '@module-federation/modern-js-v3/react';\nimport { getInstance, loadRemote } from '@module-federation/modern-js-v3/runtime';\nimport { createDistributedSsrComponent } from '@modern-js/federation-runtime/distributed-ssr';\nimport type { ComponentType, FunctionComponent, ReactNode } from 'react';";
   const moduleType = `
 ${
   worker
