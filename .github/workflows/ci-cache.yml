@@ -73,8 +73,28 @@ jobs:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
+      - name: Restore pnpm verification
+        id: pnpm-verification
+        uses: ./.github/actions/restore-pnpm-verification
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      # pnpm writes this result only after its own policy verification passes.
+      # Keep the writer on the trusted default branch; PR jobs restore only.
+      - name: Validate pnpm verification seed
+        if: steps.pnpm-verification.outputs.cache-hit != 'true'
+        run: |
+          pnpm_version="$(pnpm --version)"
+          cache_directory="$(pnpm cache path)"
+          node scripts/ci/pnpm-verification-cache.mjs seed "$pnpm_version" "$cache_directory"
+
+      - name: Save pnpm verification
+        if: steps.pnpm-verification.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-verification.outputs.path }}
+          key: ${{ steps.pnpm-verification.outputs.key }}
 
       # Saved right after install, not in a post step, so a later failure
       # cannot skip the save.

@@ -39,6 +39,7 @@ function steps(workflow) {
 
 const workflows = loadWorkflows();
 const where = (file, job, step) => `${file}:${job}:${step.name ?? step.uses}`;
+const output = (step, name) => `\${{ steps.${step}.outputs.${name} }}`;
 
 function savesCache({ step, uses }) {
   if (/^actions\/cache(\/save)?@/u.test(uses)) {
@@ -136,8 +137,10 @@ test(`${seedWorkflow} restores each key before saving it only on a miss`, () => 
       .slice(0, seedSteps.indexOf(save))
       .find(
         ({ step, uses }) =>
-          uses.startsWith('actions/cache/restore@') &&
-          step.with?.key === save.step.with.key,
+          (uses.startsWith('actions/cache/restore@') &&
+            step.with?.key === save.step.with.key) ||
+          (uses === './.github/actions/restore-pnpm-verification' &&
+            save.step.with.key === `\${{ steps.${step.id}.outputs.key }}`),
       );
     const at = where(seedWorkflow, save.job, save.step);
     assert.ok(restore?.step.id, `${at} saves a key no earlier step restores`);
@@ -147,4 +150,62 @@ test(`${seedWorkflow} restores each key before saving it only on a miss`, () => 
       `${at} must save only when ${restore.step.id} missed`,
     );
   }
+});
+
+test('verification workflow declares exact restore and a trusted writer after frozen install', () => {
+  const action = yaml.load(
+    fs.readFileSync(
+      path.join(
+        repoRoot,
+        '.github/actions/restore-pnpm-verification/action.yml',
+      ),
+      'utf8',
+    ),
+  );
+  const restore = action.runs.steps.find(step =>
+    step.uses?.startsWith('actions/cache/restore@'),
+  );
+  assert.ok(restore);
+  assert.equal(restore.with['restore-keys'], undefined);
+  assert.equal(restore.with.path, output('identity', 'path'));
+  assert.equal(restore.with.key, output('identity', 'key'));
+  assert.equal(action.outputs.path.value, output('identity', 'path'));
+  assert.equal(action.outputs.key.value, output('identity', 'key'));
+  assert.equal(
+    action.outputs['cache-hit'].value,
+    output('restore', 'cache-hit'),
+  );
+  assert.ok(
+    action.runs.steps.every(
+      step => !savesCache({ step, uses: step.uses ?? '' }),
+    ),
+  );
+  const seed = workflows.find(({ file }) => file === seedWorkflow).workflow;
+  const entries = steps(seed);
+  const install = entries.findIndex(
+    ({ step }) => step.run === 'pnpm install --frozen-lockfile',
+  );
+  const guard = entries.findIndex(({ step }) =>
+    step.run?.includes('pnpm-verification-cache.mjs seed'),
+  );
+  const save = entries.findIndex(
+    ({ step }) => step.name === 'Save pnpm verification',
+  );
+  assert.ok(install >= 0 && guard > install && save > guard);
+  for (const index of [install, guard, save]) {
+    assert.ok(pinnedToMain(entries[index].condition));
+    assert.equal(entries[index].step['continue-on-error'], undefined);
+    assert.doesNotMatch(entries[index].step.if ?? '', /always\(|failure\(/u);
+  }
+  assert.equal(
+    entries[save].step.with.path,
+    output('pnpm-verification', 'path'),
+  );
+  assert.ok(
+    workflows.every(({ workflow }) =>
+      steps(workflow).every(
+        ({ step }) => !step.run?.includes('--trust-lockfile'),
+      ),
+    ),
+  );
 });

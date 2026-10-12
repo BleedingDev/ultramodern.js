@@ -26,7 +26,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        include:
+          - group: ordinary
+            shard: 1/4
+          - group: ordinary
+            shard: 2/4
+          - group: ordinary
+            shard: 3/4
+          - group: ordinary
+            shard: 4/4
+          - group: generators
+            shard: ''
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -63,6 +73,9 @@ jobs:
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
+      - name: Restore pnpm lockfile verification
+        uses: ./.github/actions/restore-pnpm-verification
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
@@ -95,6 +108,12 @@ jobs:
       - name: Verify dependency bundle module classification
         run: node --test --test-name-pattern="prebundle distinguishes" scripts/prebundle/ultramodern/packed-utils-consumer.test.mjs
 
+      - name: Verify complete disjoint Windows test coverage
+        if: matrix.shard == '1/4'
+        run: |
+          node --test scripts/__tests__/windows-unit-selection.test.mjs
+          node scripts/ci/windows-unit-selection.mjs --verify
+
       - name: Report unit test resources
         run: >-
           node --input-type=module --eval "import os from 'node:os';
@@ -102,10 +121,21 @@ jobs:
           availableParallelism:os.availableParallelism(),cpuCount:os.cpus().length,
           totalMemoryBytes:os.totalmem(),testFileWorkers:1}))"
 
-      # Generator tests launch their own tools and config workers. Run one test
-      # file at a time per runner; all four shards still run in parallel.
+      # Give the two measured slow generator files their own runner. Remaining
+      # files also launch nested tools, so all five lanes keep one file worker.
       - name: Test
-        run: pnpm run test:ut:prepared --shard=${{ matrix.shard }}/4 --pool.maxWorkers=1
+        env:
+          WINDOWS_UNIT_GROUP: ${{ matrix.group }}
+          WINDOWS_UNIT_SHARD: ${{ matrix.shard }}
+        # Git Bash prepends GNU tar, which interprets Windows drive paths as
+        # remote archive hosts. Keep the runner's native Windows tool lookup.
+        shell: pwsh
+        run: |
+          $testArguments = @('--config=scripts/ci/rstest-windows.config.mts', '--pool.maxWorkers=1')
+          if ($env:WINDOWS_UNIT_SHARD) {
+            $testArguments += "--shard=$env:WINDOWS_UNIT_SHARD"
+          }
+          pnpm run test:ut:prepared @testArguments
 
   # Keep the original check name and fail it if any shard fails or is cancelled.
   ut-windows:

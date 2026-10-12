@@ -1,0 +1,28 @@
+name: Restore pnpm verification
+description: Reuse pnpm's exact-lockfile policy verification from trusted default-branch CI
+outputs:
+  cache-hit:
+    description: Whether an exact verification cache was restored; pnpm validates its contents
+    value: ${{ steps.restore.outputs.cache-hit }}
+  key:
+    description: Exact OS, architecture, toolchain, lockfile and policy identity
+    value: ${{ steps.identity.outputs.key }}
+  path:
+    description: pnpm's verification log, without metadata, credentials or package contents
+    value: ${{ steps.identity.outputs.path }}
+runs:
+  using: composite
+  steps:
+    - name: Identify pnpm verification inputs
+      id: identity
+      shell: bash
+      run: |
+        pnpm_version="$(pnpm --version)"
+        cache_directory="$(pnpm cache path)"
+        node scripts/ci/pnpm-verification-cache.mjs identify "$pnpm_version" "$cache_directory"
+    - name: Restore exact pnpm verification
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.identity.outputs.path }}
+        key: ${{ steps.identity.outputs.key }}

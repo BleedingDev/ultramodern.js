@@ -205,6 +205,10 @@ jobs:
           restore-keys: |
             pnpm-store-${{ runner.os }}-
 
+      - name: Restore pnpm lockfile verification
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/restore-pnpm-verification
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
