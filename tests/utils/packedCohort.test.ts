@@ -1,7 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { bleedingdevOverrides } from './generatedWorkspaceDependencies';
+import {
+  bleedingdevOverrides,
+  packedWorkspaceOverrides,
+} from './generatedWorkspaceDependencies';
 import { bleedingdevEdges, packTestSidecars } from './runWithPrerequisites.mjs';
 
 const recipes: Array<{ fork: { name: string; version: string } }> = JSON.parse(
@@ -79,4 +82,44 @@ test('an unpacked @bleedingdev dependency names the supply manifest to fix', () 
       },
     }),
   ).toThrow('packed @bleedingdev/mf-node: 2.7.50');
+});
+
+test('generated workspace overrides install exact packed sidecars and preserve native sharp', () => {
+  const overrides = {
+    braces: 'npm:@bleedingdev/braces@3.0.4',
+    'micromatch>braces': 'npm:@bleedingdev/braces@3.0.4',
+    'braces@>=3.0.0 <3.0.4': 'npm:@bleedingdev/braces@3.0.4',
+    'sharp@>=0.35.0 <0.35.5': '0.35.5',
+  };
+  expect(
+    packedWorkspaceOverrides(overrides, {
+      '@bleedingdev/braces': {
+        tarball: '/packed/braces.tgz',
+        version: '3.0.4',
+        integrity: '',
+      },
+    }),
+  ).toEqual({
+    braces: 'file:/packed/braces.tgz',
+    'micromatch>braces': 'file:/packed/braces.tgz',
+    'braces@>=3.0.0 <3.0.4': 'file:/packed/braces.tgz',
+    'sharp@>=0.35.0 <0.35.5': '0.35.5',
+  });
+  expect(overrides.braces).toBe('npm:@bleedingdev/braces@3.0.4');
+});
+
+test('workspace override transport rejects unavailable sidecars and version substitutions', () => {
+  const overrides = { braces: 'npm:@bleedingdev/braces@3.0.4' };
+  expect(() => packedWorkspaceOverrides(overrides, {})).toThrow(
+    'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort',
+  );
+  expect(() =>
+    packedWorkspaceOverrides(overrides, {
+      '@bleedingdev/braces': {
+        tarball: '/packed/braces.tgz',
+        version: '3.0.3',
+        integrity: '',
+      },
+    }),
+  ).toThrow('packed @bleedingdev/braces: 3.0.3');
 });

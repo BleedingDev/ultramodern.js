@@ -18,6 +18,22 @@ type BleedingdevEdge = {
   version: string;
 };
 
+function packedBleedingdevSpecifier(
+  edge: BleedingdevEdge,
+  sidecars: Record<string, PackedSidecar>,
+): string {
+  const packed = sidecars[edge.target];
+  if (packed?.version !== edge.version) {
+    throw new Error(
+      `${edge.name}: ${edge.spec} is not in the packed test cohort ` +
+        `(packed ${edge.target}: ${packed?.version ?? 'none'}). ` +
+        'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort ' +
+        'so tests install the artifact the release publishes.',
+    );
+  }
+  return `file:${packed.tarball}`;
+}
+
 function assertPacked(file: string, name: string, integrity: string) {
   const actual = createHash('sha256')
     .update(fs.readFileSync(file))
@@ -38,18 +54,24 @@ export function bleedingdevOverrides(
 ): Record<string, string> {
   const overrides: Record<string, string> = {};
   for (const edge of edges) {
-    const packed = sidecars[edge.target];
-    if (packed?.version !== edge.version) {
-      throw new Error(
-        `${edge.name}: ${edge.spec} is not in the packed test cohort ` +
-          `(packed ${edge.target}: ${packed?.version ?? 'none'}). ` +
-          'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort ' +
-          'so tests install the artifact the release publishes.',
-      );
-    }
-    overrides[`${edge.name}@${edge.spec}`] = `file:${packed.tarball}`;
+    overrides[`${edge.name}@${edge.spec}`] = packedBleedingdevSpecifier(
+      edge,
+      sidecars,
+    );
   }
   return overrides;
+}
+
+/** Preserve override selectors while transporting their fork aliases locally. */
+export function packedWorkspaceOverrides(
+  overrides: Record<string, string>,
+  sidecars: Record<string, PackedSidecar>,
+): Record<string, string> {
+  const transported = { ...overrides };
+  for (const edge of bleedingdevEdges({ dependencies: overrides })) {
+    transported[edge.name] = packedBleedingdevSpecifier(edge, sidecars);
+  }
+  return transported;
 }
 
 function packedPrerequisites() {
@@ -181,7 +203,10 @@ export function materializeGeneratedWorkspaceDependencies(
     workspaceFile,
     dump({
       ...workspace,
-      overrides: { ...workspace.overrides, ...overrides },
+      overrides: {
+        ...packedWorkspaceOverrides(workspace.overrides ?? {}, sidecars),
+        ...overrides,
+      },
       minimumReleaseAgeExclude: [
         ...new Set([
           ...(workspace.minimumReleaseAgeExclude ?? []),
