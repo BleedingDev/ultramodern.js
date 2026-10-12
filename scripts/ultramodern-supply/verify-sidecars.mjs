@@ -468,6 +468,40 @@ function nestedNodeModules(directory) {
     });
 }
 
+async function fetchPinnedTarball(url) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    let bytes;
+    try {
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (response.ok) bytes = Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      const transient =
+        error.name === 'TimeoutError' ||
+        [
+          'ETIMEDOUT',
+          'ECONNRESET',
+          'EAI_AGAIN',
+          'ENETUNREACH',
+          'ECONNREFUSED',
+          'UND_ERR_CONNECT_TIMEOUT',
+          'UND_ERR_SOCKET',
+        ].includes(error.cause?.code ?? error.code);
+      if (!transient || attempt === 3) {
+        throw new Error(
+          `Upstream tarball fetch failed for ${url} after ${attempt} attempt(s)`,
+          { cause: error },
+        );
+      }
+      continue;
+    }
+    assert.ok(response.ok, `upstream fetch failed: ${response.status}`);
+    return bytes;
+  }
+}
+
 /**
  * Reconstruct a recipe from its pinned tarball in an owned temporary directory,
  * or into `materializeTo` when given.
@@ -488,11 +522,7 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
       // Explicit offline input must exist and is held to the same integrity check.
       bytes = fs.readFileSync(path.join(artifactsDir, `${id}.tgz`));
     } else {
-      const response = await fetch(recipe.upstream.tarball, {
-        signal: AbortSignal.timeout(30_000),
-      });
-      assert.ok(response.ok, `upstream fetch failed: ${response.status}`);
-      bytes = Buffer.from(await response.arrayBuffer());
+      bytes = await fetchPinnedTarball(recipe.upstream.tarball);
     }
     const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
     assert.equal(
