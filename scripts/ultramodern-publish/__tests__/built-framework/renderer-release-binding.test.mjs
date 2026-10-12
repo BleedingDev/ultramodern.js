@@ -795,6 +795,20 @@ function runtimeFixture(
       }),
     );
     fs.writeFileSync(path.join(producerRoot, 'rspack.js'), '');
+    const rspackRoot = path.join(
+      producerRoot,
+      'node_modules/@module-federation/rspack',
+    );
+    fs.mkdirSync(rspackRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(rspackRoot, 'package.json'),
+      JSON.stringify({
+        name: '@module-federation/rspack',
+        version: '2.9.2',
+        exports: { './plugin': './plugin.js' },
+      }),
+    );
+    fs.writeFileSync(path.join(rspackRoot, 'plugin.js'), '');
   }
   const authority = finalized
     ? writeFinalizedRuntimeAuthority(projectDir, app, renderer)
@@ -824,7 +838,7 @@ function runtimeFixture(
           'index.js': ['nodejs', 'export const ssr = true;'],
           'mf-manifest.json': [
             'browser',
-            JSON.stringify({ pluginVersion: '2.4.0' }),
+            JSON.stringify({ pluginVersion: '2.9.2' }),
           ],
           'static/main.js': ['browser', 'export const client = true;'],
         }),

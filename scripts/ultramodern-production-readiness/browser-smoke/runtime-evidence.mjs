@@ -209,14 +209,17 @@ function readModuleFederationManifestProducer(projectDir, app) {
   );
   // The native Rspack entrypoint stamps its plugin version, independently of
   // the runtime fork's publication version.
-  let directory = path.dirname(
+  const enhancedRequire = createRequire(
     pluginRequire.resolve('@module-federation/enhanced/rspack'),
+  );
+  let directory = path.dirname(
+    enhancedRequire.resolve('@module-federation/rspack/plugin'),
   );
   while (true) {
     const filename = path.join(directory, 'package.json');
     if (fs.existsSync(filename)) {
       const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'));
-      if (manifest.name === '@module-federation/enhanced') {
+      if (typeof manifest.name === 'string') {
         if (
           typeof manifest.version !== 'string' ||
           !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(
@@ -227,7 +230,31 @@ function readModuleFederationManifestProducer(projectDir, app) {
             `${app.id} installed Module Federation producer version is invalid`,
           );
         }
-        return { packageName: manifest.name, version: manifest.version };
+        const recipes = JSON.parse(
+          fs.readFileSync(
+            new URL('../../ultramodern-supply/sidecars.json', import.meta.url),
+            'utf8',
+          ),
+        );
+        const producers = recipes.filter(recipe => recipe.id === 'mf-rspack');
+        if (
+          producers.length !== 1 ||
+          producers[0].upstream.name !== '@module-federation/rspack' ||
+          !(
+            (manifest.name === producers[0].fork.name &&
+              manifest.version === producers[0].fork.version) ||
+            (manifest.name === producers[0].upstream.name &&
+              manifest.version === producers[0].upstream.version)
+          )
+        ) {
+          throw new Error(
+            `${app.id} installed Module Federation producer differs from its exact sidecar recipe`,
+          );
+        }
+        return {
+          packageName: producers[0].upstream.name,
+          version: producers[0].upstream.version,
+        };
       }
     }
     const parent = path.dirname(directory);

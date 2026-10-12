@@ -430,7 +430,7 @@ async function writeVerticalRelease(
     marker,
     sourceRevision = 'a'.repeat(40),
     platform = 'node',
-    pluginVersion = '2.9.1',
+    pluginVersion = '2.9.2',
     runtimeVersion = '2.9.1',
   } = {},
 ) {
@@ -467,6 +467,13 @@ async function writeVerticalRelease(
     exports: { './rspack': './rspack.js' },
   });
   fs.writeFileSync(path.join(root, enhancedRoot, 'rspack.js'), '');
+  const rspackRoot = `${enhancedRoot}/node_modules/@module-federation/rspack`;
+  writeJson(root, `${rspackRoot}/package.json`, {
+    name: '@module-federation/rspack',
+    version: '2.9.2',
+    exports: { './plugin': './plugin.js' },
+  });
+  fs.writeFileSync(path.join(root, rspackRoot, 'plugin.js'), '');
   const built = writeBuiltApp(root, app, sourceRevision, 'f'.repeat(64));
   const finalized = marker
     ? stampUltramodernBuildArtifactIdentity(built.finalized, {
@@ -976,6 +983,10 @@ test('browser smoke binds the native manifest producer separately from the runti
     producerRoot,
     'node_modules/@module-federation/enhanced',
   );
+  const rspackRoot = path.join(
+    enhancedRoot,
+    'node_modules/@module-federation/rspack',
+  );
   // A direct app dependency must not replace the native plugin's actual producer.
   writeJson(
     root,
@@ -998,19 +1009,66 @@ test('browser smoke binds the native manifest producer separately from the runti
     releaseIdentity(root, built.app, 'node').surfaces.frontend.moduleFederation,
     [{ packageName: '@module-federation/runtime', version: '2.9.3' }],
   );
+  const recipes = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, '../../../ultramodern-supply/sidecars.json'),
+      'utf8',
+    ),
+  );
+  const recipe = recipes.find(item => item.id === 'mf-rspack');
+  writeJson(producerRoot, 'package.json', {
+    ...recipes.find(item => item.id === 'mf-modern-js-v3').fork,
+    main: 'index.js',
+  });
+  writeJson(enhancedRoot, 'package.json', {
+    ...recipes.find(item => item.id === 'mf-enhanced').fork,
+    exports: { './rspack': './rspack.js' },
+  });
+  writeJson(rspackRoot, 'package.json', {
+    ...recipe.fork,
+    exports: { './plugin': './plugin.js' },
+  });
+  assert.deepEqual(
+    releaseIdentity(root, built.app, 'node').surfaces.frontend.moduleFederation,
+    [{ packageName: '@module-federation/runtime', version: '2.9.3' }],
+  );
+  for (const replacement of [
+    { name: '@bleedingdev/unknown-rspack', version: recipe.fork.version },
+    { name: recipe.fork.name, version: '2.9.1' },
+    { name: recipe.fork.name, version: '99.0.0' },
+  ]) {
+    writeJson(rspackRoot, 'package.json', {
+      ...replacement,
+      exports: { './plugin': './plugin.js' },
+    });
+    assert.throws(
+      () => releaseIdentity(root, built.app, 'node'),
+      /differs from its exact sidecar recipe/u,
+    );
+  }
   for (const version of ['2.9.3', '^2.9.2', undefined]) {
-    writeJson(enhancedRoot, 'package.json', {
-      name: '@module-federation/enhanced',
+    writeJson(rspackRoot, 'package.json', {
+      name: '@module-federation/rspack',
       version,
-      exports: { './rspack': './rspack.js' },
+      exports: { './plugin': './plugin.js' },
     });
     assert.throws(
       () => releaseIdentity(root, built.app, 'node'),
       version === '2.9.3'
-        ? /differs from installed producer/u
+        ? /differs from its exact sidecar recipe/u
         : /producer version is invalid/u,
     );
   }
+  const wrongManifestRoot = tempRoot();
+  t.after(() => fs.rmSync(wrongManifestRoot, { recursive: true, force: true }));
+  const wrongManifest = await writeVerticalRelease(wrongManifestRoot, {
+    pluginVersion: '2.9.3',
+    runtimeVersion: '2.9.3',
+  });
+  assert.throws(
+    () => releaseIdentity(wrongManifestRoot, wrongManifest.app, 'node'),
+    /differs from installed producer/u,
+  );
   const missingRoot = tempRoot();
   t.after(() => fs.rmSync(missingRoot, { recursive: true, force: true }));
   const missing = await writeVerticalRelease(missingRoot);

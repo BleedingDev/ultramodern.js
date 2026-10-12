@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import {
+  MODULE_FEDERATION_NODE_VERSION,
+  MODULE_FEDERATION_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
+} from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
 import { parsePnpmLockfile as parse } from '../lib/parse-pnpm-lockfile.mjs';
-
-import { isUnpublishedForkEdge } from '../ultramodern-supply/verify-sidecars.mjs';
+import {
+  assertModuleFederationRelease,
+  isUnpublishedForkEdge,
+} from '../ultramodern-supply/verify-sidecars.mjs';
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -18,6 +26,103 @@ const recipes = JSON.parse(
     'utf8',
   ),
 );
+
+test('Module Federation source releases stay aligned while fork versions remain independent', () => {
+  assertModuleFederationRelease(recipes);
+  const sdk = recipes.find(recipe => recipe.id === 'mf-sdk');
+  assertModuleFederationRelease([
+    { ...sdk, fork: { ...sdk.fork, version: '99.0.0' } },
+  ]);
+  for (const id of ['mf-sdk', 'mf-node']) {
+    const recipe = recipes.find(item => item.id === id);
+    assert.throws(
+      () =>
+        assertModuleFederationRelease([
+          { ...recipe, upstream: { ...recipe.upstream, version: '99.0.0' } },
+        ]),
+      /source must use the generator release/u,
+    );
+  }
+});
+
+test('repository MF source pins, installed identities and patch selectors use the generator release', () => {
+  const assertPin = (name, version, owner) => {
+    if (!name.startsWith('@module-federation/')) return;
+    const expected =
+      name === '@module-federation/node'
+        ? MODULE_FEDERATION_NODE_VERSION
+        : MODULE_FEDERATION_VERSION;
+    assert.equal(version, expected, `${owner} ${name} must use ${expected}`);
+  };
+  const files = execFileSync(
+    'git',
+    ['ls-files', '-z', 'packages/**/package.json'],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    },
+  )
+    .split('\0')
+    .filter(Boolean);
+  for (const file of files) {
+    const manifest = JSON.parse(
+      readFileSync(path.join(repoRoot, file), 'utf8'),
+    );
+    for (const block of [
+      'dependencies',
+      'optionalDependencies',
+      'peerDependencies',
+      'devDependencies',
+    ]) {
+      for (const [name, version] of Object.entries(manifest[block] ?? {})) {
+        if (!version.startsWith('npm:')) assertPin(name, version, file);
+      }
+    }
+  }
+  const lock = parse(
+    readFileSync(path.join(repoRoot, 'pnpm-lock.yaml'), 'utf8'),
+  );
+  for (const identity of Object.keys(lock.packages ?? {})) {
+    const match = /^(@module-federation\/[^@]+)@([^()]+)/u.exec(identity);
+    if (match) assertPin(match[1], match[2], 'lock package');
+  }
+  for (const [importer, blocks] of Object.entries(lock.importers ?? {})) {
+    for (const block of [
+      'dependencies',
+      'optionalDependencies',
+      'devDependencies',
+    ]) {
+      for (const [name, { version }] of Object.entries(blocks[block] ?? {})) {
+        if (!version.startsWith('@bleedingdev/'))
+          assertPin(name, version.split('(')[0], importer);
+      }
+    }
+  }
+  const workspace = parse(
+    readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
+  );
+  for (const selector of Object.keys(workspace.patchedDependencies ?? {})) {
+    const match = /^(@module-federation\/[^@]+)@(.+)$/u.exec(selector);
+    if (match) assertPin(match[1], match[2], 'patch selector');
+  }
+  const { hooks } = createRequire(import.meta.url)(
+    path.join(repoRoot, '.pnpmfile.cjs'),
+  );
+  const resolved = hooks.readPackage({
+    name: '@modern-js/ultramodern-create',
+    dependencies: {
+      '@module-federation/modern-js-v3':
+        ULTRAMODERN_PACKAGE_PINS.appDependencies[
+          '@module-federation/modern-js-v3'
+        ],
+    },
+  });
+  assertPin(
+    '@module-federation/modern-js-v3',
+    resolved.dependencies['@module-federation/modern-js-v3'],
+    'pnpm readPackage',
+  );
+});
 
 // Framework packages ship their source edges unchanged, so the graph the
 // monorepo tests must already be the corrected sidecar graph: a runtime edge
