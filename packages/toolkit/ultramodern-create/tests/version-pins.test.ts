@@ -416,7 +416,9 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
       assert.equal(sharpMetadata.versions['0.35.5'].name, 'sharp');
       assert(Date.now() - Date.parse(sharpMetadata.time['0.35.5']) < 60_000);
       await assert.rejects(
-        promisify(execFile)('pnpm', installArgs, {
+        // Resolve the changed manifest even when CI defaults to a frozen lock;
+        // otherwise lock freshness rejects before the native age policy runs.
+        promisify(execFile)('pnpm', [...installArgs, '--no-frozen-lockfile'], {
           cwd: consumer,
           env,
           maxBuffer: 1024 * 1024,
