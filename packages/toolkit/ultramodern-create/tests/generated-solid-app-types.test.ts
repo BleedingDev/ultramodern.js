@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { runStableTypeScript } from './helpers/stable-typescript';
+import { linkInstalledCompilerPolicy } from './helpers/workspace-kit';
 
 const packagesRoot = path.resolve(import.meta.dirname, '../../..');
 const rendererSolid = path.join(packagesRoot, 'runtime/renderer-solid');
@@ -43,6 +44,7 @@ test('a generated Solid app typechecks its CSS imports under TypeScript 7', asyn
       packageSource: { strategy: 'workspace' },
     });
     const app = path.join(targetDir, 'apps/shell-super-app');
+    linkInstalledCompilerPolicy(targetDir);
     expect(
       fs.readFileSync(path.join(app, 'src/routes/layout.tsx'), 'utf8'),
     ).toContain(`import './index.css';`);

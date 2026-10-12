@@ -7,7 +7,9 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
-import { effectDiagnosticSeverity } from '../packages/toolkit/ultramodern-create/src/ultramodern-workspace/effect-diagnostics.ts';
+import nativeCompilerConfig from '../packages/toolkit/ultramodern-create/templates/tsconfig.base.json' with {
+  type: 'json',
+};
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const configListPath = join(repoRoot, 'scripts/typescript-critical.txt');
@@ -23,7 +25,8 @@ const nativeFrameworkConfigs = new Set([
 ]);
 
 export function createCriticalCompilerOptions(config) {
-  const diagnosticSeverity = { ...effectDiagnosticSeverity };
+  const nativeEffectPlugin = nativeCompilerConfig.compilerOptions.plugins[0];
+  const diagnosticSeverity = { ...nativeEffectPlugin.diagnosticSeverity };
   if (nativeFrameworkConfigs.has(config)) {
     diagnosticSeverity.asyncFunction = 'off';
     diagnosticSeverity.processEnv = 'off';
@@ -32,13 +35,7 @@ export function createCriticalCompilerOptions(config) {
   return {
     plugins: [
       {
-        name: '@effect/language-service',
-        diagnostics: true,
-        includeSuggestionsInTsc: true,
-        ignoreEffectSuggestionsInTscExitCode: true,
-        ignoreEffectWarningsInTscExitCode: false,
-        ignoreEffectErrorsInTscExitCode: false,
-        skipDisabledOptimization: true,
+        ...nativeEffectPlugin,
         diagnosticSeverity,
       },
     ],
