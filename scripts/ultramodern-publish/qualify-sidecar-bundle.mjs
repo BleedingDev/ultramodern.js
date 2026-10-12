@@ -45,6 +45,8 @@ export function assertQualificationToolchain(tools, command = execFileSync) {
 // the buffers already authenticated by verifySidecarBundle; all other package
 // metadata is fetched from npm directly through the install's default registry.
 export async function startSidecarRegistry(packages) {
+  // Candidate versions become available when this registry starts.
+  const availableAt = new Date().toISOString();
   const accepted = new Map(
     packages.map(item => [
       item.name,
@@ -95,6 +97,11 @@ export async function startSidecarRegistry(packages) {
           : JSON.stringify({
               name: item.name,
               'dist-tags': { latest: item.version },
+              time: {
+                created: availableAt,
+                modified: availableAt,
+                [item.version]: availableAt,
+              },
               versions: { [item.version]: metadata },
             }),
       );

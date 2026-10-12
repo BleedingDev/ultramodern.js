@@ -103,13 +103,24 @@ test('read-only loopback registry serves only accepted metadata and snapshotted 
   const { startSidecarRegistry } = await load();
   const item = f.sidecars.packages[0];
   const original = Buffer.from(item.bytes);
+  const beforeStart = Date.now();
   const registry = await startSidecarRegistry(f.sidecars.packages);
+  const afterStart = Date.now();
   t.after(() => registry.stop());
   const metadata = await fetch(
     new URL(encodeURIComponent(item.name), registry.registryUrl),
   ).then(response => response.json());
   assert.equal(metadata.versions[item.version].dist.integrity, item.integrity);
   assert.deepEqual(Object.keys(metadata.versions), [item.version]);
+  const availableAt = metadata.time[item.version];
+  assert.equal(new Date(availableAt).toISOString(), availableAt);
+  assert.ok(Date.parse(availableAt) >= beforeStart);
+  assert.ok(Date.parse(availableAt) <= afterStart);
+  assert.deepEqual(metadata.time, {
+    created: availableAt,
+    modified: availableAt,
+    [item.version]: availableAt,
+  });
   item.bytes.fill(0);
   item.packageJson.version = '99.0.0';
   const response = await fetch(metadata.versions[item.version].dist.tarball);
@@ -119,6 +130,7 @@ test('read-only loopback registry serves only accepted metadata and snapshotted 
     new URL(encodeURIComponent(item.name), registry.registryUrl),
   ).then(value => value.json());
   assert.equal(again.versions[item.version].version, item.version);
+  assert.deepEqual(again.time, metadata.time);
   for (const route of [
     'braces',
     '@bleedingdev/unknown',
