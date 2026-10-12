@@ -5,6 +5,7 @@ import {
   readResolvedUltramodernWorkspaceInputs,
   readUltramodernWorkspaceInputs,
 } from '../ultramodern-tooling/config';
+import { DEVELOPMENT_OVERLAY_PATH } from './add-vertical/constants';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
   createDeliveryUnitRecord,
@@ -14,6 +15,7 @@ import {
   isPlainObject,
   stampDeliveryUnitIdentity,
 } from './delivery-unit-stamp';
+import { projectResolvedDevelopmentOverlay } from './development-overlay-projection';
 import {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
@@ -163,6 +165,18 @@ Headless units have no UI identity. Authored source configs are preserved.
         );
       }
       track(topologyRelativePath, `${JSON.stringify(topology, null, 2)}\n`);
+      track(
+        DEVELOPMENT_OVERLAY_PATH,
+        `${JSON.stringify(
+          projectResolvedDevelopmentOverlay(
+            scope,
+            workspace.raw.overlay,
+            workspace.apps,
+          ),
+          null,
+          2,
+        )}\n`,
+      );
       for (const app of workspace.apps) {
         track(
           path.join(app.directory, 'shared/ultramodern-build.ts'),

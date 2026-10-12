@@ -182,7 +182,7 @@ test('sync-delivery-unit backfills identity blocks matching the generator', asyn
   }
 });
 
-test('sync-delivery-unit is idempotent and only touches topology and build records', async () => {
+test('sync-delivery-unit is idempotent and only touches identity projections', async () => {
   const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
@@ -195,6 +195,7 @@ test('sync-delivery-unit is idempotent and only touches topology and build recor
     const afterFirst = snapshotAllFiles(workspaceDir);
     const allowedChanges = new Set([
       'topology/reference-topology.json',
+      'topology/local-overlays/development.json',
       'apps/shell-super-app/shared/ultramodern-build.ts',
       'apps/shell-super-app/shared/ultramodern-build.json',
       'verticals/catalog/shared/ultramodern-build.ts',
@@ -229,6 +230,12 @@ test('sync-delivery-unit follows an authored app package version and remains ide
     );
     const previousMarker =
       previousTopology.verticals[0].deliveryUnit.buildMarker;
+    const overlayPath = 'topology/local-overlays/development.json';
+    const originalOverlay = JSON.parse(read(workspaceDir, overlayPath));
+    originalOverlay.serverExecution.catalog.authoredPolicy = {
+      region: 'original-region',
+    };
+    writeJson(workspaceDir, overlayPath, originalOverlay);
     manifest.version = '0.2.0';
     writeJson(workspaceDir, manifestPath, manifest);
     const catalogApps = readUltramodernWorkspaceInputs(workspaceDir).verticals;
@@ -260,6 +267,25 @@ test('sync-delivery-unit follows an authored app package version and remains ide
       build.deliveryUnit.buildMarker,
       catalog.deliveryUnit.buildMarker,
     );
+    const overlay = JSON.parse(read(workspaceDir, overlayPath));
+    const execution = overlay.serverExecution.catalog;
+    assert.notEqual(
+      originalOverlay.serverExecution.catalog.deliveryUnit.buildMarker,
+      catalog.deliveryUnit.buildMarker,
+    );
+    for (const identity of [execution.deliveryUnit, execution.node.expected]) {
+      assert.equal(identity.unitId, catalog.deliveryUnit.unitId);
+      assert.equal(identity.buildMarker, catalog.deliveryUnit.buildMarker);
+    }
+    const expectedOverlay = structuredClone(originalOverlay);
+    for (const identity of [
+      expectedOverlay.serverExecution.catalog.deliveryUnit,
+      expectedOverlay.serverExecution.catalog.node.expected,
+    ]) {
+      identity.unitId = catalog.deliveryUnit.unitId;
+      identity.buildMarker = catalog.deliveryUnit.buildMarker;
+    }
+    assert.deepEqual(overlay, expectedOverlay);
     assert.equal(
       (await captureWorkspaceRendererEvaluations(workspaceDir, catalogApps))
         .size,
