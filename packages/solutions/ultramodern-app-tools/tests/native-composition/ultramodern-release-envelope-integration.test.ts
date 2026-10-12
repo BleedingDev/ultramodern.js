@@ -285,6 +285,7 @@ const createCloudflareStaging = async (
   distDirectory: string,
   outputDirectory: string,
   uiOnly = false,
+  shellConsumer = false,
 ) => {
   await fs.mkdir(path.join(outputDirectory, 'public'), { recursive: true });
   for (const [from, to] of [
@@ -294,7 +295,7 @@ const createCloudflareStaging = async (
     ...(uiOnly
       ? [['routes-manifest.json', 'public/routes-manifest.json']]
       : []),
-    ...(!uiOnly
+    ...(!uiOnly && !shellConsumer
       ? [
           ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
           ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
@@ -341,11 +342,22 @@ afterEach(async () => {
 });
 
 describe('framework target-specific MicroVertical release-envelope integration', () => {
-  it.each(['node', 'cloudflare'] as const)(
-    'infers the Shell role from canonical topology for %s without a config override',
-    async target => {
+  it.each([
+    ['node', false],
+    ['node', true],
+    ['cloudflare', false],
+    ['cloudflare', true],
+  ] as const)(
+    'infers the Shell role from canonical topology for %s with local API=%s without a config override',
+    async (target, hasApi) => {
       const fixture = await createTargetBuildOutput(target);
-      for (const file of ['backend-mf-manifest.json', 'backendRemoteEntry.cjs'])
+      const apiPath =
+        target === 'node' ? 'api/index.js' : 'worker/__modern_bff_effect.js';
+      for (const file of [
+        'backend-mf-manifest.json',
+        'backendRemoteEntry.cjs',
+        ...(!hasApi ? [apiPath] : []),
+      ])
         await fs.unlink(path.join(fixture.distDirectory, file));
       await writeJson(
         path.join(fixture.root, 'shared/ultramodern-build.json'),
@@ -400,7 +412,29 @@ describe('framework target-specific MicroVertical release-envelope integration',
       );
       expect(envelope.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
       expect(envelope?.surfaces.backendFederation).toBeUndefined();
+      expect(envelope.surfaces.apiBackend).toEqual(hasApi ? [apiPath] : []);
       await verifyBuildOutputReleaseEnvelope(fixture.distDirectory, target);
+      const outputDirectory = path.join(fixture.root, '.output');
+      if (target === 'node') await stageNodeOutput(fixture, '.output');
+      else
+        await createCloudflareStaging(
+          fixture.distDirectory,
+          outputDirectory,
+          false,
+          true,
+        );
+      const staged =
+        target === 'node'
+          ? await emitNodeStagedReleaseEnvelope({
+              distDirectory: fixture.distDirectory,
+              outputDirectory,
+            })
+          : await emitCloudflareStagedReleaseEnvelope({
+              distDirectory: fixture.distDirectory,
+              outputDirectory,
+            });
+      expect(staged.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+      expect(staged.surfaces.apiBackend).toEqual(hasApi ? [apiPath] : []);
       await expect(
         emitFrameworkMicroVerticalReleaseEnvelope({
           ...options,

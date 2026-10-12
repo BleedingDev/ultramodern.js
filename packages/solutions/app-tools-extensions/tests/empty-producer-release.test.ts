@@ -541,7 +541,7 @@ describe('Shell consumer release', () => {
     ).rejects.toThrow(/digest/u);
   });
 
-  test('rejects a producer pair, API-only Shell and missing actual API code', async () => {
+  test('rejects a producer pair and API-only Shell while allowing no local API', async () => {
     const producer = await fixture(framework, 'shell');
     await producer.json('backend-mf-manifest.json', {
       backendFederation: { deliveryUnit },
@@ -565,8 +565,12 @@ describe('Shell consumer release', () => {
 
     const missingApi = await fixture(framework, 'shell');
     await fs.rm(path.join(missingApi.distDirectory, api));
-    await expect(missingApi.emit()).rejects.toThrow(
-      /no actual compiled Node Effect API artifact/u,
+    const envelope = await missingApi.emit();
+    expect(envelope?.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+    expect(envelope?.surfaces.apiBackend).toEqual([]);
+    await framework.verifyBuildOutputReleaseEnvelope(
+      missingApi.distDirectory,
+      'node',
     );
   });
 });
