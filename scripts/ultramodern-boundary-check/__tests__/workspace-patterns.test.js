@@ -12,13 +12,16 @@ test('the complete repository manifest uses the supported block YAML grammar', (
     'utf8',
   );
   const patterns = parseWorkspacePatterns(source);
-  assert.equal(patterns.length, 25);
+  assert.equal(patterns.length, 33);
   assert.equal(patterns[0], 'packages/*');
   assert.deepEqual(
     patterns.filter(pattern => pattern.startsWith('!')),
     [
+      '!tests/integration/**/dist',
       '!tests/integration/**/dist/**',
+      '!tests/integration/**/dist-*',
       '!tests/integration/**/dist-*/**',
+      '!tests/integration/**/node_modules',
       '!tests/integration/**/node_modules/**',
     ],
   );

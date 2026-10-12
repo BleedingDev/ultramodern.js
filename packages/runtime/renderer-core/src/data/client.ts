@@ -18,7 +18,6 @@ import {
   DIRECT_PARAM,
   LOADER_ID_PARAM,
   type PublicDataError,
-  type PublicDataOutcome,
 } from './types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
