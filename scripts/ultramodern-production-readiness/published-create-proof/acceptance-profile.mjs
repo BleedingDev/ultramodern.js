@@ -58,6 +58,7 @@ import {
 import {
   acceptancePackageManagerRoot,
   createAcceptancePackageManagerEnv,
+  createAcceptanceWorkspaceEnv,
   roundDurationMs,
   run,
   runAsync,
@@ -1380,19 +1381,29 @@ async function runAcceptanceProfile({
       runImpl,
       workDir,
     });
-    const packageManagerEnv = createAcceptanceReleaseAgeEnv(
+    const bootstrapEnv = createAcceptanceReleaseAgeEnv(
       runtimeEnv,
       createPackage,
       commandExclusions,
       registryEnv,
     );
+    const packageManagerEnv = createAcceptanceWorkspaceEnv(runtimeEnv, {
+      mode,
+      release,
+      registryEnv,
+    });
     const receipt = createAcceptanceReceipt({
       release,
       mode,
       profile: options.selectedProfile,
       createPackage,
       runtime,
-      registry: registryReceiptMetadata({ mode, registryUrl }),
+      registry: {
+        ...registryReceiptMetadata({ mode, registryUrl }),
+        sourceCandidateTrustPolicyExclude: JSON.parse(
+          packageManagerEnv.pnpm_config_trust_policy_exclude ?? '[]',
+        ),
+      },
       runIdentity,
       now,
     });
@@ -1406,7 +1417,7 @@ async function runAcceptanceProfile({
           verifyRegistryCohort({
             release,
             registryUrl,
-            env: packageManagerEnv,
+            env: bootstrapEnv,
             workDir,
             // Async runner: the cohort proof verifies packages through a
             // bounded concurrent pool; the profile's shared sync runImpl would
@@ -1422,7 +1433,7 @@ async function runAcceptanceProfile({
             workDir,
             options.projectName,
             createPackage,
-            packageManagerEnv,
+            bootstrapEnv,
             runImpl,
           );
           // The generated project is always-Zephyr by design (the zephyr-gating

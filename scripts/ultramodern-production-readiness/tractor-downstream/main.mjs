@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { parse as load } from 'yaml';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import {
@@ -23,7 +24,6 @@ import {
 } from '../browser-smoke/targets.mjs';
 import {
   acceptancePlaywrightInstallArgs,
-  createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
   resolveExactPnpmExecutable,
   snapshotAcceptanceWorkspaceSource,
@@ -34,7 +34,10 @@ import {
   createPnpmDlxArgs,
   resolveCreatePackage,
 } from '../published-create-proof/package-cohort.mjs';
-import { run } from '../published-create-proof/process.mjs';
+import {
+  createAcceptanceWorkspaceEnv,
+  run,
+} from '../published-create-proof/process.mjs';
 import {
   releaseAgeExemptions,
   validateExactExclusions,
@@ -134,26 +137,29 @@ function createTractorPnpmDlxArgs(
 }
 
 function createTractorPackageManagerContext({
-  createPackage,
+  mode,
+  release,
   expectedPnpmVersion,
-  minimumReleaseAgeExclude,
+  environment = process.env,
   packageManagerRoot,
   registryEnv,
   storeDir,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
 }) {
-  const exactExclusions = validateExactExclusions(
-    minimumReleaseAgeExclude,
-    'Tractor bootstrap minimumReleaseAgeExclude',
-  );
   // Thin delegate: the shared acceptance owner decides the exact pnpm
   // executable, PATH, registry, npm/pnpm stores, XDG cache, and
-  // PLAYWRIGHT_BROWSERS_PATH. Only the Tractor bootstrap release-age policy
-  // is layered on top here. The registry environment is decided by the mode
+  // PLAYWRIGHT_BROWSERS_PATH. Native workspace YAML owns the age and trust
+  // policy. The registry environment is decided by the mode
   // (see resolveAcceptanceRegistryEnv) and passed straight through.
   const runtime = createAcceptanceRuntimeContext({
     browsers: 'isolated',
+    environment: {
+      ...environment,
+      PATH: [path.dirname(process.execPath), environment.PATH]
+        .filter(Boolean)
+        .join(path.delimiter),
+    },
     expectedPnpmVersion,
     registryEnv,
     storeDir,
@@ -161,15 +167,89 @@ function createTractorPackageManagerContext({
     runImpl,
     workDir: packageManagerRoot,
   });
-  return {
-    env: createAcceptanceReleaseAgeEnv(
-      runtime.env,
-      createPackage,
-      exactExclusions,
-      registryEnv,
-    ),
-    pnpmExecutable: runtime.pnpmExecutable,
-  };
+  const env = createAcceptanceWorkspaceEnv(runtime.env, {
+    mode,
+    release,
+    registryEnv,
+  });
+  // An executable pnpm directory can itself contain a different node binary.
+  // Keep the accepted interpreter first, including in that case.
+  env.PATH = [
+    ...new Set([
+      path.dirname(process.execPath),
+      ...env.PATH.split(path.delimiter),
+    ]),
+  ].join(path.delimiter);
+  return { env, pnpmExecutable: runtime.pnpmExecutable };
+}
+
+// Obtain the current policy from the exact producer, using its ordinary
+// fresh-workspace command rather than duplicating framework defaults here.
+function readTractorProducerOverrides({
+  createPackage,
+  minimumReleaseAgeExclude,
+  packageManager,
+  packageManagerRoot,
+  runImpl = run,
+}) {
+  const root = fs.mkdtempSync(
+    path.join(packageManagerRoot, 'producer-policy-'),
+  );
+  const workspace = path.join(root, 'workspace');
+  try {
+    runImpl(
+      packageManager.pnpmExecutable,
+      createTractorPnpmDlxArgs(createPackage, minimumReleaseAgeExclude, [
+        workspace,
+        '--lang',
+        'en',
+        '--no-agents-md',
+      ]),
+      { cwd: root, env: packageManager.env },
+    );
+    const policy = load(
+      fs.readFileSync(path.join(workspace, 'pnpm-workspace.yaml'), 'utf8'),
+    );
+    const overrides = policy?.overrides;
+    if (
+      !overrides ||
+      typeof overrides !== 'object' ||
+      Array.isArray(overrides) ||
+      Object.values(overrides).some(value => typeof value !== 'string')
+    ) {
+      throw new Error(
+        'Exact producer workspace must provide native pnpm overrides',
+      );
+    }
+    if (
+      policy.minimumReleaseAge !== 1440 ||
+      policy.minimumReleaseAgeStrict !== true ||
+      policy.minimumReleaseAgeIgnoreMissingTime !== false ||
+      policy.trustPolicy !== 'no-downgrade' ||
+      policy.trustPolicyIgnoreAfter !== 1440
+    ) {
+      throw new Error(
+        'Exact producer workspace must retain strict 24-hour age and no-downgrade trust policies',
+      );
+    }
+    const producerExclusions = validateExactExclusions(
+      policy.minimumReleaseAgeExclude,
+      'Exact producer workspace minimumReleaseAgeExclude',
+    );
+    if (!producerExclusions.includes(createPackage.exactSpecifier)) {
+      throw new Error(
+        'Exact producer workspace minimumReleaseAgeExclude must include its installed producer',
+      );
+    }
+    return {
+      pnpmOverrides: overrides,
+      minimumReleaseAgeExclude: producerExclusions,
+      trustPolicy: policy.trustPolicy,
+      trustPolicyIgnoreAfter: policy.trustPolicyIgnoreAfter,
+    };
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 // A source-candidate rehearsal may reach the throwaway loopback registry and
@@ -717,7 +797,13 @@ function readPassingNodeBackendProof(workspace) {
   };
 }
 
-function* executeTractorCommands({ workspace, env, report, runImpl = run }) {
+function* executeTractorCommands({
+  workspace,
+  env,
+  report,
+  pnpmExecutable = 'pnpm',
+  runImpl = run,
+}) {
   for (const {
     command: [command, args],
     report: reportCommand,
@@ -725,7 +811,10 @@ function* executeTractorCommands({ workspace, env, report, runImpl = run }) {
     if (args[0] === 'node:proof') {
       fs.rmSync(path.join(workspace, nodeBackendProofPath), { force: true });
     }
-    runImpl(command, args, { cwd: workspace, env });
+    runImpl(command === 'pnpm' ? pnpmExecutable : command, args, {
+      cwd: workspace,
+      env,
+    });
     if (reportCommand) {
       report.checks.push({
         id: args.join('-'),
@@ -771,9 +860,9 @@ async function runTractorDownstreamAcceptance(
     path.join(os.tmpdir(), 'ultramodern-tractor-downstream-'),
   );
   const packageManager = createTractorPackageManagerContext({
-    createPackage,
+    mode,
+    release,
     expectedPnpmVersion: release.tools?.pnpm,
-    minimumReleaseAgeExclude,
     packageManagerRoot,
     registryEnv,
     storeDir: options.storeDir,
@@ -789,6 +878,9 @@ async function runTractorDownstreamAcceptance(
     // the persistent Tractor adoption the published lane proves.
     mode,
     status: 'running',
+    sourceCandidateTrustPolicyExclude: JSON.parse(
+      env.pnpm_config_trust_policy_exclude ?? '[]',
+    ),
     startedAt: startedAt.toISOString(),
     release: {
       cohortDigest: release.cohortDigest,
@@ -804,7 +896,28 @@ async function runTractorDownstreamAcceptance(
       options.workspace,
       runImpl,
     );
-    prepareTractorCohortInstallation(options.workspace, release);
+    const childNode = runImpl('node', ['--version'], {
+      cwd: options.workspace,
+      env: packageManager.env,
+      stdio: 'pipe',
+    });
+    if (childNode !== release.tools.node) {
+      throw new Error(
+        `Tractor child Node.js must match release ${release.tools.node}, found ${childNode}`,
+      );
+    }
+    const producerPolicy = readTractorProducerOverrides({
+      createPackage,
+      minimumReleaseAgeExclude,
+      packageManager,
+      packageManagerRoot,
+      runImpl,
+    });
+    prepareTractorCohortInstallation(
+      options.workspace,
+      release,
+      producerPolicy,
+    );
     // pnpm validates the existing lock before resolving new dependencies. A
     // recently accepted previous cohort is outside this candidate's exact
     // release-age approvals, so resolve the candidate from a fresh native lock.
@@ -858,6 +971,7 @@ async function runTractorDownstreamAcceptance(
       workspace: options.workspace,
       env,
       report,
+      pnpmExecutable: packageManager.pnpmExecutable,
       runImpl,
     })) {
       if (args[0] === 'check') {
@@ -918,6 +1032,7 @@ async function runTractorDownstreamAcceptance(
       '.codex/reports/tractor-downstream-workerd',
     );
     const workerd = await startWorkerdProofImpl({
+      pnpmExecutable: packageManager.pnpmExecutable,
       artifactDir,
       processEnv: env,
       projectDir: options.workspace,
@@ -1127,6 +1242,7 @@ export {
   promotableTractorAcceptanceMode,
   proveNodeServerRenderedSsr,
   readPassingNodeBackendProof,
+  readTractorProducerOverrides,
   requiredCommands,
   requiredVisibleRuntimePlatforms,
   resolveAcceptanceRegistryEnv,

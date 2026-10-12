@@ -38,6 +38,12 @@ import {
   orderTargetsForLocalStartup,
 } from './browser-smoke/targets.mjs';
 
+import { createAcceptanceWorkspaceEnv } from './published-create-proof/process.mjs';
+import {
+  parseYamlFile,
+  validateExactExclusions,
+} from './published-create-proof/release-age-audit.mjs';
+
 export {
   findDuplicateStylesheetHrefs,
   isFatalConsoleMessage,
@@ -106,6 +112,7 @@ function pinnedJson(filename) {
 export function createAcceptedNodeProofEnvironment(
   projectDir,
   environment = process.env,
+  context = {},
 ) {
   const {
     value: { settings },
@@ -117,8 +124,9 @@ export function createAcceptedNodeProofEnvironment(
     settings.minimumReleaseAgeStrict !== true ||
     settings.minimumReleaseAgeIgnoreMissingTime !== false ||
     settings.trustPolicy !== 'no-downgrade' ||
-    typeof settings.enableGlobalVirtualStore !== 'boolean' ||
-    !['minimumReleaseAgeExclude', 'trustPolicyExclude'].every(
+    (settings.enableGlobalVirtualStore !== undefined &&
+      typeof settings.enableGlobalVirtualStore !== 'boolean') ||
+    !['minimumReleaseAgeExclude'].every(
       key =>
         Array.isArray(settings[key]) &&
         settings[key].length > 0 &&
@@ -131,38 +139,72 @@ export function createAcceptedNodeProofEnvironment(
     throw new BrowserSmokeError(
       'Continuation requires the original strict pnpm install settings',
     );
-  const env = { ...environment };
-  for (const key of [
-    'NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
-    'NPM_CONFIG_TRUST_POLICY_EXCLUDE',
-    'PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
-    'PNPM_CONFIG_TRUST_POLICY_EXCLUDE',
-    'npm_config_minimum_release_age_exclude',
-    'npm_config_trust_policy_exclude',
-  ])
-    delete env[key];
-  return {
-    ...env,
-    CI: 'true',
-    pnpm_config_pm_on_fail: 'ignore',
-    pnpm_config_minimum_release_age: String(settings.minimumReleaseAge),
-    pnpm_config_minimum_release_age_strict: String(
-      settings.minimumReleaseAgeStrict,
-    ),
-    pnpm_config_minimum_release_age_ignore_missing_time: String(
-      settings.minimumReleaseAgeIgnoreMissingTime,
-    ),
-    pnpm_config_minimum_release_age_exclude: JSON.stringify(
-      settings.minimumReleaseAgeExclude,
-    ),
-    pnpm_config_trust_policy: settings.trustPolicy,
-    pnpm_config_trust_policy_exclude: JSON.stringify(
-      settings.trustPolicyExclude,
-    ),
-    pnpm_config_enable_global_virtual_store: String(
-      settings.enableGlobalVirtualStore,
-    ),
-  };
+  const policy = parseYamlFile(
+    path.join(projectDir, 'pnpm-workspace.yaml'),
+    undefined,
+    { singleDocument: true },
+  );
+  if (
+    policy?.minimumReleaseAge !== 1440 ||
+    policy.minimumReleaseAgeStrict !== true ||
+    policy.minimumReleaseAgeIgnoreMissingTime !== false ||
+    policy.trustPolicy !== 'no-downgrade' ||
+    policy.trustPolicyIgnoreAfter !== 1440 ||
+    JSON.stringify(policy.minimumReleaseAgeExclude) !==
+      JSON.stringify(settings.minimumReleaseAgeExclude)
+  ) {
+    throw new BrowserSmokeError(
+      'Continuation requires unchanged native pnpm workspace policy',
+    );
+  }
+  validateExactExclusions(
+    policy.minimumReleaseAgeExclude,
+    'Continuation native release-age exclusions',
+  );
+  const nativeTrustExclusions = validateExactExclusions(
+    policy.trustPolicyExclude === undefined ? [] : policy.trustPolicyExclude,
+    'Continuation native trust exclusions',
+  );
+  const savedTrustExclusions = validateExactExclusions(
+    settings.trustPolicyExclude === undefined
+      ? []
+      : settings.trustPolicyExclude,
+    'Continuation installed trust exclusions',
+  );
+  if (nativeTrustExclusions.length > 0) {
+    throw new BrowserSmokeError(
+      'Continuation requires native consumer trust policy without exclusions',
+    );
+  }
+  let trustContext;
+  if (savedTrustExclusions.length > 0) {
+    if (context.mode !== 'source' || !context.release) {
+      throw new BrowserSmokeError(
+        'Saved source candidate trust exclusions require an authenticated release. Use run-release-acceptance.mjs --continue-from source-node or source-workerd.',
+      );
+    }
+    trustContext = {
+      mode: 'source',
+      release: context.release,
+      registryEnv: {
+        PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(savedTrustExclusions),
+      },
+    };
+  }
+  return createAcceptanceWorkspaceEnv(
+    {
+      ...environment,
+      CI: 'true',
+      ...(settings.enableGlobalVirtualStore === undefined
+        ? {}
+        : {
+            pnpm_config_enable_global_virtual_store: String(
+              settings.enableGlobalVirtualStore,
+            ),
+          }),
+    },
+    trustContext,
+  );
 }
 
 export function readNodeBrowserContinuation({

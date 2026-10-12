@@ -153,8 +153,13 @@ function nodeSsrEvidence() {
 // A clean Tractor checkout whose one framework dependency is catalog-managed.
 function writeTractorWorkspace(workspace) {
   writeJson(path.join(workspace, 'package.json'), {
+    packageManager: 'pnpm@11.24.0',
     dependencies: { '@modern-js/i18n-utils': 'catalog:ultramodern' },
   });
+  fs.writeFileSync(
+    path.join(workspace, '.mise.toml'),
+    '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',
+  );
   fs.writeFileSync(
     path.join(workspace, 'pnpm-workspace.yaml'),
     "catalogs:\n  ultramodern:\n    '@modern-js/i18n-utils': npm:@bleedingdev/modern-js-i18n-utils@0.0.0-previous\n",
@@ -208,6 +213,29 @@ async function runTractorAcceptanceFixture({
   });
 
   const runImpl = (command, args) => {
+    if (command === 'node' && args[0] === '--version') {
+      return release.tools.node;
+    }
+    if (
+      command === pnpmExecutable &&
+      args.includes('dlx') &&
+      !args.includes('ultramodern')
+    ) {
+      const generated = args[args.indexOf('dlx') + 3];
+      fs.mkdirSync(generated, { recursive: true });
+      fs.writeFileSync(
+        path.join(generated, 'pnpm-workspace.yaml'),
+        `overrides: {}\nminimumReleaseAge: 1440\nminimumReleaseAgeStrict: true\nminimumReleaseAgeIgnoreMissingTime: false\ntrustPolicy: no-downgrade\ntrustPolicyIgnoreAfter: 1440\nminimumReleaseAgeExclude:\n${[
+          ...release.packages.map(item => `${item.targetName}@${item.version}`),
+          ...(release.sidecars?.packages ?? []).map(
+            item => `${item.name}@${item.version}`,
+          ),
+        ]
+          .sort()
+          .map(selector => `  - ${JSON.stringify(selector)}`)
+          .join('\n')}\n`,
+      );
+    }
     if (command === 'git') {
       return args[0] === 'rev-parse' ? baselineRevision : '';
     }
@@ -220,7 +248,7 @@ async function runTractorAcceptanceFixture({
     if (command === pnpmExecutable && args.includes('--no-frozen-lockfile')) {
       installReleaseCohort(workspace, release);
     }
-    if (command === 'pnpm' && args[0] === 'node:proof') {
+    if (command === pnpmExecutable && args[0] === 'node:proof') {
       writeJson(
         path.join(
           workspace,
@@ -244,6 +272,11 @@ async function runTractorAcceptanceFixture({
       ? { registryUrl: 'https://registry.npmjs.org/' }
       : {
           registryEnv: {
+            PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(
+              release.packages
+                .map(item => `${item.targetName}@${item.version}`)
+                .sort(),
+            ),
             npm_config_cache: path.join(root, 'npm-cache'),
             npm_config_userconfig: path.join(root, '.npmrc'),
           },

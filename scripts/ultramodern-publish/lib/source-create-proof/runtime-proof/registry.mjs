@@ -232,7 +232,7 @@ function createRegistryEnv({
     // the consumer's normal no-downgrade policy.
     ...(verifiedPackages.length > 0 && {
       PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(
-        verifiedPackages.map(pkg => `${pkg.targetName}@${pkg.version}`),
+        verifiedPackages.map(pkg => `${pkg.targetName}@${pkg.version}`).sort(),
       ),
     }),
   };

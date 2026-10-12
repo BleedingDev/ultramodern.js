@@ -1219,17 +1219,21 @@ async function auditReleaseAgePolicy({
   const workspace = readNativeWorkspacePolicy(workspacePath, {
     parseYamlImpl,
   });
-  // ultramodern-create exempts exactly the cohort its catalog pins, so a
-  // workspace created on publish day installs. Anything wider or narrower is a
-  // generator regression.
-  const cohortSelectors = release.packages
-    .map(item => `${item.targetName}@${item.version}`)
-    .sort(compareCodeUnits);
+  // Ordinary installs must use the exact authenticated producer policy.
+  const cohortSelectors = validateExactExclusions(
+    [
+      ...release.packages.map(item => `${item.targetName}@${item.version}`),
+      ...(release.sidecars?.packages ?? []).map(
+        item => `${item.name}@${item.version}`,
+      ),
+    ].sort(compareCodeUnits),
+    'Authenticated generated workspace release-age exclusions',
+  );
   const persistedExclusions = workspace.policy.minimumReleaseAgeExclude;
   assertCondition(
     JSON.stringify(persistedExclusions) === JSON.stringify(cohortSelectors),
     [
-      'Generated pnpm workspace minimumReleaseAgeExclude must list exactly the release cohort.',
+      'Generated pnpm workspace minimumReleaseAgeExclude must list exactly the release cohort and verified sidecars.',
       `Expected: ${cohortSelectors.join(', ')}`,
       `Found: ${Array.isArray(persistedExclusions) ? persistedExclusions.join(', ') || '(empty)' : String(persistedExclusions)}`,
     ].join('\n'),
@@ -1298,20 +1302,17 @@ async function auditReleaseAgePolicy({
       release,
       now,
     });
-  // The command set (cohort, sidecars and reviewed exceptions) replaces the
-  // workspace's cohort-only list for the acceptance install; it is transient
-  // and is checked again before the frozen install.
-  const declaredExclusions = new Set(commandExclusions);
+  const declaredExclusions = new Set(persistedExclusions);
   const missingExclusions = requiredExclusions.filter(
     key => !declaredExclusions.has(key),
   );
   assertCondition(
     missingExclusions.length === 0,
-    `Acceptance command release-age exclusions are missing required immature dependencies: ${
+    `Generated workspace release-age policy does not permit immature dependencies: ${
       missingExclusions.join(', ') || '(empty)'
-    }`,
+    }. External release-age approvals cannot override ordinary workspace installs.`,
   );
-  const exactExclusions = commandExclusions;
+  const exactExclusions = persistedExclusions;
 
   const metadataIdentity = metadata.map(item => ({
     name: item.name,

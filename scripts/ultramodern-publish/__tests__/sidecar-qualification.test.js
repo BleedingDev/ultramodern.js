@@ -103,13 +103,24 @@ test('read-only loopback registry serves only accepted metadata and snapshotted 
   const { startSidecarRegistry } = await load();
   const item = f.sidecars.packages[0];
   const original = Buffer.from(item.bytes);
+  const beforeStart = Date.now();
   const registry = await startSidecarRegistry(f.sidecars.packages);
+  const afterStart = Date.now();
   t.after(() => registry.stop());
   const metadata = await fetch(
     new URL(encodeURIComponent(item.name), registry.registryUrl),
   ).then(response => response.json());
   assert.equal(metadata.versions[item.version].dist.integrity, item.integrity);
   assert.deepEqual(Object.keys(metadata.versions), [item.version]);
+  const availableAt = metadata.time[item.version];
+  assert.equal(new Date(availableAt).toISOString(), availableAt);
+  assert.ok(Date.parse(availableAt) >= beforeStart);
+  assert.ok(Date.parse(availableAt) <= afterStart);
+  assert.deepEqual(metadata.time, {
+    created: availableAt,
+    modified: availableAt,
+    [item.version]: availableAt,
+  });
   item.bytes.fill(0);
   item.packageJson.version = '99.0.0';
   const response = await fetch(metadata.versions[item.version].dist.tarball);
@@ -119,6 +130,7 @@ test('read-only loopback registry serves only accepted metadata and snapshotted 
     new URL(encodeURIComponent(item.name), registry.registryUrl),
   ).then(value => value.json());
   assert.equal(again.versions[item.version].version, item.version);
+  assert.deepEqual(again.time, metadata.time);
   for (const route of [
     'braces',
     '@bleedingdev/unknown',
@@ -524,6 +536,46 @@ test('an already cancelled qualification allocates no workspace', async t => {
   );
 });
 
+test('Darwin zombie-only EPERM requires a complete owned process-group snapshot', async () => {
+  const { qualificationGroupHasLiveMembers } = await load();
+  const denied = Object.assign(new Error('not signalable'), { code: 'EPERM' });
+  const options = snapshot => ({
+    platform: 'darwin',
+    uid: 501,
+    kill: () => {
+      throw denied;
+    },
+    readProcessTable: () => snapshot,
+  });
+  assert.equal(
+    qualificationGroupHasLiveMembers(
+      123,
+      options('124 123 501 Z\n125 456 0 S'),
+    ),
+    false,
+  );
+  assert.throws(
+    () => qualificationGroupHasLiveMembers(123, options('124 123 501 S')),
+    error => error === denied,
+  );
+  assert.throws(
+    () => qualificationGroupHasLiveMembers(123, options('124 123 0 Z')),
+    /foreign owner/,
+  );
+  assert.throws(
+    () => qualificationGroupHasLiveMembers(123, options('unreadable row')),
+    /Cannot confirm/,
+  );
+  assert.throws(
+    () =>
+      qualificationGroupHasLiveMembers(123, {
+        ...options('124 123 501 Z'),
+        platform: 'linux',
+      }),
+    error => error === denied,
+  );
+});
+
 for (const failure of ['timeout', 'cancellation']) {
   test(`${failure} terminates an ignoring grandchild before releasing and removing its workspace`, {
     skip: process.platform === 'win32',
@@ -638,9 +690,13 @@ setInterval(() => {}, 1000);
         childPids = JSON.parse(fs.readFileSync(readyPath, 'utf8'));
       if (childPids) {
         try {
-          process.kill(-childPids.child, 'SIGKILL');
+          if (alive(childPids.child) || alive(childPids.grandchild))
+            process.kill(-childPids.child, 'SIGKILL');
         } catch (error) {
-          assert.equal(error.code, 'ESRCH');
+          if (process.platform === 'darwin' && error.code === 'EPERM') {
+            assert.equal(alive(childPids.child), false);
+            assert.equal(alive(childPids.grandchild), false);
+          } else assert.equal(error.code, 'ESRCH');
         }
         await waitFor(() => !alive(childPids.grandchild));
       }

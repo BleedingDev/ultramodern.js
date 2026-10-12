@@ -147,7 +147,7 @@ describe('create-ultramodern-workspace', () => {
     const workspaceDir = path.join(tempRoot, 'ultra-workspace');
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--no-tailwind', '--lang', 'en']);
-    materializeGeneratedWorkspaceDependencies(workspaceDir);
+    await materializeGeneratedWorkspaceDependencies(workspaceDir);
     expectWorkspaceValidatorPass(workspaceDir);
     const shellDir = path.join(workspaceDir, 'apps/shell-super-app');
     const isolatedEnv = { ...process.env, NODE_PATH: '' };

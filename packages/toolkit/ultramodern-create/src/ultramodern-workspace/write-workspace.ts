@@ -54,6 +54,7 @@ import {
   resolvePackageSource,
   resolveWorkspacePackageLinkingPolicy,
 } from './package-source';
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
 import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
 import { reconcileWorkspaceRendererIdentities } from './renderer-identity';
 import { initializeGeneratedRendererIdentity } from './renderer-initial-identity';
@@ -141,9 +142,9 @@ function writeSharedPackages(
 }
 
 // The catalog pins one exact release cohort. The workspace keeps pnpm's strict
-// 24h release-age gate for everything else but exempts exactly the cohort this
-// create package ships (catalog entries and the cohort packages they depend
-// on), so a workspace created on the day the cohort is published installs.
+// 24h release-age gate for everything else but exempts exactly the cohort and
+// sidecar versions authenticated by this create package, so freshly released
+// framework packages and their owned transitive dependencies install.
 // A catalog for any other release gets no exemption: this package cannot
 // authenticate that cohort, so it installs once it is 24h old.
 function renderCatalogPolicy(
@@ -289,6 +290,14 @@ async function generateUltramodernWorkspaceInPlace(
       packageScope: scope,
       nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
+      dependencyOverridesYaml: `overrides:\n${Object.entries(
+        ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides,
+      )
+        .map(
+          ([selector, specifier]) =>
+            `  ${JSON.stringify(selector)}: ${JSON.stringify(specifier)}`,
+        )
+        .join('\n')}\n\n`,
       effectVersion: EFFECT_VERSION,
       i18nextVersion: I18NEXT_VERSION,
       workspacePackageLinkingYaml: Object.entries(workspacePackageLinkingPolicy)

@@ -569,7 +569,7 @@ test('bootstrap rejects invalid sidecar observations and cannot forge sidecar ex
   );
 });
 
-test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
+test('bootstrap release policy binds one exact cohort and sidecar selector set', async t => {
   const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
@@ -615,6 +615,152 @@ test('fresh-release installs use one exact cohort and sidecar selector set', asy
   assert.throws(
     () => releaseAgeExemptions(release, { policyPath }),
     /Acceptance command release-age exclusions/u,
+  );
+});
+
+test('generated workspace commands cannot inherit release-age or trust policy overrides', async t => {
+  const { createAcceptanceWorkspaceEnv } = await import(
+    '../published-create-proof/process.mjs'
+  );
+  const overrides = {
+    npm_config_minimum_release_age: '0',
+    npm_config_minimumReleaseAge: '0',
+    'pnpm_config_trust-policy-exclude': '["*"]',
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["*"]',
+    PnPm_Config_Minimum_Release_Age_Strict: 'false',
+    npm_config_minimum_release_age_ignore_missing_time: 'true',
+    pnpm_config_trust_policy: 'off',
+    NPM_CONFIG_TRUST_POLICY_EXCLUDE: '["*"]',
+  };
+  t.mock.property(process, 'env', { ...process.env, ...overrides });
+  const runtimeEnv = {
+    PATH: '/qualified/pnpm',
+    npm_config_registry: 'https://registry.example.test/',
+    pnpm_config_store_dir: '/owned/store',
+    pnpm_config_trust_policy_exclude: '["foreign@1.0.0"]',
+  };
+  const original = { ...runtimeEnv };
+  const env = createAcceptanceWorkspaceEnv(runtimeEnv);
+  const childEnv = createProcessEnv(env);
+  for (const name of [
+    ...Object.keys(overrides),
+    'pnpm_config_trust_policy_exclude',
+  ]) {
+    assert.equal(env[name], undefined);
+    assert.equal(childEnv[name], undefined);
+  }
+  assert.deepEqual(runtimeEnv, original);
+  for (const [name, value] of Object.entries(overrides)) {
+    assert.equal(process.env[name], value);
+  }
+  assert.equal(childEnv.PATH, runtimeEnv.PATH);
+  assert.equal(childEnv.npm_config_registry, runtimeEnv.npm_config_registry);
+  assert.equal(
+    childEnv.pnpm_config_store_dir,
+    runtimeEnv.pnpm_config_store_dir,
+  );
+  assert.equal(childEnv.pnpm_config_pm_on_fail, 'ignore');
+});
+
+test('source candidate trust exempts only the verified Modern cohort and never release age', async () => {
+  const { createAcceptanceWorkspaceEnv } = await import(
+    '../published-create-proof/process.mjs'
+  );
+  const { createRegistryEnv } = await import(
+    '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs'
+  );
+  const version = '3.9.3-ultramodern.1';
+  const release = {
+    release: { version },
+    packages: ['app-tools', 'runtime', 'runtime-extensions'].map(name => ({
+      targetName: `@bleedingdev/modern-js-${name}`,
+      version,
+    })),
+    sidecars: { packages: [{ name: '@bleedingdev/braces', version: '3.0.4' }] },
+  };
+  const selectors = release.packages
+    .map(item => `${item.targetName}@${item.version}`)
+    .sort();
+  const registryEnv = createRegistryEnv({
+    userConfigPath: '/source/registry.npmrc',
+    cacheDir: '/source/npm-cache',
+    verifiedPackages: release.packages,
+  });
+  // Full selectors order runtime-extensions before runtime, unlike target names.
+  assert.deepEqual(
+    JSON.parse(registryEnv.PNPM_CONFIG_TRUST_POLICY_EXCLUDE),
+    selectors,
+  );
+  const runtimeEnv = {
+    PATH: '/qualified/node/bin',
+    ...registryEnv,
+    pnpm_config_minimum_release_age: '0',
+    npm_config_minimum_release_age_exclude: '["*"]',
+    npm_config_trust_policy_exclude: '["*"]',
+  };
+  const original = { ...runtimeEnv };
+  const env = createAcceptanceWorkspaceEnv(runtimeEnv, {
+    mode: 'source',
+    release,
+    registryEnv,
+  });
+  assert.deepEqual(JSON.parse(env.pnpm_config_trust_policy_exclude), selectors);
+  assert.equal(env.PNPM_CONFIG_TRUST_POLICY_EXCLUDE, undefined);
+  assert.equal(env.npm_config_trust_policy_exclude, undefined);
+  assert.equal(env.pnpm_config_minimum_release_age, undefined);
+  assert.equal(env.npm_config_minimum_release_age_exclude, undefined);
+  assert.equal(env.PATH, runtimeEnv.PATH);
+  assert.deepEqual(runtimeEnv, original);
+  for (const mode of [undefined, 'published']) {
+    const ordinary = createAcceptanceWorkspaceEnv(runtimeEnv, {
+      mode,
+      release,
+      registryEnv,
+    });
+    assert.equal(ordinary.pnpm_config_trust_policy_exclude, undefined);
+    assert.equal(ordinary.PNPM_CONFIG_TRUST_POLICY_EXCLUDE, undefined);
+  }
+  for (const provided of [
+    ['*'],
+    [...selectors, 'foreign@1.0.0'],
+    [...selectors, '@bleedingdev/braces@3.0.4'],
+    selectors.slice(1),
+    [...selectors].reverse(),
+    [...selectors, selectors[0]],
+    'not-an-array',
+  ]) {
+    assert.throws(
+      () =>
+        createAcceptanceWorkspaceEnv(runtimeEnv, {
+          mode: 'source',
+          release,
+          registryEnv: {
+            PNPM_CONFIG_TRUST_POLICY_EXCLUDE: JSON.stringify(provided),
+          },
+        }),
+      /must equal the exact authenticated release cohort/u,
+    );
+  }
+  assert.throws(
+    () => createAcceptanceWorkspaceEnv(runtimeEnv, { mode: 'source', release }),
+    /requires exact registry-provided cohort selectors/u,
+  );
+  assert.throws(
+    () =>
+      createAcceptanceWorkspaceEnv(runtimeEnv, {
+        mode: 'source',
+        registryEnv,
+        release: {
+          ...release,
+          packages: [{ targetName: '@bleedingdev/*', version }],
+        },
+      }),
+    /requires exact authenticated target names and versions/u,
+  );
+  assert.throws(
+    () =>
+      createAcceptanceWorkspaceEnv(runtimeEnv, { mode: 'source', registryEnv }),
+    /requires the authenticated release cohort/u,
   );
 });
 
@@ -1207,7 +1353,8 @@ test('asserts generated cohorts only from strict manifest expectations', async t
     packages: release.packages.map(item => ({ ...item, version })),
     release: { tag: 'latest', version },
     schema: 'bleedingdev.ultramodern.release-cohort',
-    schemaVersion: 1,
+    schemaVersion: 2,
+    sidecars: [],
     source: {
       commit: 'a'.repeat(40),
       repository: 'BleedingDev/ultramodern.js',

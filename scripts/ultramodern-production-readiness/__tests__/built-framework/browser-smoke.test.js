@@ -1428,7 +1428,7 @@ test('Node browser continuation CLI is limited to the source/node cursor', async
   );
 });
 
-test('Node browser continuation restores the accepted strict pnpm settings without disabling verification', async t => {
+test('Node browser continuation uses strict native policy without requiring trust exclusions', async t => {
   const { createAcceptedNodeProofEnvironment } = await loadSmoke();
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -1438,10 +1438,15 @@ test('Node browser continuation restores the accepted strict pnpm settings witho
     minimumReleaseAgeIgnoreMissingTime: false,
     minimumReleaseAgeExclude: ['@fixture/cohort@1.0.0'],
     trustPolicy: 'no-downgrade',
-    trustPolicyExclude: ['@fixture/cohort@1.0.0'],
     enableGlobalVirtualStore: false,
   };
   writeJson(root, 'node_modules/.pnpm-workspace-state-v1.json', { settings });
+  fs.writeFileSync(
+    path.join(root, 'pnpm-workspace.yaml'),
+    Object.entries({ ...settings, trustPolicyIgnoreAfter: 1440 })
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+      .join('\n') + '\n',
+  );
   const env = createAcceptedNodeProofEnvironment(root, {
     CI: 'false',
     PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: 'foreign',
@@ -1449,14 +1454,8 @@ test('Node browser continuation restores the accepted strict pnpm settings witho
   });
   assert.equal(env.CI, 'true');
   assert.equal(env.PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE, undefined);
-  assert.deepEqual(
-    JSON.parse(env.pnpm_config_minimum_release_age_exclude),
-    settings.minimumReleaseAgeExclude,
-  );
-  assert.deepEqual(
-    JSON.parse(env.pnpm_config_trust_policy_exclude),
-    settings.trustPolicyExclude,
-  );
+  assert.equal(env.pnpm_config_minimum_release_age_exclude, undefined);
+  assert.equal(env.pnpm_config_trust_policy_exclude, undefined);
   assert.equal(env.pnpm_config_enable_global_virtual_store, 'false');
   assert.equal(env.pnpm_config_verify_deps_before_run, 'error');
   settings.minimumReleaseAgeStrict = false;

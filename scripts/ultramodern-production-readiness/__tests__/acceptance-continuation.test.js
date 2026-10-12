@@ -889,7 +889,7 @@ test('continuation rejects a prior build attributed to another application commi
   );
 });
 
-test('continuation policy environment restores the accepted install settings without changing the project', async t => {
+test('continuation uses native policy without restoring acceptance age or trust exceptions', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-continuation-policy-')),
@@ -910,39 +910,197 @@ test('continuation policy environment restores the accepted install settings wit
       '@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.1',
       '@bleedingdev/runtime-sidecar@1.2.3',
     ],
-    trustPolicyExclude: ['@fixture/already-installed@4.5.6'],
   };
   const stateText = JSON.stringify({ settings });
   fs.writeFileSync(statePath, stateText);
 
-  assert.deepEqual(
-    readInstalledPolicyEnvironment(root, {
-      PATH: '/accepted/node/bin',
-      PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["foreign@1.0.0"]',
-      npm_config_trust_policy_exclude: '["foreign@1.0.0"]',
-      pnpm_config_minimum_release_age_exclude: '["foreign@1.0.0"]',
-    }),
-    {
-      PATH: '/accepted/node/bin',
-      CI: 'true',
-      pnpm_config_pm_on_fail: 'ignore',
-      pnpm_config_minimum_release_age: '1440',
-      pnpm_config_minimum_release_age_strict: 'true',
-      pnpm_config_minimum_release_age_ignore_missing_time: 'false',
-      pnpm_config_minimum_release_age_exclude: JSON.stringify(
-        settings.minimumReleaseAgeExclude,
-      ),
-      pnpm_config_trust_policy_exclude: JSON.stringify(
-        settings.trustPolicyExclude,
-      ),
-      pnpm_config_trust_policy: 'no-downgrade',
-      pnpm_config_enable_global_virtual_store: 'false',
-    },
+  const workspacePath = path.join(root, 'pnpm-workspace.yaml');
+  const policy = { ...settings, trustPolicyIgnoreAfter: 1440 };
+  delete policy.enableGlobalVirtualStore;
+  const nativeYaml = value =>
+    Object.entries(value)
+      .map(([key, item]) => `${key}: ${JSON.stringify(item)}`)
+      .join('\n') + '\n';
+  const workspaceText = nativeYaml(policy);
+  fs.writeFileSync(workspacePath, workspaceText);
+  const inherited = {
+    PATH: '/accepted/node/bin',
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["*"]',
+    npm_config_minimumReleaseAge: '0',
+    npm_config_trust_policy_exclude: '["foreign@1.0.0"]',
+    pnpm_config_minimum_release_age_exclude: '["foreign@1.0.0"]',
+    pnpm_config_verify_deps_before_run: 'error',
+  };
+  const env = readInstalledPolicyEnvironment(root, inherited);
+  const { createProcessEnv } = require('../../lib/process-kit');
+  const childEnv = createProcessEnv(env);
+  for (const key of Object.keys(inherited).filter(key =>
+    /release|trust/iu.test(key),
+  )) {
+    assert.equal(env[key], undefined);
+    assert.equal(childEnv[key], undefined);
+  }
+  assert.equal(env.PATH, inherited.PATH);
+  assert.equal(env.CI, 'true');
+  assert.equal(env.pnpm_config_pm_on_fail, 'ignore');
+  assert.equal(env.pnpm_config_enable_global_virtual_store, 'false');
+  assert.equal(env.pnpm_config_verify_deps_before_run, 'error');
+  assert.equal(fs.readFileSync(workspacePath, 'utf8'), workspaceText);
+  policy.minimumReleaseAgeExclude = ['*'];
+  fs.writeFileSync(workspacePath, nativeYaml(policy));
+  assert.throws(
+    () => readInstalledPolicyEnvironment(root),
+    /unchanged native pnpm workspace policy/u,
+  );
+  policy.minimumReleaseAgeExclude = settings.minimumReleaseAgeExclude;
+  policy.trustPolicyExclude = ['*'];
+  fs.writeFileSync(workspacePath, nativeYaml(policy));
+  assert.throws(
+    () => readInstalledPolicyEnvironment(root),
+    /must not contain a glob/u,
   );
   assert.equal(fs.readFileSync(statePath, 'utf8'), stateText);
 });
 
-test('continuation policy environment requires both installed exclusion arrays', async t => {
+test('source continuation preserves only authenticated saved candidate trust with native pnpm verification', async t => {
+  const { readInstalledPolicyEnvironment } = await import(continuationModule);
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-source-trust-')),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const version = '3.9.3-ultramodern.1';
+  const release = {
+    release: { version },
+    packages: Array.from({ length: 49 }, (_, index) => ({
+      targetName: `@bleedingdev/modern-js-package-${String(index).padStart(2, '0')}`,
+      version,
+    })),
+  };
+  const selectors = release.packages
+    .map(item => `${item.targetName}@${item.version}`)
+    .sort();
+  const settings = {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeIgnoreMissingTime: false,
+    minimumReleaseAgeExclude: [
+      ...selectors,
+      '@bleedingdev/sidecar@1.0.0',
+    ].sort(),
+    trustPolicy: 'no-downgrade',
+    trustPolicyIgnoreAfter: 1440,
+    trustPolicyExclude: selectors,
+  };
+  const statePath = path.join(
+    root,
+    'node_modules/.pnpm-workspace-state-v1.json',
+  );
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  const stateText = JSON.stringify({ settings });
+  fs.writeFileSync(statePath, stateText);
+  const workspacePath = path.join(root, 'pnpm-workspace.yaml');
+  const policy = { ...settings };
+  delete policy.trustPolicyExclude;
+  const nativeYaml = value =>
+    Object.entries(value)
+      .map(([key, item]) => `${key}: ${JSON.stringify(item)}`)
+      .join('\n') + '\n';
+  const workspaceText = nativeYaml(policy);
+  fs.writeFileSync(workspacePath, workspaceText);
+  const environment = {
+    pnpm_config_verify_deps_before_run: 'error',
+    pnpm_config_minimum_release_age: '0',
+    PNPM_CONFIG_TRUST_POLICY_EXCLUDE: '["*"]',
+  };
+  const env = readInstalledPolicyEnvironment(root, environment, {
+    mode: 'source',
+    release,
+  });
+  assert.deepEqual(JSON.parse(env.pnpm_config_trust_policy_exclude), selectors);
+  assert.equal(env.pnpm_config_minimum_release_age, undefined);
+  assert.equal(env.PNPM_CONFIG_TRUST_POLICY_EXCLUDE, undefined);
+  assert.equal(env.pnpm_config_enable_global_virtual_store, undefined);
+  assert.equal(env.pnpm_config_verify_deps_before_run, 'error');
+  assert.equal(fs.readFileSync(statePath, 'utf8'), stateText);
+  assert.equal(fs.readFileSync(workspacePath, 'utf8'), workspaceText);
+  for (const context of [
+    {},
+    { mode: 'published', release },
+    { mode: 'source' },
+  ]) {
+    assert.throws(
+      () => readInstalledPolicyEnvironment(root, environment, context),
+      /Use run-release-acceptance.mjs --continue-from/u,
+    );
+  }
+  for (const invalid of [
+    null,
+    'foreign@1.0.0',
+    ['*'],
+    ['foreign@1.0.0'],
+    selectors.slice(1),
+    [...selectors, '@bleedingdev/sidecar@1.0.0'].sort(),
+  ]) {
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({
+        settings: { ...settings, trustPolicyExclude: invalid },
+      }),
+    );
+    assert.throws(
+      () =>
+        readInstalledPolicyEnvironment(root, environment, {
+          mode: 'source',
+          release,
+        }),
+      /must be an array|must not contain a glob|must equal the exact authenticated release cohort/u,
+    );
+  }
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify({
+      settings: { ...settings, trustPolicyExclude: selectors },
+    }),
+  );
+  fs.writeFileSync(
+    workspacePath,
+    nativeYaml({ ...policy, trustPolicyExclude: selectors }),
+  );
+  assert.throws(
+    () =>
+      readInstalledPolicyEnvironment(root, environment, {
+        mode: 'published',
+        release,
+      }),
+    /native consumer trust policy without exclusions/u,
+  );
+  fs.writeFileSync(workspacePath, workspaceText);
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify({ settings: { ...settings, trustPolicyExclude: [] } }),
+  );
+  const ordinary = readInstalledPolicyEnvironment(root, environment, {
+    mode: 'published',
+    release,
+  });
+  assert.equal(ordinary.pnpm_config_trust_policy_exclude, undefined);
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify({
+      settings: {
+        ...settings,
+        trustPolicyExclude: [],
+        enableGlobalVirtualStore: null,
+      },
+    }),
+  );
+  assert.throws(
+    () => readInstalledPolicyEnvironment(root, environment),
+    /original strict pnpm install settings/u,
+  );
+});
+
+test('continuation rejects incomplete strict installed policy', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
   const root = fs.realpathSync(
     fs.mkdtempSync(

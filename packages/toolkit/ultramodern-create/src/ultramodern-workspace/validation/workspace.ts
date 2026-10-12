@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import {
+  assertReleaseCohortAliasRequest,
   hasCreateReleaseCohort,
   isCreatePackageSourceCheckout,
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
+import { ULTRAMODERN_WORKSPACE_POLICY } from '../policy';
 import { assertCompilerArchitecture } from './architecture';
 import { sameJson } from './assertions';
 import {
@@ -147,6 +149,36 @@ export function validateBackendFederationEntrypoints(
     requiredFile(root, `${appPath}/${relative}`, `${appId} API surface`);
 }
 
+/** Keep every native dependency path on the producer's reviewed corrections. */
+export function assertWorkspaceDependencyOverrides(
+  workspace: JsonRecord,
+): void {
+  const overrides = record(
+    workspace.overrides,
+    'Workspace dependency overrides',
+  );
+  const required = ULTRAMODERN_WORKSPACE_POLICY.pnpm.overrides;
+  for (const [selector, specifier] of Object.entries(required)) {
+    assert(
+      overrides[selector] === specifier,
+      `Workspace dependency override ${selector} must be ${specifier}`,
+    );
+  }
+  const managed = Object.keys(required).map(selector => selector.split('@')[0]);
+  // Match the final dependency target, allowing > inside semver ranges.
+  // A managed parent such as braces@3>foo still targets unrelated foo.
+  const managedSelector = new RegExp(
+    `(?:^|>)\\s*(?:${managed.map(name => RegExp.escape(name)).join('|')})(?:@(?:[^>]|>(?=\\s*(?:=|\\d|v\\d)))*)?\\s*$`,
+    'u',
+  );
+  for (const selector of Object.keys(overrides)) {
+    assert(
+      Object.hasOwn(required, selector) || !managedSelector.test(selector),
+      `Workspace dependency override ${selector} conflicts with the producer policy`,
+    );
+  }
+}
+
 /** Validate authored workspace relationships without evaluating application config. */
 export function validateWorkspace(
   root: string,
@@ -165,6 +197,7 @@ export function validateWorkspace(
     yaml.load(fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8')),
     'pnpm-workspace.yaml',
   );
+  assertWorkspaceDependencyOverrides(workspace);
   const dependencyCatalogs = {
     catalog: record(workspace.catalog ?? {}, 'workspace catalog'),
     catalogs: record(workspace.catalogs ?? {}, 'workspace catalogs'),
@@ -577,6 +610,25 @@ export function validateWorkspace(
   const producer = hasCreateReleaseCohort()
     ? readCreateReleaseCohort()
     : undefined;
+  if (producer) {
+    const policies = [
+      [
+        'workspace overrides',
+        record(workspace.overrides, 'workspace overrides'),
+      ],
+      ['workspace catalog', dependencyCatalogs.catalog],
+      ...Object.entries(catalogs).map(
+        ([name, values]) =>
+          [
+            `workspace catalog ${name}`,
+            record(values, `workspace catalog ${name}`),
+          ] as const,
+      ),
+    ] as const;
+    for (const [label, values] of policies)
+      for (const [name, request] of Object.entries(values))
+        assertReleaseCohortAliasRequest(producer, request, `${label} ${name}`);
+  }
   const sourceCheckout = isCreatePackageSourceCheckout();
   const cohort = new Map(
     producer?.packages.map(pkg => [pkg.sourceName, pkg]) ?? [],
@@ -609,6 +661,24 @@ export function validateWorkspace(
       for (const [name, request] of Object.entries(
         record(manifest[group] ?? {}, `${member} ${group}`),
       )) {
+        if (producer) {
+          assertReleaseCohortAliasRequest(
+            producer,
+            request,
+            `${member} ${name}`,
+          );
+          if (typeof request === 'string' && request.startsWith('catalog:')) {
+            const catalogName = request.slice('catalog:'.length);
+            const values = catalogName
+              ? record(catalogs[catalogName] ?? {}, `catalog ${catalogName}`)
+              : dependencyCatalogs.catalog;
+            assertReleaseCohortAliasRequest(
+              producer,
+              values[name],
+              `${member} ${name} catalog request`,
+            );
+          }
+        }
         if (!(expected.modernPackages as string[]).includes(name)) continue;
         assert(
           typeof request === 'string',

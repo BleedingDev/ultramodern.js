@@ -44,6 +44,23 @@ const trustedWorkflow = {
   repository: 'https://github.com/BleedingDev/ultramodern.js',
 };
 
+// These mocked publications exercise registry behavior in a release context,
+// independently of the pull-request workflow running this test file.
+const mockTrustedWorkflowEnvironment = t => {
+  t.mock.property(process, 'env', {
+    ...process.env,
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REF: trustedWorkflow.ref,
+    GITHUB_REPOSITORY: releaseSource.repository,
+    GITHUB_SHA: releaseSource.commit,
+    GITHUB_RUN_ID: '12345',
+    GITHUB_RUN_ATTEMPT: '1',
+    GITHUB_WORKFLOW: 'Publish BleedingDev',
+    GITHUB_WORKFLOW_REF: `${releaseSource.repository}/${trustedWorkflow.path}@${trustedWorkflow.ref}`,
+    GITHUB_WORKFLOW_SHA: releaseSource.commit,
+  });
+};
+
 const npmPurl = item => {
   const [scope, name] = item.targetName.slice(1).split('/');
   return `pkg:npm/%40${scope}/${name}@${item.version}`;
@@ -150,7 +167,10 @@ const createTemplateRequiredFiles = [
 
 // Builds a real staged cohort and packs it through the production
 // `createReleaseArtifacts`, so the tests below verify real tarball bytes.
-const createArtifactFixture = async (extraDefinitions = []) => {
+const createArtifactFixture = async (
+  extraDefinitions = [],
+  sidecarDefinitions = [],
+) => {
   const { createReleaseArtifacts } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -215,11 +235,48 @@ const createArtifactFixture = async (extraDefinitions = []) => {
   });
   let releaseArtifacts;
   try {
+    let sidecars = null;
+    if (sidecarDefinitions.length > 0) {
+      const { writeSidecarStagingManifest } = await import(
+        '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+      );
+      const stagedSidecars = sidecarDefinitions.map(
+        ({ name, version, dependencies = {} }) => {
+          const stagedDir = path.join(
+            root,
+            'sidecars',
+            name.replaceAll('/', '__'),
+          );
+          const packageJson = {
+            name,
+            version,
+            main: 'index.js',
+            license: 'MIT',
+            dependencies,
+          };
+          writeJson(path.join(stagedDir, 'package.json'), packageJson);
+          writeFile(path.join(stagedDir, 'index.js'), 'module.exports = {};\n');
+          return {
+            name,
+            version,
+            stagedDir,
+            packageJson,
+            root: `packages/sidecar/${name.slice('@bleedingdev/'.length)}`,
+          };
+        },
+      );
+      sidecars = writeSidecarStagingManifest(
+        path.join(root, 'release'),
+        stagedSidecars,
+        { publishBefore: aliases['@modern-js/runtime'] },
+      ).descriptor;
+    }
     releaseArtifacts = createReleaseArtifacts({
       aliases,
       command: execFileSync,
       outDir: path.join(root, 'release'),
       packages,
+      sidecars,
       source: releaseSource,
       tag: 'latest',
       tools: releaseTools,
@@ -232,6 +289,110 @@ const createArtifactFixture = async (extraDefinitions = []) => {
 
   return { aliases, packages, releaseArtifacts, root };
 };
+
+test('packed cohort projects every verified sidecar and rejects incomplete or altered records', async () => {
+  const { validateReleaseCohortProjection, verifyReleaseArtifacts } =
+    await import('../lib/prepare-bleedingdev-packages/release-artifacts.mjs');
+  const fixture = await createArtifactFixture(
+    [],
+    [
+      { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+      { name: '@bleedingdev/braces', version: '3.0.3' },
+    ],
+  );
+  try {
+    const { manifest, sidecars, cohortProjection } = fixture.releaseArtifacts;
+    assert.equal(cohortProjection.value.schemaVersion, 2);
+    assert.deepEqual(cohortProjection.value.sidecars, [
+      { name: '@bleedingdev/braces', version: '3.0.3' },
+      { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+    ]);
+    for (const sidecarRecords of [
+      [],
+      cohortProjection.value.sidecars.slice(0, 1),
+      [
+        { name: '@bleedingdev/braces', version: '3.0.4' },
+        { name: '@bleedingdev/mf-sdk', version: '2.6.0' },
+      ],
+    ]) {
+      assert.throws(
+        () =>
+          validateReleaseCohortProjection(
+            { ...cohortProjection.value, sidecars: sidecarRecords },
+            manifest,
+            sidecars,
+          ),
+        /Release cohort projection does not match/,
+      );
+    }
+    const sidecar = sidecars.packages[0];
+    fs.appendFileSync(sidecar.artifactPath, 'tampered');
+    assert.throws(
+      () => verifyReleaseArtifacts(fixture.releaseArtifacts.outDir),
+      /sidecar tarball size mismatch/,
+    );
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('verified artifacts reject incomplete or mismatched owned dependency closure', async () => {
+  const leaf = { name: '@bleedingdev/leaf', version: '2.1.0' };
+  for (const dependency of [
+    { leaf: 'npm:@bleedingdev/missing@2.1.0' },
+    { '@bleedingdev/missing': '2.1.0' },
+    { leaf: 'npm:@bleedingdev/leaf@2.1.1' },
+    { '@bleedingdev/leaf': '2.1.1' },
+  ]) {
+    await assert.rejects(
+      () =>
+        createArtifactFixture(
+          [
+            {
+              sourceName: '@modern-js/tooling',
+              targetName: '@bleedingdev/modern-js-tooling',
+              dependencies: dependency,
+            },
+          ],
+          [leaf],
+        ),
+      /neither a staged sidecar nor a cohort package|stages version/,
+    );
+  }
+  for (const dependency of [
+    { '@bleedingdev/missing': '2.1.0' },
+    { leaf: 'npm:@bleedingdev/leaf@2.1.1' },
+  ]) {
+    await assert.rejects(
+      () =>
+        createArtifactFixture(
+          [],
+          [
+            leaf,
+            {
+              name: '@bleedingdev/dependent',
+              version: '1.0.0',
+              dependencies: dependency,
+            },
+          ],
+        ),
+      /neither a staged sidecar nor a cohort package|stages version/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      createArtifactFixture(
+        [],
+        [
+          {
+            name: '@bleedingdev/modern-js-unlisted',
+            version: '1.0.0',
+          },
+        ],
+      ),
+    /Invalid release cohort sidecar/,
+  );
+});
 
 // A cohort where create depends on i18n-utils, which depends on utils.
 const makePublishOrderFixture = () => {
@@ -606,7 +767,8 @@ test('registry preflight rejects a non-forward candidate before publication', as
   );
 });
 
-test('trusted publishing rejects the entire absent cohort before the first registry mutation', async () => {
+test('trusted publishing rejects the entire absent cohort before the first registry mutation', async t => {
+  mockTrustedWorkflowEnvironment(t);
   const { publishManifestPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -691,7 +853,8 @@ test('trusted publishing rejects the entire absent cohort before the first regis
   }
 });
 
-test('full-cohort publish runs each dependency level concurrently and never starts a consumer before its dependencies return', async () => {
+test('full-cohort publish runs each dependency level concurrently and never starts a consumer before its dependencies return', async t => {
+  mockTrustedWorkflowEnvironment(t);
   const { publishManifestPackages } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );

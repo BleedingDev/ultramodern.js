@@ -309,6 +309,12 @@ test('SDK profile admits only its exact package, canonical patch and installed A
   assert.deepEqual(sidecarProvenancePolicy('@bleedingdev/mf-sdk'), {
     grandfatheredVersions: [
       {
+        version: '0.0.0-stage',
+        publishedAt: '2026-10-11T22:50:37.736Z',
+        integrity:
+          'sha512-wU6deymL1rA/g7Bafhpi8Fapo2tv1LOvM0zF9Fv/XxGaTMrFQ4+CTdGwfa612Rav39snYxCfTN8PdZe8o4YN0Q==',
+      },
+      {
         version: '0.0.0-bootstrap',
         publishedAt: '2026-10-11T22:52:44.118Z',
         integrity:
@@ -333,4 +339,91 @@ test('SDK profile admits only its exact package, canonical patch and installed A
       /closed profile/,
     );
   }
+});
+
+test('SDK placeholder exemptions pin both receipts and do not authorize unsigned releases', async () => {
+  const { sidecarProvenancePolicy } = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  const { assertSidecarReuseProvenance } = await import(
+    '../lib/prepare-bleedingdev-packages/sidecar-publication.mjs'
+  );
+  const { resolveSourceIdentity } = await artifacts();
+  const name = '@bleedingdev/mf-sdk';
+  const policy = sidecarProvenancePolicy(name);
+  const [stage, bootstrap] = policy.grandfatheredVersions;
+  const sidecar = {
+    name,
+    version: bootstrap.version,
+    integrity: bootstrap.integrity,
+  };
+  const metadata = {
+    name,
+    versions: {
+      [stage.version]: {
+        name,
+        version: stage.version,
+        stub: true,
+        dist: { integrity: stage.integrity },
+      },
+      [bootstrap.version]: {
+        name,
+        version: bootstrap.version,
+        deprecated:
+          'Bootstrap placeholder only. Do not install; use the signed stable release.',
+        dist: { integrity: bootstrap.integrity },
+      },
+    },
+    time: {
+      created: stage.publishedAt,
+      [stage.version]: stage.publishedAt,
+      modified: '2026-10-12T00:00:00.000Z',
+      [bootstrap.version]: bootstrap.publishedAt,
+    },
+  };
+  const options = { env: {}, source: resolveSourceIdentity() };
+  await assertSidecarReuseProvenance(sidecar, metadata, options);
+  await assertSidecarReuseProvenance(
+    { name, version: stage.version, integrity: stage.integrity },
+    metadata,
+    options,
+  );
+
+  const changedStage = structuredClone(metadata);
+  changedStage.time[stage.version] = '2026-10-11T22:50:38.736Z';
+  await assert.rejects(
+    assertSidecarReuseProvenance(sidecar, changedStage, options),
+    /grandfathered version publication time must be/u,
+  );
+
+  const changedTime = structuredClone(metadata);
+  changedTime.time[bootstrap.version] = '2026-10-11T22:52:45.118Z';
+  await assert.rejects(
+    assertSidecarReuseProvenance(sidecar, changedTime, options),
+    /grandfathered version publication time must be/u,
+  );
+  const changedIntegrity = structuredClone(metadata);
+  const integrity = `sha512-${Buffer.alloc(64).toString('base64')}`;
+  changedIntegrity.versions[bootstrap.version].dist.integrity = integrity;
+  await assert.rejects(
+    assertSidecarReuseProvenance(
+      { ...sidecar, integrity },
+      changedIntegrity,
+      options,
+    ),
+    /grandfathered version integrity does not match/u,
+  );
+
+  const release = { name, version: '2.9.2-ultramodern.1', integrity };
+  const unsignedRelease = structuredClone(metadata);
+  unsignedRelease.versions[release.version] = {
+    name,
+    version: release.version,
+    dist: { integrity },
+  };
+  unsignedRelease.time[release.version] = '2026-10-12T00:00:00.000Z';
+  await assert.rejects(
+    assertSidecarReuseProvenance(release, unsignedRelease, options),
+    /missing SLSA v1 provenance and is not a grandfathered version/u,
+  );
 });

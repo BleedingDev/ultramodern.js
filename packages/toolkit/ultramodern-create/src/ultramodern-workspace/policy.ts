@@ -13,10 +13,12 @@ import { createLocalisedUrlsMap } from './routes';
 import type { JsonValue, WorkspaceApp } from './types';
 import { isRecord } from './types';
 import {
+  BRACES_FORK_VERSION,
   CLOUDFLARE_COMPATIBILITY_DATE,
   EFFECT_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
+  SHARP_VERSION,
   ULTRAMODERN_PACKAGE_PINS,
 } from './versions';
 
@@ -228,6 +230,12 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     },
   },
   pnpm: {
+    // Published native dependency edges do not inherit repository overrides.
+    // Apply the fixes to every vulnerable edge in generated workspaces.
+    overrides: {
+      'braces@>=3.0.0 <3.0.4': `npm:@bleedingdev/braces@${BRACES_FORK_VERSION}`,
+      'sharp@>=0.35.0 <0.35.5': SHARP_VERSION,
+    },
     minimumReleaseAge: 1440,
     minimumReleaseAgeStrict: true,
     minimumReleaseAgeIgnoreMissingTime: false,

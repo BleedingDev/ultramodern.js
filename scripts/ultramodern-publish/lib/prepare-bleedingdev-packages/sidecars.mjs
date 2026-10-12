@@ -311,7 +311,7 @@ function sidecarAliasEntries(packageJson) {
         continue;
       }
       const match = aliasSpecifierPattern.exec(specifier);
-      const target = match?.groups?.target;
+      const target = match?.groups?.target ?? dependencyName;
       if (!target || !target.startsWith(`${sidecarScope}/`)) {
         continue;
       }
@@ -320,7 +320,7 @@ function sidecarAliasEntries(packageJson) {
         dependencyName,
         specifier,
         target,
-        version: match.groups.version,
+        version: match?.groups?.version ?? specifier,
       });
     }
   }

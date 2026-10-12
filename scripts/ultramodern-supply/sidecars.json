@@ -427,6 +427,11 @@
     "provenance": {
       "grandfatheredVersions": [
         {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:50:37.736Z",
+          "integrity": "sha512-wU6deymL1rA/g7Bafhpi8Fapo2tv1LOvM0zF9Fv/XxGaTMrFQ4+CTdGwfa612Rav39snYxCfTN8PdZe8o4YN0Q=="
+        },
+        {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:44.118Z",
           "integrity": "sha512-w7s0htCV+el/sZYevmEMA+/JAhwTqYKR2l9FqWypcpW2yhhB6H7zaeIyg0o/55NUT0KmmCL+4Rf96N43p1lLSw=="
@@ -486,6 +491,11 @@
     "provenance": {
       "grandfatheredVersions": [
         {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:21.166Z",
+          "integrity": "sha512-S+VGKF6lt8+F3LtLgLtGYBJBiGjCtsOJIfUnDy4pssPphOSYbpLk+QHHV/9D4eDeWecgY1Mj+trz6pUDDng5Vw=="
+        },
+        {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:16.841Z",
           "integrity": "sha512-V2MzwrhbgwzNyAtHaEnBkJj3CcNizoO3wKHTIffh/c6d43LZKbQANME1Zvn/MayXLj50h8soeW11VYP/QKrswQ=="
@@ -515,6 +525,11 @@
     },
     "provenance": {
       "grandfatheredVersions": [
+        {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:23.907Z",
+          "integrity": "sha512-EhzAY4gw/rVYQB0EsZasM/4WU8nkjCErGY/3QIMNNcOoHkv3EqQVLEwoM5QaevOjjhfFUkH4h1EIycYRZapAxg=="
+        },
         {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:53:31.032Z",
@@ -546,6 +561,11 @@
     "provenance": {
       "grandfatheredVersions": [
         {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:27.173Z",
+          "integrity": "sha512-pVG7+5eB+4FoFHj1tYcQHtejwl0RWHYf3YwbQWS5na1JqIOOryiRYft5uK7CGm0nkzPpfyL878y8mWziLtzGOg=="
+        },
+        {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:53:02.836Z",
           "integrity": "sha512-rY8+6BvfQlNs7BuAFNA+5+7ipYSNXtU51olvHInAfsHBCWZ6v6VLMwBrQDpnabsg58wATPw2ktWeX16zd1lAfw=="
@@ -575,6 +595,11 @@
     },
     "provenance": {
       "grandfatheredVersions": [
+        {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:29.609Z",
+          "integrity": "sha512-J8jJW6XiVGOmxvl18RohWpBaTIEWTFeA0OtwNXskrLs78Gi4vgM/pwt2ke9yyRQ0Y44GqT22ofyyg9iJH/qchw=="
+        },
         {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:53:06.817Z",
@@ -606,6 +631,11 @@
     "provenance": {
       "grandfatheredVersions": [
         {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:32.129Z",
+          "integrity": "sha512-MzWP7BbfgvnxeW+FTKBZLP3gifdXk0egYaJcVQzekaFg2doFLnXnGpLrO8lwY5UM4jAUg3qIha2MeFkIzBJSpA=="
+        },
+        {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:49.051Z",
           "integrity": "sha512-GStzjpnLzfCK9hHjkCgwS/b5qIb5rVF/tcGTniDVIWj8BCQDp2CGcro2BDAMqFQt/7u6TedRFAE6pCNNHoP9mA=="
@@ -635,6 +665,11 @@
     },
     "provenance": {
       "grandfatheredVersions": [
+        {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:34.605Z",
+          "integrity": "sha512-a3PV59YkZkf4z3p8Mh+tOYx0ohc8NkFOwi8C0qtRVtrjyBihCXFUjn1JGUYMkzLqX8cAUSJxwwPT9G8cAr7NXw=="
+        },
         {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:52.054Z",
@@ -666,6 +701,11 @@
     "provenance": {
       "grandfatheredVersions": [
         {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:37.200Z",
+          "integrity": "sha512-3otDfPRRa0DLabDPu4MkL6LLtZNJU5WVanrldUOsWpIEAhxjmcvf74FBG6pAftplJ5zyjxpI95VP2Am4X57FNg=="
+        },
+        {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:55:46.176Z",
           "integrity": "sha512-scowZx4PSPpT49/p+hJLFs1rSMYIbkr5+vZSbIn0HnAhzExRVpbCsT3q5NOF2mlXV2i1erSLjF+p96Eojp6q2Q=="
@@ -695,6 +735,11 @@
     },
     "provenance": {
       "grandfatheredVersions": [
+        {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:39.470Z",
+          "integrity": "sha512-S396td4/wGNzw28M7BgHI0aO1zEMaVpiBzJn8+Xla9km+derE+zxnoEz8LhEkAOZJefeGOxcjWIEiMuyAzWgXw=="
+        },
         {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:13.994Z",
@@ -728,6 +773,11 @@
     },
     "provenance": {
       "grandfatheredVersions": [
+        {
+          "version": "0.0.0-stage",
+          "publishedAt": "2026-10-11T22:51:41.607Z",
+          "integrity": "sha512-825Ln7EmtJ6ibnS/K0UHFEu93uixhZVj/yKrDwOhzd2gCvG3TOfsn9CXQQQ5B43Ixb08qgme3Eua9vj8yhfM7g=="
+        },
         {
           "version": "0.0.0-bootstrap",
           "publishedAt": "2026-10-11T22:52:37.298Z",

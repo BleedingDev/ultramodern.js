@@ -54,6 +54,10 @@ export const TYPES_REACT_VERSION = '19.3.0';
 export const TYPES_REACT_DOM_VERSION = '19.3.0';
 export const NODE_VERSION = '26.10.0';
 export const PNPM_VERSION = '12.8.1';
+// Braces has no upstream depth-guard release; this reviewed sidecar
+// carries the reviewed parser and AST walker fix. Sharp uses its native fix.
+export const BRACES_FORK_VERSION = '3.0.4';
+export const SHARP_VERSION = '0.35.5';
 
 export const ULTRAMODERN_PACKAGE_PINS = {
   appDependencies: {

@@ -6,7 +6,7 @@ import { createPackageRoot } from './ultramodern-workspace/fs-io';
 export const RELEASE_COHORT_PATH = 'release-cohort.json';
 const RELEASE_COHORT_PROJECTION_SCHEMA =
   'bleedingdev.ultramodern.release-cohort';
-const RELEASE_COHORT_PROJECTION_SCHEMA_VERSION = 1;
+const RELEASE_COHORT_PROJECTION_SCHEMA_VERSION = 2;
 
 type ReleaseCohortPackage = {
   sourceName: string;
@@ -17,6 +17,7 @@ type ReleaseCohortPackage = {
 export type UltramodernReleaseCohort = {
   aliases: Record<string, string>;
   packages: ReleaseCohortPackage[];
+  sidecars: { name: string; version: string }[];
   release: { tag: string; version: string };
   schema: string;
   schemaVersion: number;
@@ -86,7 +87,15 @@ function targetAliasProfile(sourceName: string, targetName: string) {
 export function parseUltramodernReleaseCohort(value: unknown) {
   assertExactKeys(
     value,
-    ['aliases', 'packages', 'release', 'schema', 'schemaVersion', 'source'],
+    [
+      'aliases',
+      'packages',
+      'release',
+      'schema',
+      'schemaVersion',
+      'sidecars',
+      'source',
+    ],
     'Release cohort projection',
   );
   const cohort = value as UltramodernReleaseCohort;
@@ -159,6 +168,39 @@ export function parseUltramodernReleaseCohort(value: unknown) {
     JSON.stringify(packageSourceNames) === JSON.stringify(aliasNames),
     'Release cohort packages must exactly match aliases in source-name order.',
   );
+  assert(
+    Array.isArray(cohort.sidecars),
+    'Release cohort sidecars must be an array.',
+  );
+  const sidecarNames: string[] = [];
+  for (const [index, item] of cohort.sidecars.entries()) {
+    const label = `Release cohort sidecars[${index}]`;
+    assertExactKeys(item, ['name', 'version'], label);
+    assertNonEmptyString(item.name, `${label}.name`);
+    assertNonEmptyString(item.version, `${label}.version`);
+    assert(
+      /^@bleedingdev\/[a-z0-9][a-z0-9.-]*$/u.test(item.name),
+      `${label}.name must name an owned sidecar.`,
+    );
+    assert(
+      /^\d+\.\d+\.\d+$/u.test(item.version),
+      `${label}.version must be an exact stable version.`,
+    );
+    assert(
+      !item.name.startsWith('@bleedingdev/modern-js-') &&
+        !packageTargetNames.has(item.name),
+      `${label}.name uses a reserved cohort package identity.`,
+    );
+    assert(
+      !sidecarNames.includes(item.name),
+      `${label}.name duplicates a sidecar.`,
+    );
+    sidecarNames.push(item.name);
+  }
+  assert(
+    JSON.stringify(sidecarNames) === JSON.stringify([...sidecarNames].sort()),
+    'Release cohort sidecars must be in name order.',
+  );
   return cohort;
 }
 
@@ -226,7 +268,27 @@ export function assertReleaseCohortPackageSource(
 }
 
 export function releaseCohortSelectors(cohort: UltramodernReleaseCohort) {
-  return cohort.packages
-    .map(item => `${item.targetName}@${item.version}`)
-    .sort();
+  return [
+    ...cohort.packages.map(item => `${item.targetName}@${item.version}`),
+    ...cohort.sidecars.map(item => `${item.name}@${item.version}`),
+  ].sort();
+}
+
+/** Authenticate owned aliases actually emitted into consumer dependency policy. */
+export function assertReleaseCohortAliasRequest(
+  cohort: UltramodernReleaseCohort,
+  request: unknown,
+  label: string,
+) {
+  if (typeof request !== 'string' || !request.startsWith('npm:@bleedingdev/'))
+    return;
+  const match = /^npm:(@bleedingdev\/[^@]+)@([^@]+)$/u.exec(request);
+  assert(match, `${label} must name an exact authenticated owned alias.`);
+  const entry =
+    cohort.packages.find(item => item.targetName === match[1]) ??
+    cohort.sidecars.find(item => item.name === match[1]);
+  assert(
+    entry && entry.version === match[2],
+    `${label} owned alias disagrees with the installed release cohort: ${request}.`,
+  );
 }

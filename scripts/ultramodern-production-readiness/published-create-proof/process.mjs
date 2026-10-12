@@ -145,6 +145,74 @@ function createAcceptancePackageManagerEnv(
   return env;
 }
 
+function createAcceptanceWorkspaceEnv(
+  runtimeEnv,
+  { mode, release, registryEnv = {} } = {},
+) {
+  const env = { ...runtimeEnv, pnpm_config_pm_on_fail: 'ignore' };
+  // Commands merge their environment with process.env again. Undefined values
+  // remove inherited overrides so the generated workspace owns its policy.
+  for (const name of new Set([
+    ...Object.keys(process.env),
+    ...Object.keys(runtimeEnv),
+  ])) {
+    const configName = name.replace(/[-_]/gu, '').toLowerCase();
+    if (
+      /^(?:npm|pnpm)config(?:minimumreleaseage|trustpolicy)/u.test(configName)
+    ) {
+      env[name] = undefined;
+    }
+  }
+  // Unsigned local candidates cannot have npm Trusted Publishing provenance
+  // before publication. Only their verified source cohort is exempt; published
+  // acceptance retains the ordinary consumer trust policy.
+  if (mode === 'source') {
+    if (!Array.isArray(release?.packages) || release.packages.length === 0) {
+      throw new Error(
+        'Source candidate trust requires the authenticated release cohort',
+      );
+    }
+    const selectors = release.packages
+      .map(item => {
+        if (
+          item?.version !== release.release?.version ||
+          !/^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/u.test(
+            item?.targetName ?? '',
+          ) ||
+          !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(
+            item?.version ?? '',
+          )
+        ) {
+          throw new Error(
+            'Source candidate trust requires exact authenticated target names and versions',
+          );
+        }
+        return `${item.targetName}@${item.version}`;
+      })
+      .sort();
+    if (new Set(selectors).size !== selectors.length) {
+      throw new Error(
+        'Source candidate trust cohort contains duplicate selectors',
+      );
+    }
+    let provided;
+    try {
+      provided = JSON.parse(registryEnv.PNPM_CONFIG_TRUST_POLICY_EXCLUDE);
+    } catch {
+      throw new Error(
+        'Source candidate trust requires exact registry-provided cohort selectors',
+      );
+    }
+    if (JSON.stringify(provided) !== JSON.stringify(selectors)) {
+      throw new Error(
+        'Source candidate trust exclusions must equal the exact authenticated release cohort',
+      );
+    }
+    env.pnpm_config_trust_policy_exclude = JSON.stringify(selectors);
+  }
+  return env;
+}
+
 function roundDurationMs(value) {
   return Math.round(value * 100) / 100;
 }
@@ -152,6 +220,7 @@ function roundDurationMs(value) {
 export {
   acceptancePackageManagerRoot,
   createAcceptancePackageManagerEnv,
+  createAcceptanceWorkspaceEnv,
   createCleanPnpmDlxEnv,
   roundDurationMs,
   run,

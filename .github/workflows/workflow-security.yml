@@ -43,8 +43,8 @@ jobs:
           version: 2026.9.18
           cache_save: false
 
-      - name: Install workflow parser
-        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/prebundle
+      - name: Install workflow parser and publication test dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/prebundle --filter @scripts/ultramodern-production-readiness
 
       - name: Generate workflow parser
         run: mise exec -- pnpm --filter @scripts/prebundle start js-yaml
@@ -54,8 +54,9 @@ jobs:
           node --test scripts/security/__tests__/*.test.mjs
           node --test scripts/ci/__tests__/*.test.mjs
           node --test scripts/__tests__/workflow-cache-writers.test.mjs
-          node --test scripts/ultramodern-publish/__tests__/build-bleedingdev-packages.test.js
-          node --test scripts/ultramodern-production-readiness/__tests__/*.test.js
+
+      - name: Run release publication tooling tests
+        run: mise exec -- pnpm run test:publish-tooling
 
       - name: Validate workflow security
         run: node scripts/security/validate-github-workflows.mjs
