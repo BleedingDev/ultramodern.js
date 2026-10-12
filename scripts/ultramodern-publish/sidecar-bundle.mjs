@@ -4,10 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
 import {
+  isTrustedPublishRepository,
+  isTrustedPublishRepositoryContext,
   repoRoot,
   sidecarManifestFile,
   sidecarTarballsDirectory,
-  trustedPublishRepository,
 } from './lib/prepare-bleedingdev-packages/constants.mjs';
 import {
   canonicalJson,
@@ -147,15 +148,15 @@ function producerIdentity(env) {
 }
 
 export function assertSidecarProducerContext(env, source) {
-  if (
-    env.GITHUB_ACTIONS !== 'true' ||
-    env.GITHUB_REPOSITORY !== trustedPublishRepository
-  )
+  if (env.GITHUB_ACTIONS !== 'true' || !isTrustedPublishRepositoryContext(env))
     throw new Error(
       'Sidecar producer receipt requires this repository GitHub workflow',
     );
   const producer = producerIdentity(env);
-  if (env.GITHUB_SHA !== source.commit)
+  if (
+    env.GITHUB_SHA !== source.commit ||
+    env.GITHUB_REPOSITORY !== source.repository
+  )
     throw new Error('Sidecar producer must stage its exact workflow source');
   return producer;
 }
@@ -197,7 +198,7 @@ function assertBundleManifest(manifest, { env, source, tools, inputs }) {
   )
     throw new Error('Sidecar profile differs from the workflow selection');
   if (
-    manifest.source.repository !== trustedPublishRepository ||
+    !isTrustedPublishRepository(manifest.source.repository) ||
     !/^[a-f0-9]{40}$/u.test(manifest.source.commit)
   )
     throw new Error('Invalid sidecar source identity');
@@ -315,10 +316,7 @@ export function writeSidecarQualification(
   probes,
   { env = process.env, receiptPath } = {},
 ) {
-  if (
-    env.GITHUB_ACTIONS !== 'true' ||
-    env.GITHUB_REPOSITORY !== trustedPublishRepository
-  )
+  if (env.GITHUB_ACTIONS !== 'true' || !isTrustedPublishRepositoryContext(env))
     throw new Error(
       'Sidecar qualification receipt requires this repository GitHub workflow',
     );

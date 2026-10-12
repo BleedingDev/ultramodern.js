@@ -1,0 +1,28 @@
+name: Restore prepared test build
+description: Restore exact-input build outputs from the trusted default-branch seed
+outputs:
+  cache-hit:
+    description: True only after the complete output manifest passes validation
+    value: ${{ steps.validate.outputs.cache-hit }}
+  key:
+    description: Exact source and toolchain identity
+    value: ${{ steps.identity.outputs.key }}
+  package-manifest:
+    description: Verified packed prerequisites with paths relocated to this runner
+    value: ${{ steps.validate.outputs.package-manifest }}
+runs:
+  using: composite
+  steps:
+    - name: Identify prepared build inputs
+      id: identity
+      shell: bash
+      run: node scripts/ci/prepared-build-cache.mjs key
+    - name: Restore exact prepared build
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .ci-build-cache/snapshot
+        key: ${{ steps.identity.outputs.key }}
+    - name: Validate prepared build outputs
+      id: validate
+      shell: bash
+      run: node scripts/ci/prepared-build-cache.mjs restore

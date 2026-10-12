@@ -31,7 +31,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [namespace-profile-testing, windows-latest, macos-26]
+        include:
+          - runner: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
+          - runner: ${{ vars.DEPOT_WINDOWS_RUNNER || 'windows-latest' }}
+          - runner: ${{ vars.DEPOT_MACOS_RUNNER || 'macos-26' }}
 
     runs-on: ${{ matrix.runner }}
 

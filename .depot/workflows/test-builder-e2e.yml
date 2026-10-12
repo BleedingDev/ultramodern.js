@@ -1,0 +1,74 @@
+# Depot CI Migration
+# Source: .github/workflows/test-builder-e2e.yml
+#
+# Changes made:
+# - Rewrote .github/ path references to .depot/
+
+name: E2E Test (Builder)
+
+concurrency:
+  group: test-builder-e2e-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main, main-ultramodern]
+
+  merge_group:
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-test:
+    runs-on: depot-ubuntu-24.04-8
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+          install: true
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.depot/actions/restore-build-cache
+
+      - name: Build Required Pkg
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: pnpm run build:required
+      - name: Test
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
+        run: pnpm --filter tests run test:builder:prepared

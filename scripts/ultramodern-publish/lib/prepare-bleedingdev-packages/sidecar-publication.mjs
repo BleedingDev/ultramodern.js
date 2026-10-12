@@ -32,6 +32,7 @@ import {
   sidecarTarballsDirectory,
   trustedPublishRef,
   trustedPublishRepository,
+  isTrustedPublishRepositoryContext,
 } from './constants.mjs';
 import { createRegistryProvenanceExpectation } from './provenance.mjs';
 import { verifyRegistryProvenanceChronology } from './registry.mjs';
@@ -41,7 +42,8 @@ import {
   sidecarProvenancePolicy,
 } from './sidecars.mjs';
 
-const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
+const { assertNonEmptyString, assertPlainObject, isPlainObject } =
+  validationKit;
 
 const npmRegistryUrl = `${npmRegistryOrigin}/`;
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;
@@ -259,7 +261,10 @@ function assertSidecarStagingManifest(
       `Sidecar staging manifest must publish before ${publishBefore}, found ${String(manifest.publishBefore)}`,
     );
   }
-  if (!Array.isArray(manifest.publishOrder) || !Array.isArray(manifest.packages)) {
+  if (
+    !Array.isArray(manifest.publishOrder) ||
+    !Array.isArray(manifest.packages)
+  ) {
     throw new Error(
       'Sidecar staging manifest must carry publishOrder and packages arrays',
     );
@@ -310,7 +315,9 @@ function assertSidecarStagingManifest(
     }
     assertStableSidecarVersion(entry.name, entry.version);
     if (seen.has(entry.name)) {
-      throw new Error(`Duplicate sidecar ${entry.name} in the staging manifest`);
+      throw new Error(
+        `Duplicate sidecar ${entry.name} in the staging manifest`,
+      );
     }
     seen.add(entry.name);
     if (seenTarballs.has(entry.tarballPath)) {
@@ -487,7 +494,9 @@ async function sidecarRegistryDecision(
     );
   }
   if (!isPlainObject(published.dist)) {
-    throw new Error(`${name}@${version} registry version has invalid dist metadata`);
+    throw new Error(
+      `${name}@${version} registry version has invalid dist metadata`,
+    );
   }
   const digestDrift = [];
   if (published.dist.integrity !== integrity) {
@@ -524,9 +533,7 @@ async function sidecarRegistryDecision(
       Object.hasOwn(registry, field) ? registry[field] : null,
     );
     if (stagedValue !== registryValue) {
-      drift.push(
-        `${field}: staged ${stagedValue}, registry ${registryValue}`,
-      );
+      drift.push(`${field}: staged ${stagedValue}, registry ${registryValue}`);
     }
   }
   if (drift.length > 0) {
@@ -597,13 +604,15 @@ function assertSidecarTrustedPublishContext(env = process.env) {
       'Sidecar publishing is only allowed from the GitHub Actions trusted publishing workflow. Run with --dry-run or --check-staging locally.',
     );
   }
-  if (env.GITHUB_REPOSITORY !== trustedPublishRepository) {
+  if (!isTrustedPublishRepositoryContext(env)) {
     throw new Error(
       `Sidecar publishing is only allowed from ${trustedPublishRepository}.`,
     );
   }
   if (env.GITHUB_REF !== trustedPublishRef) {
-    throw new Error(`Sidecar publishing is only allowed from ${trustedPublishRef}.`);
+    throw new Error(
+      `Sidecar publishing is only allowed from ${trustedPublishRef}.`,
+    );
   }
 }
 

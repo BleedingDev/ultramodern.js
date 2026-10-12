@@ -7,6 +7,7 @@ import {
   sidecarAliasConsumerTargetName,
   trustedPublishRef,
   trustedPublishRepository,
+  isTrustedPublishRepositoryContext,
 } from './constants.mjs';
 import {
   collectSidecarPackages,
@@ -56,16 +57,14 @@ function assertTrustedPublishContext() {
     );
   }
 
-  if (process.env.GITHUB_REPOSITORY !== trustedPublishRepository) {
+  if (!isTrustedPublishRepositoryContext(process.env)) {
     throw new Error(
       `Publishing is only allowed from ${trustedPublishRepository}.`,
     );
   }
 
   if (process.env.GITHUB_REF !== trustedPublishRef) {
-    throw new Error(
-      `Publishing is only allowed from ${trustedPublishRef}.`,
-    );
+    throw new Error(`Publishing is only allowed from ${trustedPublishRef}.`);
   }
 }
 
@@ -88,7 +87,9 @@ async function prepareBleedingdevPackages(options) {
       tag: options.tag,
       version: options.version,
     });
-    if (releaseArtifacts.manifest.source.repository !== checkoutSource.repository) {
+    if (
+      releaseArtifacts.manifest.source.repository !== checkoutSource.repository
+    ) {
       throw new Error(
         `Release artifact repository ${releaseArtifacts.manifest.source.repository} does not match trusted checkout ${checkoutSource.repository}`,
       );
@@ -136,7 +137,8 @@ async function prepareBleedingdevPackages(options) {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
-    if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
+    if (targetName === sidecarAliasConsumerTargetName)
+      sidecarAliasConsumerCount += 1;
     normalizeDeclaredTypePaths(packageDir, packageJson);
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
@@ -153,7 +155,9 @@ async function prepareBleedingdevPackages(options) {
   let sidecarDescriptor = null;
   if (options.includeSidecars) {
     assertSidecarAliasConsumerCount(sidecarAliasConsumerCount);
-    assertRepositoryRecipeConsumers(stagedManifests.map(item => item.packageJson));
+    assertRepositoryRecipeConsumers(
+      stagedManifests.map(item => item.packageJson),
+    );
     validateAliasConsistency(stagedManifests, stagedSidecars, {
       cohortTargetNames: new Set(Object.values(aliases)),
     });
@@ -162,8 +166,8 @@ async function prepareBleedingdevPackages(options) {
       manifest: sidecarManifest,
       manifestPath,
     } = writeSidecarStagingManifest(options.out, stagedSidecars, {
-        publishBefore: sidecarAliasConsumerTargetName,
-      });
+      publishBefore: sidecarAliasConsumerTargetName,
+    });
     sidecarDescriptor = descriptor;
     console.log(
       [

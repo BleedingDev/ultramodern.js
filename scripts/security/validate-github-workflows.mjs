@@ -852,7 +852,7 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
     github: {
       actor: 'BleedingDev',
       ref: 'refs/heads/main-ultramodern',
-      repository_owner: 'BleedingDev',
+      repository_owner: 'ultramodernjs',
       triggering_actor: 'BleedingDev',
     },
     inputs: { mode: 'cohort', dry_run: false },
@@ -1176,7 +1176,7 @@ function collectBleedingdevModeScheduleErrors(workflow, relativePath) {
     github: {
       actor: 'BleedingDev',
       triggering_actor: 'BleedingDev',
-      repository_owner: 'BleedingDev',
+      repository_owner: 'ultramodernjs',
       ref: 'refs/heads/main-ultramodern',
     },
     inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
@@ -1686,7 +1686,7 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
     github: {
       actor: 'BleedingDev',
       ref: 'refs/heads/main-ultramodern',
-      repository_owner: 'BleedingDev',
+      repository_owner: 'ultramodernjs',
       triggering_actor: 'BleedingDev',
     },
     inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
@@ -1893,20 +1893,30 @@ function expandIntegrationMatrix(matrix) {
 }
 
 function collectFrameworkPartitionErrors(workflow, relativePath) {
+  const linuxRunner = [
+    '${{',
+    "vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04'",
+    '}}',
+  ].join(' ');
+  const windowsRunner = [
+    '${{',
+    "vars.DEPOT_WINDOWS_RUNNER || 'windows-latest'",
+    '}}',
+  ].join(' ');
   const job = workflow.jobs?.integration;
   const combinations = expandIntegrationMatrix(job?.strategy?.matrix);
   const platforms = ['Linux', 'Windows'];
   const expected = platforms.flatMap(platform => [
     ...Array.from({ length: 6 }, (_, index) => ({
       platform,
-      runner: platform === 'Linux' ? 'ubuntu-24.04' : 'windows-latest',
+      runner: platform === 'Linux' ? linuxRunner : windowsRunner,
       suite: 'framework',
       framework_suite: 'core',
       shard: `${index + 1}/6`,
     })),
     ...['generator-workspace', 'generator-bff'].map(frameworkSuite => ({
       platform,
-      runner: platform === 'Linux' ? 'ubuntu-24.04' : 'windows-latest',
+      runner: platform === 'Linux' ? linuxRunner : windowsRunner,
       suite: `framework-${frameworkSuite}`,
       framework_suite: frameworkSuite,
     })),
@@ -1931,9 +1941,21 @@ function collectFrameworkPartitionErrors(workflow, relativePath) {
   }
   const expectedJobs = [
     ...expected,
-    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'rstest-adapter' },
-    { platform: 'Windows', runner: 'windows-latest', suite: 'rstest-adapter' },
-    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'utils' },
+    {
+      platform: 'Linux',
+      runner: linuxRunner,
+      suite: 'rstest-adapter',
+    },
+    {
+      platform: 'Windows',
+      runner: windowsRunner,
+      suite: 'rstest-adapter',
+    },
+    {
+      platform: 'Linux',
+      runner: linuxRunner,
+      suite: 'utils',
+    },
   ];
   if (
     combinations.length !== expectedJobs.length ||

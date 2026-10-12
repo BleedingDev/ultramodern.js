@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../../../lib/cli-kit.js';
 import { rejectInlineOptionSyntax } from '../option-syntax.mjs';
-import { repoRoot } from './constants.mjs';
+import { repoRoot, packageMetadataRepository } from './constants.mjs';
 
 const { parseCliArgs } = cliKit;
 
@@ -99,6 +99,7 @@ function parseArgs(argv) {
     booleanOptions: cliBooleanOptions,
   });
 
+  const repository = packageMetadataRepository();
   const options = parseCliArgs(argv, {
     defaults: {
       scope: 'bleedingdev',
@@ -108,9 +109,9 @@ function parseArgs(argv) {
       tag: 'latest',
       packages: null,
       out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
-      repositoryUrl: 'git+https://github.com/BleedingDev/ultramodern.js.git',
-      homepage: 'https://github.com/BleedingDev/ultramodern.js#readme',
-      bugsUrl: 'https://github.com/BleedingDev/ultramodern.js/issues',
+      repositoryUrl: `git+https://github.com/${repository}.git`,
+      homepage: `https://github.com/${repository}#readme`,
+      bugsUrl: `https://github.com/${repository}/issues`,
       publish: false,
       publishExisting: false,
       dryRun: false,
