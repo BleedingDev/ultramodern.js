@@ -1,7 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rename,
   rm,
   symlink,
@@ -24,6 +26,194 @@ const writeJson = async (filePath: string, value: unknown) => {
 };
 
 describe('Node deployment npm aliases', () => {
+  it('preserves ordinary dependency names overridden to scoped forks through real ndepe emission', async () => {
+    const appDirectory = await mkdtemp(
+      path.join(tmpdir(), 'deploy-override-alias-'),
+    );
+    const outputDirectory = path.join(appDirectory, '.output');
+    const relocationRoot = await mkdtemp(
+      path.join(tmpdir(), 'deploy-override-isolated-'),
+    );
+    const micromatch = path.join(
+      appDirectory,
+      'node_modules/.pnpm/micromatch@4.0.8/node_modules/micromatch',
+    );
+    const braces = path.join(
+      appDirectory,
+      'node_modules/.pnpm/@bleedingdev+braces@3.0.4/node_modules/@bleedingdev/braces',
+    );
+    try {
+      await writeJson(path.join(appDirectory, 'package.json'), {
+        name: 'override-alias-app',
+        dependencies: { 'import-only': '1.0.0', braces: '^3.0.3' },
+      });
+      const importOnly = path.join(appDirectory, 'node_modules/import-only');
+      await writeJson(path.join(importOnly, 'package.json'), {
+        name: 'import-only',
+        version: '1.0.0',
+        exports: { '.': { import: './index.mjs' } },
+        dependencies: { micromatch: '4.0.8' },
+      });
+      await writeFile(
+        path.join(importOnly, 'index.mjs'),
+        "export { default } from 'micromatch';\n",
+      );
+      await writeJson(path.join(micromatch, 'package.json'), {
+        name: 'micromatch',
+        version: '4.0.8',
+        main: 'index.js',
+        dependencies: { braces: '^3.0.3' },
+      });
+      await writeFile(
+        path.join(micromatch, 'index.js'),
+        "module.exports = require('braces');\n",
+      );
+      await writeJson(path.join(braces, 'package.json'), {
+        name: '@bleedingdev/braces',
+        version: '3.0.4',
+        main: 'dist/index.js',
+        exports: { '.': './dist/index.js' },
+      });
+      await writeJson(path.join(braces, 'dist/package.json'), {
+        type: 'commonjs',
+      });
+      await writeFile(
+        path.join(braces, 'dist/index.js'),
+        "module.exports = 'scoped-override-payload';\n",
+      );
+      const rootAlias = path.join(appDirectory, 'node_modules/micromatch');
+      await symlink(
+        path.relative(path.dirname(rootAlias), micromatch),
+        rootAlias,
+        'dir',
+      );
+      const alias = path.join(path.dirname(micromatch), 'braces');
+      await mkdir(path.dirname(alias), { recursive: true });
+      await symlink(path.relative(path.dirname(alias), braces), alias, 'dir');
+      const rootBraces = path.join(appDirectory, 'node_modules/braces');
+      await symlink(
+        path.relative(path.dirname(rootBraces), braces),
+        rootBraces,
+        'dir',
+      );
+      await mkdir(outputDirectory, { recursive: true });
+      await writeFile(
+        path.join(outputDirectory, 'index.js'),
+        "module.exports = [require('micromatch'), require('braces')];\n",
+      );
+      await nodeDepEmit({
+        traceFiles: traceDeployFiles,
+        appDir: appDirectory,
+        sourceDir: outputDirectory,
+        includeEntries: [path.join(micromatch, 'index.js')],
+      });
+      const isolatedOutput = path.join(relocationRoot, '.output');
+      await rename(outputDirectory, isolatedOutput);
+      const childEnv = { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' };
+      const broken = spawnSync(process.execPath, ['index.js'], {
+        cwd: isolatedOutput,
+        encoding: 'utf8',
+        env: childEnv,
+      });
+      expect(broken.status).toBe(1);
+      expect(broken.stderr).toContain("Cannot find module 'braces'");
+      await preserveNpmAliases({
+        appDirectory,
+        outputDirectory: isolatedOutput,
+      });
+      expect(
+        await realpath(
+          path.join(
+            isolatedOutput,
+            'node_modules/micromatch/node_modules/braces',
+          ),
+        ),
+      ).toBe(
+        await realpath(
+          path.join(isolatedOutput, 'node_modules/@bleedingdev/braces'),
+        ),
+      );
+      const relocatedOutput = path.join(relocationRoot, '.relocated-output');
+      await rename(isolatedOutput, relocatedOutput);
+      const launched = spawnSync(
+        process.execPath,
+        ['-e', "console.log(JSON.stringify(require('./index.js')))"],
+        { cwd: relocatedOutput, encoding: 'utf8', env: childEnv },
+      );
+      expect(launched.status).toBe(0);
+      expect(JSON.parse(launched.stdout)).toEqual([
+        'scoped-override-payload',
+        'scoped-override-payload',
+      ]);
+      const emittedManifest = JSON.parse(
+        await readFile(
+          path.join(relocatedOutput, 'node_modules/micromatch/package.json'),
+          'utf8',
+        ),
+      );
+      expect(emittedManifest.dependencies.braces).toBe('^3.0.3');
+      const rootManifest = JSON.parse(
+        await readFile(path.join(relocatedOutput, 'package.json'), 'utf8'),
+      );
+      expect(rootManifest.dependencies.braces).toBe(
+        'npm:@bleedingdev/braces@3.0.4',
+      );
+    } finally {
+      await rm(appDirectory, { recursive: true, force: true });
+      await rm(relocationRoot, { recursive: true, force: true });
+    }
+  });
+  it('rejects emitted owner versions with conflicting installed alias contexts', async () => {
+    const appDirectory = await mkdtemp(
+      path.join(tmpdir(), 'deploy-conflicting-aliases-'),
+    );
+    const outputDirectory = path.join(appDirectory, '.output');
+    try {
+      await writeJson(path.join(appDirectory, 'package.json'), {
+        name: 'conflicting-aliases',
+        dependencies: { a: '1.0.0', b: '1.0.0' },
+      });
+      await writeJson(path.join(outputDirectory, 'package.json'), {
+        name: 'output',
+      });
+      await writeJson(
+        path.join(outputDirectory, 'node_modules/consumer/package.json'),
+        {
+          name: 'consumer',
+          version: '1.0.0',
+          dependencies: { braces: '^3.0.3' },
+        },
+      );
+      for (const context of ['a', 'b']) {
+        const owner = path.join(appDirectory, 'node_modules', context);
+        await writeJson(path.join(owner, 'package.json'), {
+          name: context,
+          version: '1.0.0',
+          dependencies: { consumer: '1.0.0' },
+        });
+        const consumer = path.join(owner, 'node_modules/consumer');
+        await writeJson(path.join(consumer, 'package.json'), {
+          name: 'consumer',
+          version: '1.0.0',
+          dependencies: { braces: '^3.0.3' },
+        });
+        await writeJson(
+          path.join(consumer, 'node_modules/braces/package.json'),
+          {
+            name: `@vendor/braces-${context}`,
+            version: '3.0.4',
+          },
+        );
+      }
+      await expect(
+        preserveNpmAliases({ appDirectory, outputDirectory }),
+      ).rejects.toThrow(
+        'installed contexts resolve different dependency identities',
+      );
+    } finally {
+      await rm(appDirectory, { recursive: true, force: true });
+    }
+  });
   it('preserves emitted aliases through the native deployment completion hook', async () => {
     const appDirectory = await mkdtemp(
       path.join(tmpdir(), 'deploy-alias-hook-'),

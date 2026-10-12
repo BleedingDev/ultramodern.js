@@ -111,6 +111,79 @@ async function catalogAliasesFromInstalledPackages(
   return aliases;
 }
 
+// Overrides change the installed identity without changing the consumer's
+// dependency specifier. Read source edges to restore names after emission.
+async function installedAliasesByOwner(
+  appDirectory: string,
+  emittedOwners: Set<string>,
+) {
+  const aliasesByOwner = new Map<string, NpmAlias[]>();
+  let rootAliases: NpmAlias[] = [];
+  const visited = new Set<string>();
+  const rootFile = await fs.realpath(path.join(appDirectory, 'package.json'));
+  const pending = [rootFile];
+  while (pending.length) {
+    const file = await fs.realpath(pending.pop()!);
+    if (visited.has(file)) continue;
+    visited.add(file);
+    const owner = await readPackageJson(file);
+    const aliases: NpmAlias[] = [];
+    const keys = file === rootFile ? rootDependencyKeys : dependencyKeys;
+    for (const key of keys) {
+      for (const name of Object.keys(owner[key] ?? {})) {
+        let directory = path.dirname(file);
+        while (true) {
+          const packageFile = path.join(
+            directory,
+            'node_modules',
+            name,
+            'package.json',
+          );
+          let target: PackageJson;
+          try {
+            target = await readPackageJson(packageFile);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+            const parent = path.dirname(directory);
+            if (parent === directory) break;
+            directory = parent;
+            continue;
+          }
+          if (!target.name || !target.version) {
+            throw new Error(`Installed package ${name} has no identity`);
+          }
+          pending.push(packageFile);
+          if (target.name !== name) {
+            aliases.push({
+              aliasName: name,
+              targetName: target.name,
+              targetVersion: target.version,
+            });
+          }
+          break;
+        }
+      }
+    }
+    if (file === rootFile) rootAliases = aliases;
+    const identity = `${owner.name}@${owner.version}`;
+    if (emittedOwners.has(identity)) {
+      const existing = aliasesByOwner.get(identity);
+      const normalized = (items: NpmAlias[]) =>
+        items
+          .map(item => `${item.aliasName}=${aliasSpecifier(item)}`)
+          .sort()
+          .join('\n');
+      if (existing && normalized(existing) !== normalized(aliases)) {
+        throw new Error(
+          `Cannot preserve npm aliases for ${identity}: installed contexts resolve different dependency identities`,
+        );
+      }
+      aliasesByOwner.set(identity, aliases);
+    }
+  }
+  return { aliasesByOwner, rootAliases };
+}
+
 async function collectPackageRecords(
   nodeModulesDirectory: string,
 ): Promise<PackageRecord[]> {
@@ -322,8 +395,17 @@ export async function preserveNpmAliases({
   const appPackageJson = await readPackageJson(
     path.join(appDirectory, 'package.json'),
   );
+  const installedAliases = await installedAliasesByOwner(
+    appDirectory,
+    new Set(
+      records.map(
+        ({ packageJson }) => `${packageJson.name}@${packageJson.version}`,
+      ),
+    ),
+  );
   const rootAliases = [
     ...aliasesFromPackageJson(appPackageJson, rootDependencyKeys),
+    ...installedAliases.rootAliases,
     ...(await catalogAliasesFromInstalledPackages(
       appDirectory,
       appPackageJson,
@@ -351,7 +433,13 @@ export async function preserveNpmAliases({
   }
 
   for (const record of records) {
-    for (const alias of aliasesFromPackageJson(record.packageJson).filter(
+    const ownerAliases = [
+      ...aliasesFromPackageJson(record.packageJson),
+      ...(installedAliases.aliasesByOwner.get(
+        `${record.packageJson.name}@${record.packageJson.version}`,
+      ) ?? []),
+    ];
+    for (const alias of ownerAliases.filter(
       candidate => candidate.aliasName !== candidate.targetName,
     )) {
       const target = await resolveAliasTarget(
