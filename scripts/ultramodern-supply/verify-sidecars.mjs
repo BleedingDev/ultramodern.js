@@ -7,7 +7,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
-import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
+import {
+  MODULE_FEDERATION_NODE_VERSION,
+  MODULE_FEDERATION_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
+} from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
 import { sidecarProfile } from '../ultramodern-publish/sidecar-profiles.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -167,6 +171,7 @@ export function assertRecipeConsumers(
 
 /** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
+  assertModuleFederationRelease(recipes);
   const qualifiedSdkPins = Object.fromEntries(
     Object.entries(sidecarProfile('mf-sdk').dependencies).map(
       ([name, version]) => [name, `npm:${name}@${version}`],
@@ -189,6 +194,23 @@ export function assertRepositoryRecipeConsumers(publishedManifests) {
     ],
     publishedManifests,
   });
+}
+
+// Fork publication versions are immutable correction identities; only their
+// upstream source releases must follow the generator's MF release pins.
+export function assertModuleFederationRelease(recipeList) {
+  for (const { upstream } of recipeList) {
+    if (!upstream.name.startsWith('@module-federation/')) continue;
+    const expected =
+      upstream.name === '@module-federation/node'
+        ? MODULE_FEDERATION_NODE_VERSION
+        : MODULE_FEDERATION_VERSION;
+    assert.equal(
+      upstream.version,
+      expected,
+      `${upstream.name} source must use the generator release ${expected}`,
+    );
+  }
 }
 
 /**

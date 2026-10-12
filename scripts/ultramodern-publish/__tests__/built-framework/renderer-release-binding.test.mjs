@@ -767,6 +767,49 @@ function runtimeFixture(
       dependencies: { '@module-federation/runtime': '2.4.0' },
     }),
   );
+  if (!headless) {
+    const pluginRoot = path.join(
+      projectDir,
+      app.path,
+      'node_modules/@module-federation/modern-js-v3',
+    );
+    const producerRoot = path.join(
+      pluginRoot,
+      'node_modules/@module-federation/enhanced',
+    );
+    fs.mkdirSync(producerRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(pluginRoot, 'package.json'),
+      JSON.stringify({
+        name: '@module-federation/modern-js-v3',
+        main: './index.js',
+      }),
+    );
+    fs.writeFileSync(path.join(pluginRoot, 'index.js'), '');
+    fs.writeFileSync(
+      path.join(producerRoot, 'package.json'),
+      JSON.stringify({
+        name: '@module-federation/enhanced',
+        version: '2.4.0',
+        exports: { './rspack': './rspack.js' },
+      }),
+    );
+    fs.writeFileSync(path.join(producerRoot, 'rspack.js'), '');
+    const rspackRoot = path.join(
+      producerRoot,
+      'node_modules/@module-federation/rspack',
+    );
+    fs.mkdirSync(rspackRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(rspackRoot, 'package.json'),
+      JSON.stringify({
+        name: '@module-federation/rspack',
+        version: '2.9.2',
+        exports: { './plugin': './plugin.js' },
+      }),
+    );
+    fs.writeFileSync(path.join(rspackRoot, 'plugin.js'), '');
+  }
   const authority = finalized
     ? writeFinalizedRuntimeAuthority(projectDir, app, renderer)
     : undefined;
@@ -795,7 +838,7 @@ function runtimeFixture(
           'index.js': ['nodejs', 'export const ssr = true;'],
           'mf-manifest.json': [
             'browser',
-            JSON.stringify({ pluginVersion: '2.4.0' }),
+            JSON.stringify({ pluginVersion: '2.9.2' }),
           ],
           'static/main.js': ['browser', 'export const client = true;'],
         }),
