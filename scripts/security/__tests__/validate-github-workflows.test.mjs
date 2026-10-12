@@ -489,7 +489,7 @@ test('release gates keep their fail-fast needs edges', () => {
   assert.deepEqual(edgeErrors(content), []);
   for (const [edge, job, need] of [
     [
-      '      - reconcile-sidecars\n    outputs:',
+      '      - reconcile-sidecars\n    uses:',
       'accept-release',
       'reconcile-sidecars',
     ],

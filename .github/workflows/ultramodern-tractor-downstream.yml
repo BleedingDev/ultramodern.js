@@ -47,7 +47,7 @@ permissions:
 jobs:
   tractor-downstream:
     name: Exact cohort passes Tractor Node and workerd acceptance
-    runs-on: ${{ vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || vars.DEPOT_LINUX_RUNNER || 'ubuntu-24.04' }}
     # The rehearsal additionally starts and seeds a registry from the bundle
     # before the same downstream work begins.
     timeout-minutes: ${{ inputs.mode == 'source' && 75 || 45 }}
