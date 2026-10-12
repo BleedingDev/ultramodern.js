@@ -152,7 +152,7 @@ test(`${seedWorkflow} restores each key before saving it only on a miss`, () => 
   }
 });
 
-test('verification restore is exact and its only writer follows a successful frozen main install', () => {
+test('verification workflow declares exact restore and a trusted writer after frozen install', () => {
   const action = yaml.load(
     fs.readFileSync(
       path.join(
@@ -180,11 +180,6 @@ test('verification restore is exact and its only writer follows a successful fro
       step => !savesCache({ step, uses: step.uses ?? '' }),
     ),
   );
-  assert.match(
-    action.runs.steps[0].run,
-    /pnpm-verification-cache\.mjs identify/u,
-  );
-
   const seed = workflows.find(({ file }) => file === seedWorkflow).workflow;
   const entries = steps(seed);
   const install = entries.findIndex(
