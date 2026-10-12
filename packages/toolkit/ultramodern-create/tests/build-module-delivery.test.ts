@@ -18,6 +18,7 @@ import {
   createReactBuildFixtureApp,
   linkBuiltBackendFederationContracts,
 } from './helpers/build-module';
+import { linkInstalledCompilerPolicy } from './helpers/workspace-kit';
 
 const require = createRequire(import.meta.url);
 const scope = 'delivery-proof';
@@ -42,6 +43,7 @@ function createFixture() {
     fs.mkdtempSync(path.join(os.tmpdir(), 'um-build-module-delivery-')),
   );
   try {
+    linkInstalledCompilerPolicy(root);
     write(root, 'tsconfig.base.json', JSON.stringify(createTsConfigBase()));
     write(
       root,

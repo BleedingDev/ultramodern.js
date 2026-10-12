@@ -121,6 +121,7 @@ export function prepareTractorCohortInstallation(
       'Producer pnpm trust policy must retain no-downgrade and its 24-hour window',
     );
   }
+  const compiler = prepareTractorCompilerConfig(workspace);
 
   const workspaceFile = path.join(workspace, 'pnpm-workspace.yaml');
   const policy = load(fs.readFileSync(workspaceFile, 'utf8'));
@@ -268,6 +269,10 @@ export function prepareTractorCohortInstallation(
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
   fs.writeFileSync(toolchain.miseFile, toolchain.mise);
   fs.writeFileSync(
+    compiler.file,
+    `${JSON.stringify(compiler.config, null, 2)}\n`,
+  );
+  fs.writeFileSync(
     toolchain.manifestFile,
     `${JSON.stringify(toolchain.manifest, null, 2)}\n`,
   );
@@ -278,6 +283,52 @@ export function prepareTractorCohortInstallation(
     fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
   }
   return { catalogCount: Object.keys(cohort.aliases).length, dependencyCount };
+}
+
+// Inherit the producer's compiler policy instead of retaining a copied Effect
+// diagnostics table that becomes stale when the native compiler changes.
+function prepareTractorCompilerConfig(workspace) {
+  const file = path.join(workspace, 'tsconfig.base.json');
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error('Tractor requires a native compiler configuration object');
+  }
+  const options = config.compilerOptions;
+  if (
+    options !== undefined &&
+    (!options || typeof options !== 'object' || Array.isArray(options))
+  ) {
+    throw new Error('Tractor requires a native compiler options object');
+  }
+  if (options?.plugins !== undefined) {
+    if (
+      !Array.isArray(options.plugins) ||
+      options.plugins.some(
+        plugin => plugin?.name !== '@effect/language-service',
+      )
+    ) {
+      throw new Error(
+        'Tractor compiler plugins must contain only its copied Effect policy before adopting the native preset',
+      );
+    }
+    delete options.plugins;
+  }
+  const preset = '@modern-js/ultramodern-create/tsconfig';
+  const inherited =
+    config.extends === undefined
+      ? []
+      : typeof config.extends === 'string'
+        ? [config.extends]
+        : config.extends;
+  if (
+    !Array.isArray(inherited) ||
+    inherited.some(value => typeof value !== 'string' || !value.trim())
+  ) {
+    throw new Error('Tractor compiler extends must select native config paths');
+  }
+  const parents = [...inherited.filter(value => value !== preset), preset];
+  config.extends = parents.length === 1 ? preset : parents;
+  return { file, config };
 }
 
 // Adopt the release's exact tools alongside its dependency catalog, so the

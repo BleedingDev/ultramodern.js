@@ -68,6 +68,24 @@ function fixture() {
     '[tools]\nnode = "26.7.0"\npnpm = "11.24.0"\n',
   );
   fs.writeFileSync(
+    path.join(root, 'tsconfig.base.json'),
+    JSON.stringify({
+      extends: './authored-compiler.json',
+      compilerOptions: {
+        strict: true,
+        paths: { '@tractor/*': ['./shared/*'] },
+        plugins: [
+          {
+            name: '@effect/language-service',
+            ignoreEffectSuggestionsInTscExitCode: false,
+            diagnosticSeverity: { unstableApiUsage: 'error' },
+          },
+        ],
+      },
+      exclude: ['authored-fixtures'],
+    }),
+  );
+  fs.writeFileSync(
     path.join(root, 'pnpm-workspace.yaml'),
     "catalogs:\n  ultramodern:\n    '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50\n",
   );
@@ -1416,6 +1434,19 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       producerOptions,
     );
     assert.equal(result.dependencyCount, 1);
+    const compilerFile = path.join(root, 'tsconfig.base.json');
+    const compilerConfig = JSON.parse(fs.readFileSync(compilerFile, 'utf8'));
+    assert.deepEqual(compilerConfig, {
+      extends: [
+        './authored-compiler.json',
+        '@modern-js/ultramodern-create/tsconfig',
+      ],
+      compilerOptions: {
+        strict: true,
+        paths: { '@tractor/*': ['./shared/*'] },
+      },
+      exclude: ['authored-fixtures'],
+    });
     const policyText = fs.readFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
       'utf8',
@@ -1497,6 +1528,27 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       path.join(root, 'pnpm-workspace.yaml'),
       'utf8',
     );
+    const foreignCompilerConfig = {
+      ...compilerConfig,
+      compilerOptions: {
+        ...compilerConfig.compilerOptions,
+        plugins: [{ name: 'authored-language-service' }],
+      },
+    };
+    fs.writeFileSync(compilerFile, JSON.stringify(foreignCompilerConfig));
+    assert.throws(
+      () => prepareTractorCohortInstallation(root, next, producerOptions),
+      /compiler plugins must contain only its copied Effect policy/u,
+    );
+    assert.equal(
+      fs.readFileSync(compilerFile, 'utf8'),
+      JSON.stringify(foreignCompilerConfig),
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      selectedPolicy,
+    );
+    fs.writeFileSync(compilerFile, JSON.stringify(compilerConfig));
     for (const invalidEffect of [
       undefined,
       {},

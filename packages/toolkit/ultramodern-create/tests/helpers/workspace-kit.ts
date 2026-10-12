@@ -7,6 +7,30 @@ import { generateUltramodernWorkspace } from '../../src/ultramodern-workspace';
 
 const require = createRequire(import.meta.url);
 
+export function linkInstalledCompilerPolicy(workspaceDir: string) {
+  const destination = path.join(
+    workspaceDir,
+    'node_modules/@modern-js/ultramodern-create',
+  );
+  if (fs.existsSync(destination)) return;
+  const producer = path.resolve(__dirname, '../..');
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(producer, 'package.json'), 'utf8'),
+  );
+  const policy = manifest.publishConfig.exports['./tsconfig'];
+  fs.mkdirSync(path.dirname(path.join(destination, policy)), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(destination, 'package.json'),
+    JSON.stringify({
+      ...manifest,
+      ...manifest.publishConfig,
+    }),
+  );
+  fs.copyFileSync(path.join(producer, policy), path.join(destination, policy));
+}
+
 export function linkInstalledCompiler(workspaceDir: string) {
   const compilerPath = path.join(
     workspaceDir,
@@ -23,6 +47,7 @@ export function linkInstalledCompiler(workspaceDir: string) {
 }
 
 export function linkInstalledEffectCompiler(workspaceDir: string) {
+  linkInstalledCompilerPolicy(workspaceDir);
   for (const name of ['typescript', '@effect/tsgo']) {
     const compilerPath = path.join(workspaceDir, 'node_modules', name);
     if (!fs.existsSync(compilerPath)) {

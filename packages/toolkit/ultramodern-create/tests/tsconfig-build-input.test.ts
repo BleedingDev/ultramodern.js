@@ -24,6 +24,7 @@ import {
   linkBuiltBackendFederationContracts,
 } from './helpers/build-module';
 import { runStableTypeScript } from './helpers/stable-typescript';
+import { linkInstalledCompilerPolicy } from './helpers/workspace-kit';
 
 const require = createRequire(import.meta.url);
 const buildInput = 'shared/ultramodern-build.json';
@@ -54,6 +55,7 @@ test('generated composite projects compile their actual build modules and JSON a
   const writeJson = (relativePath: string, value: unknown) =>
     write(relativePath, `${JSON.stringify(value, null, 2)}\n`);
   try {
+    linkInstalledCompilerPolicy(root);
     writeJson('tsconfig.base.json', createTsConfigBase());
     writeJson('tsconfig.json', createRootTsConfig(apps));
     for (const shared of sharedPackages) {

@@ -12,7 +12,7 @@ const effectRequire = createRequire(
   path.resolve(__dirname, '../../../server/bff-effect/package.json'),
 );
 
-test.each([
+const fixtures = [
   {
     name: 'supports HTTP/RPC with visible stability notices',
     source: `import { HttpServerResponse } from "effect/http";
@@ -50,51 +50,79 @@ export const effect = Effect.succeed(1);
     status: 1,
     code: 'TS377135',
   },
-])('generated native Effect policy $name', ({ source, status, code }) => {
-  const root = fs.realpathSync.native(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'um-effect-diagnostics-')),
-  );
-  try {
-    linkInstalledEffectCompiler(root);
-    for (const [name, provider] of [
-      ['effect', effectRequire],
-      ['@types/node', require],
-    ] as const) {
-      const destination = path.join(root, 'node_modules', name);
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      fs.symlinkSync(
-        path.dirname(provider.resolve(`${name}/package.json`)),
-        destination,
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
-    }
-    expect(
-      JSON.parse(
-        fs.readFileSync(effectRequire.resolve('effect/package.json'), 'utf8'),
-      ).version,
-    ).toBe('4.0.0');
-    fs.writeFileSync(
-      path.join(root, 'tsconfig.json'),
-      JSON.stringify(createTsConfigBase()),
-    );
-    const input = path.join(root, 'fixture.ts');
-    fs.writeFileSync(input, source);
+] as const;
 
-    const checked = spawnSync(
-      resolveEffectTsgoCompiler({ from: input }),
-      ['--project', 'tsconfig.json', '--pretty', 'false', '--checkers', '1'],
-      { cwd: root, encoding: 'utf8', timeout: 20_000 },
+test.each(
+  fixtures.flatMap(fixture =>
+    ['project', 'build'].map(mode => ({
+      ...fixture,
+      mode,
+      status: fixture.status,
+    })),
+  ),
+)(
+  'installed native Effect policy $name in $mode mode',
+  ({ source, status, code, mode }) => {
+    const root = fs.realpathSync.native(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'um-effect-diagnostics-')),
     );
-    const output = checked.stdout + checked.stderr;
-    expect(checked.error).toBeUndefined();
-    expect(checked.status).toBe(status);
-    expect([...new Set(output.match(/\bTS\d+\b/g))]).toEqual([code]);
-    if (status === 0) {
-      expect(output).toContain('message TS377136');
-    } else {
-      expect(output).toContain(`error ${code}`);
+    try {
+      linkInstalledEffectCompiler(root);
+      for (const [name, provider] of [
+        ['effect', effectRequire],
+        ['@types/node', require],
+      ] as const) {
+        const destination = path.join(root, 'node_modules', name);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.symlinkSync(
+          path.dirname(provider.resolve(`${name}/package.json`)),
+          destination,
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+      }
+      expect(
+        JSON.parse(
+          fs.readFileSync(effectRequire.resolve('effect/package.json'), 'utf8'),
+        ).version,
+      ).toBe('4.0.0');
+      fs.writeFileSync(
+        path.join(root, 'tsconfig.json'),
+        JSON.stringify(createTsConfigBase()),
+      );
+      const input = path.join(root, 'fixture.ts');
+      fs.writeFileSync(input, source);
+      const consumer = createRequire(path.join(root, 'package.json'));
+      const installedPolicy = consumer.resolve(
+        '@modern-js/ultramodern-create/tsconfig',
+      );
+      expect(
+        JSON.parse(fs.readFileSync(installedPolicy, 'utf8')).compilerOptions
+          .plugins[0].diagnosticSeverity.unstableApiUsage,
+      ).toBe('message');
+
+      const checked = spawnSync(
+        resolveEffectTsgoCompiler({ from: input }),
+        [
+          mode === 'build' ? '--build' : '--project',
+          'tsconfig.json',
+          '--pretty',
+          'false',
+          '--checkers',
+          '1',
+        ],
+        { cwd: root, encoding: 'utf8', timeout: 20_000 },
+      );
+      const output = checked.stdout + checked.stderr;
+      expect(checked.error).toBeUndefined();
+      expect(checked.status).toBe(status);
+      expect([...new Set(output.match(/\bTS\d+\b/g))]).toEqual([code]);
+      if (status === 0) {
+        expect(output).toContain('message TS377136');
+      } else {
+        expect(output).toContain(`error ${code}`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+  },
+);
