@@ -129,6 +129,8 @@ jobs:
       - name: Run exact-artifact ERP-10 acceptance
         id: erp-acceptance
         env:
+          # Preserve the original remote-loader stack before the React bridge wraps it.
+          FEDERATION_DEBUG: 'true'
           # Opt-in workspace build parallelism for larger self-hosted runners;
           # unset (the hosted default) leaves the acceptance profile untouched.
           BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY: ${{ vars.BLEEDINGDEV_ACCEPT_BUILD_CONCURRENCY }}
