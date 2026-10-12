@@ -22,6 +22,7 @@ let browser: Browser;
 let server: http.Server;
 let origin: string;
 
+// Let Puppeteer finish its 30-second launch timeout before the hook expires.
 beforeAll(async () => {
   server = http.createServer((request, response) => {
     if (request.url === '/emitter.js') {
@@ -35,7 +36,7 @@ beforeAll(async () => {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   browser = await puppeteer.launch(launchOptions as any);
-});
+}, 60_000);
 
 afterAll(async () => {
   await browser?.close();
