@@ -8,10 +8,12 @@ const test = require('node:test');
 const load = () => import('../qualify-sidecar-bundle.mjs');
 
 async function fixture(t, { sdk = false } = {}) {
-  const root = fs.mkdtempSync(
-    path.join(
-      process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
-      'sidecar-qualification-test-',
+  const root = fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(
+        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+        'sidecar-qualification-test-',
+      ),
     ),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

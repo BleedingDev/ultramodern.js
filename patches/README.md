@@ -5,7 +5,6 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
-| @rsbuild/core@2.2.11 | yes | none | Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach. |
 | ultracite@7.12.2 | no | none | Include the upstream MIT notice omitted from the npm artifact, preserving the exact license.md bytes at registry source commit e948def3e0b1bdba2c4264c183d960f6a05ed61f. |
 | braces@3.0.3 | yes | none | Bound parser and AST walker nesting in every repository consumer ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); authenticated installed bytes and depth regressions guard the registry correction. Generated workspaces remain patch-free, and a mature signed dependency will replace this repository correction. |
 | @module-federation/bridge-react@2.9.2 | yes | none | Portable React declaration specifiers ([#5130](https://github.com/module-federation/core/pull/5130)). |

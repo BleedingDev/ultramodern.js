@@ -307,7 +307,14 @@ test('SDK profile admits only its exact package, canonical patch and installed A
     '../lib/prepare-bleedingdev-packages/sidecars.mjs'
   );
   assert.deepEqual(sidecarProvenancePolicy('@bleedingdev/mf-sdk'), {
-    grandfatheredVersions: [],
+    grandfatheredVersions: [
+      {
+        version: '0.0.0-bootstrap',
+        publishedAt: '2026-10-11T22:52:44.118Z',
+        integrity:
+          'sha512-w7s0htCV+el/sZYevmEMA+/JAhwTqYKR2l9FqWypcpW2yhhB6H7zaeIyg0o/55NUT0KmmCL+4Rf96N43p1lLSw==',
+      },
+    ],
   });
   const { assertSidecarProfileDependencies } = await import(
     '../sidecar-profiles.mjs'
