@@ -1848,7 +1848,10 @@ test('rejects nested package decoys and escaping symlinks, accepts owner symlink
   expect(validate()).toBeUndefined();
   fs.unlinkSync(nested);
   fs.cpSync(owner, nested, { recursive: true });
-  expect(validate()).toContain('exact framework owner');
+  const mismatch = validate();
+  expect(mismatch).toContain('exact framework owner');
+  expect(mismatch).toContain(`selected owner ${fs.realpathSync(owner)}`);
+  expect(mismatch).toContain(`consumer resolves ${fs.realpathSync(nested)}`);
   fs.rmSync(nested, { recursive: true });
   write(path.join(root, 'outside.js'), exportsSource);
   fs.rmSync(path.join(owner, 'index.js'));
