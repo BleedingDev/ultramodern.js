@@ -88,7 +88,17 @@ test('the harness packs exactly the sidecars the release publishes', async () =>
       expect(
         fs.readFileSync(path.join(consumer, 'pnpm-workspace.yaml'), 'utf8'),
       ).toBe(policy);
-      expect(registry.servedTarballs.has('@bleedingdev/braces')).toBe(true);
+      const installedRoot = fs.realpathSync(
+        path.join(consumer, 'node_modules/braces'),
+      );
+      expect(
+        installedRoot.startsWith(fs.realpathSync(consumer) + path.sep),
+      ).toBe(true);
+      for (const [file, expected] of inspectNpmTarball(bytes).fileContents) {
+        const installed = path.join(installedRoot, file);
+        expect(fs.lstatSync(installed).isFile()).toBe(true);
+        expect(fs.readFileSync(installed).equals(expected)).toBe(true);
+      }
       await runPnpmAsync(
         ['install', '--frozen-lockfile', '--ignore-scripts', '--offline'],
         { cwd: consumer, stdio: 'pipe', env: { ...process.env, CI: 'true' } },
