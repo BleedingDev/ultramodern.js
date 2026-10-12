@@ -135,7 +135,7 @@ test.each([
           // Make that interval deterministic instead of relying on CI timing.
           process.stdout.end();
           process.stderr.end();
-          process.disconnect();
+          if (process.connected) process.disconnect();
           setTimeout(() => process.exit(0), 150);
         });
       }
