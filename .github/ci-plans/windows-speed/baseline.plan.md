@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: baseline-run
     content: Open the single PR with this plan and capture its fresh workflow run IDs.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -24,3 +24,7 @@ Use one PR against `main-ultramodern` in `ultramodernjs/ultramodern.js`. Do not 
 ## Operator Guidance
 
 Root owns branch, commits, PR and measurements. Beads issue `modernjs-0v9rk.6` tracks the task; plan statuses project execution progress. Native agents may start the two implementation lanes once the baseline run IDs are recorded.
+
+Baseline PR is https://github.com/ultramodernjs/ultramodern.js/pull/225 at `8e389e1a2731dcc185b86315fa4fb38581a44ab0`, event created `2026-10-12T09:44:54Z`. Windows run is `38231874213`; integration run is `38231874262`. The remaining fresh runs are retained in the graph operator state.
+
+All 12 workflows, 44 jobs and 30 required checks passed on attempt one. Last completion was `2026-10-12T09:56:05Z`, for 671 seconds total and 8,455 summed job execution seconds. Windows discovery covered 603 project/file identities, 4,975 passed tests and three existing skips.

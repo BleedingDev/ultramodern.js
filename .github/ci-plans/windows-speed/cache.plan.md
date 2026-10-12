@@ -4,10 +4,10 @@ overview: Reuse pnpm's successful lockfile verification result from trusted defa
 todos:
   - id: implement-verification-cache
     content: Add an exact-key restore action and a trusted main-only writer for the pnpm verification result.
-    status: pending
+    status: completed
   - id: verify-cache-boundaries
     content: Validate policy and toolchain key invalidation, restore-only PR behavior and workflow syntax.
-    status: pending
+    status: completed
 isProject: false
 ---
 

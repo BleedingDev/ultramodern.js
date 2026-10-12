@@ -4,10 +4,10 @@ overview: Integrate both independent changes, review safety and coverage, then m
 todos:
   - id: validate-integrated-change
     content: Run focused coverage/cache regressions, lint workflows and obtain an independent change review.
-    status: pending
+    status: completed
   - id: measure-candidate
     content: Push the candidate after baseline completion and compare all fresh pipeline runs and required checks.
-    status: pending
+    status: in_progress
   - id: handoff-one-pr
     content: Record measured results and limitations in the PR, refresh the graph and return the separate PR.
     status: pending
@@ -18,7 +18,7 @@ isProject: false
 
 ## Execution Notes
 
-Both implementation lanes feed this validation lane. If a cache seed needs to run before the optimized pipeline, seed only from trusted main and prove that its native pnpm verdict matches the candidate lockfile and policy. Do not treat a cold miss as a warm benchmark or claim projected savings as measured results.
+Both implementation lanes feed this validation lane. The verification result can first be seeded after this PR merges to trusted main. This pre-merge comparison measures test distribution with a verification-cache miss; it cannot quantify the future warm-cache gain. Do not treat a cold miss as a warm benchmark or claim projected savings as measured results.
 
 ## Constraints
 
