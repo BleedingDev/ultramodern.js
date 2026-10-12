@@ -190,6 +190,8 @@ test('an installed create package immediately installs its exact cohort and tran
       ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES.map(name =>
         name.slice('@modern-js/'.length),
       ),
+      'backend-federation-contracts',
+      'renderer-core',
       'utils',
     ].sort();
     fs.writeFileSync(
