@@ -1091,18 +1091,20 @@ describe('UI-only Cloudflare worker support', () => {
       deliveryUnit.appId,
     ).ui;
     await f.json('topology/reference-topology.json', {
-      shell: {
-        id: deliveryUnit.appId,
-        kind: 'shell',
-        path: 'apps/catalog',
-        surfaceProfile: 'ui-only',
-        deliveryUnit,
-        renderer: ui.profile.renderer,
-        rendererIdentity: ui.identity,
-        rendererProfile: ui.profile,
-        routerBindings: ui.routerBindings,
-      },
-      verticals: [],
+      shell: { id: 'host', kind: 'shell', path: 'apps/host' },
+      verticals: [
+        {
+          id: deliveryUnit.appId,
+          kind: 'vertical',
+          path: 'apps/catalog',
+          surfaceProfile: 'ui-only',
+          deliveryUnit,
+          renderer: ui.profile.renderer,
+          rendererIdentity: ui.identity,
+          rendererProfile: ui.profile,
+          routerBindings: ui.routerBindings,
+        },
+      ],
     });
     await f.json(
       'apps/catalog/shared/ultramodern-build.json',

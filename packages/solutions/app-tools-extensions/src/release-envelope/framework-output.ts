@@ -15,6 +15,7 @@ import {
 import { readBuildIdentity } from '../backend-federation-build/config';
 import {
   resolveTopologyDeliveryUnit,
+  resolveTopologyReleaseRole,
   resolveWorkerDeliveryUnitStamp,
 } from '../cloudflare/delivery-unit';
 import {
@@ -904,7 +905,7 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   distDirectory,
   requirePromotable = true,
   expectedRendererProfile,
-  role = 'microvertical',
+  role,
   target,
 }: {
   apiOnly: boolean;
@@ -915,7 +916,19 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   role?: 'microvertical' | 'shell';
   target: MicroVerticalReleaseTarget;
 }): Promise<ReleaseEnvelope | undefined> => {
-  const shellConsumer = role === 'shell';
+  const declaredRole = appDirectory
+    ? await resolveTopologyReleaseRole(appDirectory)
+    : undefined;
+  if (
+    role !== undefined &&
+    declaredRole !== undefined &&
+    role !== declaredRole
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] Configured release role disagrees with the declared topology app.',
+    );
+  }
+  const shellConsumer = (declaredRole ?? role ?? 'microvertical') === 'shell';
   const backendManifestPath = path.join(
     distDirectory,
     BACKEND_FEDERATION_MANIFEST_FILE,

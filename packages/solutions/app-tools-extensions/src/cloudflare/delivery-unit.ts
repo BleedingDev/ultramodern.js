@@ -73,6 +73,7 @@ const RENDERER_PROJECTION_FIELDS = [
 
 type TopologyAppResolution = {
   app?: Record<string, unknown>;
+  role: 'microvertical' | 'shell';
   workspaceRoot: string;
 };
 
@@ -158,8 +159,28 @@ const resolveTopologyApp = async (
   }
   return {
     app,
+    role:
+      app === topology.shell ||
+      (Array.isArray(topology.shells) && topology.shells.includes(app))
+        ? 'shell'
+        : 'microvertical',
     workspaceRoot,
   };
+};
+
+/** Resolve the producer role from this app's authoritative topology membership. */
+export const resolveTopologyReleaseRole = async (
+  appDirectory: string,
+): Promise<'microvertical' | 'shell' | undefined> => {
+  const resolved = await resolveTopologyApp(appDirectory);
+  if (!resolved?.app) return undefined;
+  const kind = resolved.role === 'shell' ? 'shell' : 'vertical';
+  if (resolved.app.kind !== kind) {
+    throw new Error(
+      '[cloudflare-delivery-unit] Declared app kind disagrees with its topology membership.',
+    );
+  }
+  return resolved.role;
 };
 
 const createTopologyDeliveryUnitStamp = (
