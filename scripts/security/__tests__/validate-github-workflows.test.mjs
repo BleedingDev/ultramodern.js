@@ -28,6 +28,37 @@ jobs:
         run: echo ok
 `;
 
+test('Tractor installs the frozen publication CLI before waiting for the registry cohort', () => {
+  const workflow = yaml.load(
+    fs.readFileSync(
+      new URL(
+        '../../../.github/workflows/ultramodern-tractor-downstream.yml',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  const steps = workflow.jobs['tractor-downstream'].steps;
+  const waitIndex = steps.findIndex(step =>
+    step.run?.includes(
+      'scripts/ultramodern-publish/wait-for-registry-cohort.sh',
+    ),
+  );
+  const installIndex = steps.findIndex(step =>
+    step.run?.includes('--filter modern-js-monorepo'),
+  );
+  assert.ok(installIndex >= 0 && installIndex < waitIndex);
+  const install = steps[installIndex];
+  assert.equal(install['working-directory'], 'modernjs');
+  assert.equal(install.if, steps[waitIndex].if);
+  assert.equal(install.if, 'inputs.wait_for_registry_cohort');
+  assert.equal(
+    install.run,
+    'mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy',
+  );
+  assert.notEqual(install['continue-on-error'], true);
+});
+
 test('repository advisory correction requires the blocking frozen production install before audit', () => {
   const relativePath = '.github/workflows/check-dependencies.yml';
   const read = () =>

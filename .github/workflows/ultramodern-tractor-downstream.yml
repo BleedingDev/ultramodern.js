@@ -145,6 +145,11 @@ jobs:
           cache_save: false
           working_directory: tractor
 
+      - name: Install publication CLI dependencies
+        if: inputs.wait_for_registry_cohort
+        working-directory: modernjs
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy
+
       # Same retry shape as publish-bleedingdev.yml's "Wait for the exact
       # registry cohort". The version and tag come from the downloaded manifest,
       # which the publishing workflow already bound to its dispatch inputs
