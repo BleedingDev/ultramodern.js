@@ -11,7 +11,7 @@ const runnerPromise = import('../tractor-downstream/main.mjs');
 const producerEffectDependencies = {
   effect: '4.0.0',
   '@effect/opentelemetry': '4.0.0',
-  '@effect/tsgo': '0.47.2',
+  '@effect/tsgo': '0.53.0',
 };
 const producerReactDependencies = {
   react: '19.3.0',
@@ -1546,7 +1546,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     assert.deepEqual(
       JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).devDependencies,
       {
-        '@effect/tsgo': '0.47.2',
+        '@effect/tsgo': '0.53.0',
         '@types/react': '19.3.0',
         '@types/react-dom': '19.3.0',
       },
@@ -1636,7 +1636,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       { ...producerEffectDependencies, '@effect/opentelemetry': '4.0.1' },
       {
         ...producerEffectDependencies,
-        '@effect/tsgo': 'npm:@bleedingdev/tsgo@0.47.2',
+        '@effect/tsgo': 'npm:@bleedingdev/tsgo@0.53.0',
       },
     ]) {
       assert.throws(
