@@ -208,13 +208,16 @@ export function resolveInstalledEffectCompiler(from: string | URL): string {
     const metadataPath = join(dirname(effectManifest), 'lib', 'upstream.json');
     const metadata = JSON.parse(readFileSync(metadataPath, 'utf8')) as {
       schemaVersion?: number;
+      tags?: { typescript?: { latest?: string } };
       components?: {
         typescript?: Record<string, { gitHead?: string; provider?: string }>;
       };
     };
     const component = metadata.components?.typescript?.[native.version];
+    const latestTypeScript = metadata.tags?.typescript?.latest;
     if (
       metadata.schemaVersion !== 5 ||
+      typeof latestTypeScript !== 'string' ||
       component?.provider !== 'typescript-go' ||
       component.gitHead !== native.gitHead
     ) {
@@ -222,15 +225,18 @@ export function resolveInstalledEffectCompiler(from: string | URL): string {
         `Effect replacement metadata does not match the selected native TypeScript backend: ${metadataPath}`,
       );
     }
-    return readCompilerArtifact(
-      join(
-        dirname(effectManifest),
-        'artifacts',
-        'typescript',
-        native.version,
-        binaryName,
-      ),
-    );
+    // Same layout rule as @effect/tsgo's getExePath: the latest TypeScript
+    // replacement ships in lib/, every other version under artifacts/.
+    const compilerDirectory =
+      native.version === latestTypeScript
+        ? join(dirname(effectManifest), 'lib')
+        : join(
+            dirname(effectManifest),
+            'artifacts',
+            'typescript',
+            native.version,
+          );
+    return readCompilerArtifact(join(compilerDirectory, binaryName));
   } catch (error) {
     if (error && typeof error === 'object' && !failureStages.has(error))
       failureStages.set(error, stage);

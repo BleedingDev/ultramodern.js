@@ -29,6 +29,7 @@ const effectPlatformName = `@effect/tsgo-${process.platform}-${process.arch}`;
 const compilerBasename = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
 const nativeGitHead = '2bd066d87f5bafd315be9f40889d0a60b9e58e0b';
 const nativeVersion = '7.0.2';
+const nextNativeVersion = '7.1.0';
 const effectVersion = '0.45.0';
 
 async function withEnvironment<T>(
@@ -65,18 +66,21 @@ function withWorkingDirectory<T>(directory: string, action: () => T): T {
   }
 }
 
+// The latest TypeScript replacement ships in lib/, every other version under
+// artifacts/typescript/<version>/.
 function effectCompilerPath(
   directory: string,
   version = nativeVersion,
 ): string {
-  return join(
-    directory,
-    'node_modules',
-    effectPlatformName,
-    'artifacts/typescript',
-    version,
-    compilerBasename,
-  );
+  const platformDirectory = join(directory, 'node_modules', effectPlatformName);
+  return version === nativeVersion
+    ? join(platformDirectory, 'lib', compilerBasename)
+    : join(
+        platformDirectory,
+        'artifacts/typescript',
+        version,
+        compilerBasename,
+      );
 }
 
 function effectMetadataPath(directory: string): string {
@@ -128,6 +132,7 @@ function writeEffectTsgoPackage(directory: string): void {
     effectMetadataPath(directory),
     JSON.stringify({
       schemaVersion: 5,
+      tags: { typescript: { latest: nativeVersion } },
       components: {
         typescript: {
           [nativeVersion]: {
@@ -483,17 +488,21 @@ test('selects the exact canonical native version instead of another artifact wit
     writeEffectTsgoPackage(directory);
     writeTypeScriptPackage(
       join(directory, 'node_modules/@typescript/native'),
-      '7.1.0',
+      nextNativeVersion,
     );
     writeCompiler(effectCompilerPath(directory), 0o700);
-    writeCompiler(effectCompilerPath(directory, '7.1.0'), 0o700);
+    writeCompiler(effectCompilerPath(directory, nextNativeVersion), 0o700);
     writeFileSync(
       effectMetadataPath(directory),
       JSON.stringify({
         schemaVersion: 5,
+        tags: { typescript: { latest: nativeVersion } },
         components: {
           typescript: {
-            '7.1.0': { gitHead: nativeGitHead, provider: 'typescript-go' },
+            [nextNativeVersion]: {
+              gitHead: nativeGitHead,
+              provider: 'typescript-go',
+            },
             [nativeVersion]: {
               gitHead: nativeGitHead,
               provider: 'typescript-go',
@@ -508,6 +517,55 @@ test('selects the exact canonical native version instead of another artifact wit
           from: pathToFileURL(join(directory, 'modern.config.ts')),
         }),
         realpathSync(effectCompilerPath(directory)),
+      );
+      assert.equal(existsSync(join(directory, 'cli-started')), false);
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('selects a non-latest native version from the versioned artifacts', async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), 'app-tools-effect-tsgo-next-version-'),
+  );
+  try {
+    writeEffectTsgoPackage(directory);
+    writeTypeScriptPackage(
+      join(directory, 'node_modules/typescript'),
+      nextNativeVersion,
+    );
+    writeNativePlatformPackage(
+      join(directory, 'node_modules', nativePlatformName),
+      nextNativeVersion,
+    );
+    writeCompiler(effectCompilerPath(directory), 0o700);
+    writeCompiler(effectCompilerPath(directory, nextNativeVersion), 0o700);
+    writeFileSync(
+      effectMetadataPath(directory),
+      JSON.stringify({
+        schemaVersion: 5,
+        tags: { typescript: { latest: nativeVersion } },
+        components: {
+          typescript: {
+            [nativeVersion]: {
+              gitHead: nativeGitHead,
+              provider: 'typescript-go',
+            },
+            [nextNativeVersion]: {
+              gitHead: nativeGitHead,
+              provider: 'typescript-go',
+            },
+          },
+        },
+      }),
+    );
+    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+      assert.equal(
+        resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(directory, 'modern.config.ts')),
+        }),
+        realpathSync(effectCompilerPath(directory, nextNativeVersion)),
       );
       assert.equal(existsSync(join(directory, 'cli-started')), false);
     });
@@ -696,6 +754,7 @@ test('selects the actual declared generator Effect artifact from an empty stagin
       ),
     );
     assert.equal(upstream.schemaVersion, 5);
+    assert.equal(upstream.tags.typescript.latest, nativeManifest.version);
     assert.equal(
       upstream.components.typescript[nativeManifest.version].gitHead,
       nativeManifest.gitHead,
@@ -714,8 +773,7 @@ test('selects the actual declared generator Effect artifact from an empty stagin
     );
     const expectedCompiler = join(
       dirname(platformManifestPath),
-      'artifacts/typescript',
-      nativeManifest.version,
+      'lib',
       compilerBasename,
     );
     const digest = (filename: string) =>
@@ -954,6 +1012,17 @@ for (const [name, mutation, expectedStage] of [
         readFileSync(effectMetadataPath(directory), 'utf8'),
       );
       metadata.schemaVersion = 4;
+      writeFileSync(effectMetadataPath(directory), JSON.stringify(metadata));
+    },
+    'Compiler backend lookup',
+  ],
+  [
+    'missing latest TypeScript tag',
+    (directory: string) => {
+      const metadata = JSON.parse(
+        readFileSync(effectMetadataPath(directory), 'utf8'),
+      );
+      delete metadata.tags;
       writeFileSync(effectMetadataPath(directory), JSON.stringify(metadata));
     },
     'Compiler backend lookup',
