@@ -310,6 +310,8 @@ describe('tanstack router type generation', () => {
           },
           { type: 'nested', children: [{ type: 'nested', path: 'two/*' }] },
           { type: 'nested', id: 'index', index: true },
+          { type: 'nested', id: 'docs', path: 'docs' },
+          { type: 'nested', id: 'docs-files', path: 'docs/*' },
         ],
       },
       { type: 'nested', id: 'sibling', path: 'outside/:lang' },
@@ -359,6 +361,8 @@ describe('tanstack router type generation', () => {
       params: runtime.state.matches.at(-1)?.params,
       href: runtime.history.location.href,
     });
+    expect(routerGenTs).toContain('path: "docs/"');
+    expect(runtime.routesById).toHaveProperty(['/docs/']);
     expect(runtime.state.matches.at(-1)?.routeId).toBe('/$lang/products/$');
     expect(runtime.state.matches.at(-1)?.params).toMatchObject({
       lang: 'cs',
