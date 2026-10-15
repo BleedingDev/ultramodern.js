@@ -8,16 +8,39 @@ export type ModernBuildTarget = 'browser' | 'node';
 
 const FEDERATION_RUNTIME = '@module-federation/modern-js-v3/runtime';
 const FEDERATION_MEMBER_LOADERS = new Set(['loadRemote', 'loadShare']);
-const DECLARATION_FILE = /\.d\.[cm]?ts$/u;
 
 /**
- * Compiler evidence for shell source that branches on the framework build
- * target and loads remotes through the native Module Federation instance.
- *
- * `process.env.MODERN_TARGET` is not ambient environment access: the Modern.js
- * runtime plugin defines it as `'browser'` or `'node'` for every bundler
- * environment, so a strict comparison is a compile-time constant that dead-code
- * elimination folds per target.
+ * `import.meta.env.MODERN_TARGET`, the framework build target. The React
+ * composition defines it as `'browser'` or `'node'` for every bundler
+ * environment, so a strict comparison is a compile-time constant that
+ * dead-code elimination folds per target. `import.meta` cannot be rebound by
+ * application code, and generated type checking admits it where Effect's
+ * `processEnv` diagnostic rejects `process.env`.
+ */
+export function isBuildTargetAccess(
+  typescript: TypeScriptAst,
+  node: ts.Node,
+): node is ts.PropertyAccessExpression {
+  if (
+    !typescript.isPropertyAccessExpression(node) ||
+    node.questionDotToken !== undefined ||
+    node.name.text !== 'MODERN_TARGET'
+  )
+    return false;
+  const env = node.expression;
+  return (
+    typescript.isPropertyAccessExpression(env) &&
+    env.questionDotToken === undefined &&
+    env.name.text === 'env' &&
+    typescript.isMetaProperty(env.expression) &&
+    env.expression.keywordToken === typescript.SyntaxKind.ImportKeyword &&
+    env.expression.name.text === 'meta'
+  );
+}
+
+/**
+ * Compiler evidence for shell source that loads remotes through the native
+ * Module Federation instance inside a browser build-target branch.
  */
 export function createNativeShellRuntimeEvidence(
   typescript: TypeScriptAst,
@@ -30,35 +53,11 @@ export function createNativeShellRuntimeEvidence(
     return node;
   };
 
-  // A `process` binding declared in workspace source is application data, not
-  // the global the framework define replaces.
-  const isAmbientProcess = (node: ts.Node) => {
-    if (!typescript.isIdentifier(node) || node.text !== 'process') return false;
-    const symbol = checker.getSymbolAtLocation(node);
-    return (
-      symbol === undefined ||
-      symbol.declarations.every(declaration =>
-        DECLARATION_FILE.test(declaration.path),
-      )
-    );
-  };
-
-  const isBuildTargetAccess = (
-    node: ts.Node,
-  ): node is ts.PropertyAccessExpression =>
-    typescript.isPropertyAccessExpression(node) &&
-    node.questionDotToken === undefined &&
-    node.name.text === 'MODERN_TARGET' &&
-    typescript.isPropertyAccessExpression(node.expression) &&
-    node.expression.questionDotToken === undefined &&
-    node.expression.name.text === 'env' &&
-    isAmbientProcess(node.expression.expression);
-
   const isBuildTargetLiteral = (node: ts.Node) =>
     typescript.isStringLiteral(node) &&
     (node.text === 'browser' || node.text === 'node');
 
-  /** The target a strict `process.env.MODERN_TARGET === '<target>'` names. */
+  /** The target a strict `import.meta.env.MODERN_TARGET === '<target>'` names. */
   const buildTargetComparison = (
     node: ts.Node,
   ): ModernBuildTarget | undefined => {
@@ -68,53 +67,14 @@ export function createNativeShellRuntimeEvidence(
       node.operatorToken.kind !== typescript.SyntaxKind.EqualsEqualsEqualsToken
     )
       return undefined;
-    const literal = isBuildTargetAccess(node.left)
+    const literal = isBuildTargetAccess(typescript, node.left)
       ? node.right
-      : isBuildTargetAccess(node.right)
+      : isBuildTargetAccess(typescript, node.right)
         ? node.left
         : undefined;
     return literal !== undefined && isBuildTargetLiteral(literal)
       ? ((literal as ts.StringLiteral).text as ModernBuildTarget)
       : undefined;
-  };
-
-  const isConditionOf = (node: ts.Node) => {
-    let condition = node;
-    for (;;) {
-      const parent = condition.parent;
-      if (
-        typescript.isParenthesizedExpression(parent) ||
-        (typescript.isPrefixUnaryExpression(parent) &&
-          parent.operator === typescript.SyntaxKind.ExclamationToken) ||
-        (typescript.isBinaryExpression(parent) &&
-          (parent.operatorToken.kind ===
-            typescript.SyntaxKind.AmpersandAmpersandToken ||
-            parent.operatorToken.kind === typescript.SyntaxKind.BarBarToken))
-      ) {
-        condition = parent;
-        continue;
-      }
-      return (
-        (typescript.isIfStatement(parent) && parent.expression === condition) ||
-        (typescript.isConditionalExpression(parent) &&
-          parent.condition === condition)
-      );
-    }
-  };
-
-  /**
-   * Whether `node` (the `process.env` access) is the left side of a strict
-   * build-target comparison that is used as an if/ternary condition.
-   */
-  const isBuildTargetCondition = (node: ts.Node) => {
-    const access = node.parent;
-    if (!isBuildTargetAccess(access) || access.expression !== node)
-      return false;
-    const comparison = access.parent;
-    return (
-      buildTargetComparison(comparison) !== undefined &&
-      isConditionOf(comparison)
-    );
   };
 
   const conjuncts = (node: ts.Node): ts.Node[] => {
@@ -228,5 +188,5 @@ export function createNativeShellRuntimeEvidence(
     );
   };
 
-  return { isBrowserFederationMemberLoad, isBuildTargetCondition };
+  return { isBrowserFederationMemberLoad };
 }

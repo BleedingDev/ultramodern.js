@@ -36,6 +36,9 @@ const normalizeSsrCapabilities = (config: AppToolsNormalizedConfig) => {
   };
 };
 
+const MODERN_TARGET_DEFINE = 'process.env.MODERN_TARGET';
+const IMPORT_META_MODERN_TARGET_DEFINE = 'import.meta.env.MODERN_TARGET';
+
 const ssrIntegrationBuilderPlugin = (
   modernAPI: CLIPluginAPI<AppTools>,
 ): RsbuildPlugin => ({
@@ -45,20 +48,27 @@ const ssrIntegrationBuilderPlugin = (
     const capabilities = normalizeSsrCapabilities(
       modernAPI.getNormalizedConfig(),
     );
-    api.modifyEnvironmentConfig((config, { name, mergeEnvironmentConfig }) =>
-      mergeEnvironmentConfig(config, {
+    api.modifyEnvironmentConfig((config, { name, mergeEnvironmentConfig }) => {
+      // Native SSR runs first and defines this environment's build target.
+      // Mirror it on Rsbuild's import.meta.env: generated type checking
+      // rejects process.env reads through Effect's processEnv diagnostic.
+      const buildTarget = config.source.define?.[MODERN_TARGET_DEFINE];
+      return mergeEnvironmentConfig(config, {
         source: {
           define: {
             'process.env.MODERN_MF_APP_SSR': JSON.stringify(
               String(capabilities.federation),
             ),
+            ...(buildTarget === undefined
+              ? {}
+              : { [IMPORT_META_MODERN_TARGET_DEFINE]: buildTarget }),
           },
         },
         ...(name === 'workerSSR' && capabilities.worker
           ? { output: { module: true } }
           : {}),
-      }),
-    );
+      });
+    });
   },
 });
 

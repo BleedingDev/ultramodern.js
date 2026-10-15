@@ -365,6 +365,30 @@ Cloudflare Worker output. The shell consumes vertical UI through Module
 Federation manifests and vertical APIs through generated Effect clients
 exported by the vertical packages.
 
+Shell routes load federated modules through `createLazyComponent` or the
+generated loaders. A route that drives the runtime itself calls
+`loadRemote()` or `loadShare()` on the instance from `getInstance()`
+(`@module-federation/modern-js-v3/runtime`), and only inside the true branch
+of `import.meta.env.MODERN_TARGET === 'browser'`:
+
+```tsx
+import { getInstance } from '@module-federation/modern-js-v3/runtime';
+
+export const loadWidget = () => {
+  if (import.meta.env.MODERN_TARGET === 'browser') {
+    const host = getInstance();
+    if (host !== null) return host.loadRemote('inventory/Widget');
+  }
+  return undefined;
+};
+```
+
+The React composition defines `import.meta.env.MODERN_TARGET` per bundle as
+`'browser'` or `'node'`, the same value as `process.env.MODERN_TARGET`, so the
+server bundle drops the branch. Shell routes must not read `process.env`:
+`pnpm typecheck` rejects it through Effect's `processEnv` rule and
+`pnpm contract:check` rejects it too.
+
 Route metadata is route-owned and colocated in
 `src/routes/**/route.meta.ts`; each file exports `routeMeta`.
 `ultramodern-create ultramodern routes-generate` (run before every app `dev`
