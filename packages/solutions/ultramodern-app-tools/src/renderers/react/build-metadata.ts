@@ -14,7 +14,7 @@ import type {
 } from '@modern-js/plugin-bff-build-extensions';
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import { getArgv } from '@modern-js/utils';
-import { type RsbuildPlugin, rspack } from '@rsbuild/core';
+import type { RsbuildPlugin } from '@rsbuild/core';
 import { isEntryMetadataRead } from '../../native-composition/config-read-context';
 import {
   createRendererBuildManifest,
@@ -24,13 +24,10 @@ import {
 } from '../../native-composition/native-build-manifest';
 import type { NativeInfrastructureOptions } from '../../native-composition/native-infrastructure';
 import {
-  isUltramodernReleaseIdentityBannerPlugin,
-  releaseIdentityBanner,
-} from '../../native-composition/preset';
-import {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
 } from '../../native-composition/renderer-profile';
+import { applyRendererReleaseIdentity } from '../../native-composition/renderer-release-identity';
 import { reactRendererAdapter } from './adapter';
 
 export const REACT_RENDERER_IDENTITY_ELEMENT_ID =
@@ -136,50 +133,7 @@ export function reactRendererBuildMetadataPlugin(
             };
           },
         });
-      api.modifyBundlerChain({
-        order: 'post',
-        handler: chain => {
-          if (!identities) return;
-          if (chain.plugins.has('globalVars'))
-            chain.plugin('globalVars').tap(args => {
-              const definitions = { ...args[0] };
-              delete definitions.ULTRAMODERN_BUILD_MARKER;
-              delete definitions.ULTRAMODERN_SOURCE_REVISION;
-              return [definitions, ...args.slice(1)];
-            });
-          chain
-            .plugin('ultramodern-react-runtime-identity')
-            .use(rspack.DefinePlugin, [
-              {
-                ULTRAMODERN_BUILD_MARKER: JSON.stringify(identities.buildId),
-                ULTRAMODERN_SOURCE_REVISION: JSON.stringify(
-                  identities.sourceRevision,
-                ),
-              },
-            ]);
-        },
-      });
-      api.modifyRspackConfig({
-        order: 'post',
-        handler: config => {
-          if (!identities) return config;
-          const { buildId, sourceRevision } = identities;
-          config.plugins = (config.plugins ?? []).filter(
-            plugin => !isUltramodernReleaseIdentityBannerPlugin(plugin),
-          );
-          // After minimization and before asset hashing, so a changed
-          // identity changes every emitted script's content hash.
-          config.plugins.push(
-            new rspack.BannerPlugin({
-              banner: releaseIdentityBanner([buildId, sourceRevision]),
-              raw: true,
-              stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
-              test: /\.(?:c|m)?js$/u,
-            }),
-          );
-          return config;
-        },
-      });
+      applyRendererReleaseIdentity(api, () => identities);
       api.modifyHTMLTags((tags, { filename, environment }) => {
         if (environment.name !== 'client') return tags;
         const entries = Object.entries(environment.htmlPaths).filter(

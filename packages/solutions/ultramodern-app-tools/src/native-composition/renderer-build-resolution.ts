@@ -39,6 +39,7 @@ export function createRendererBuildIdentityResolver(
       ...(delivery
         ? {
             appId: delivery.appId,
+            unitId: delivery.unitId,
             sourceRevision: delivery.sourceRevision,
           }
         : { appId: context.packageName || undefined }),

@@ -132,11 +132,16 @@ describe('UltraModern production build defaults', () => {
         },
       });
       const rspackConfig = { plugins: [] as unknown[] };
-      const configureRspack = preset.tools?.rspack as
-        | ((config: typeof rspackConfig) => void)
-        | undefined;
-      expect(configureRspack).toBeDefined();
-      configureRspack!(rspackConfig);
+      const banner = preset.builderPlugins?.find(
+        candidate =>
+          (candidate as { name?: string }).name ===
+          'ultramodern:release-identity-banner',
+      ) as { setup(api: unknown): void } | undefined;
+      expect(banner).toBeDefined();
+      banner!.setup({
+        modifyRspackConfig: (handler: (config: typeof rspackConfig) => void) =>
+          handler(rspackConfig),
+      });
 
       const build = (outputPath: string, plugins: unknown[]) =>
         new Promise<void>((resolve, reject) => {
