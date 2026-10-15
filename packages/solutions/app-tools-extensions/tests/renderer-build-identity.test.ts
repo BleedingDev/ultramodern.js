@@ -168,3 +168,64 @@ test('a renderer that disagrees with its profile is rejected', async () => {
     resolveRendererBuildIdentities({ ...options, renderer: 'octane' }),
   ).toThrow(/Renderer\/profile identity mismatch/u);
 });
+
+test('apps of one workspace at one clean commit get distinct buildIds', async () => {
+  const workspaceRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'renderer-build-identity-workspace-'),
+  );
+  temporaryRoots.add(workspaceRoot);
+  await fs.writeFile(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'lock: 1\n');
+  for (const app of ['shell', 'catalog']) {
+    await fs.mkdir(path.join(workspaceRoot, 'apps', app), { recursive: true });
+    await fs.writeFile(
+      path.join(workspaceRoot, 'apps', app, 'package.json'),
+      JSON.stringify({ name: `@demo/${app}`, version: '1.0.0' }),
+    );
+  }
+  const run = (args: string[]) =>
+    execFileSync('git', args, {
+      cwd: workspaceRoot,
+      stdio: 'ignore',
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name]) => !name.startsWith('GIT_'),
+        ),
+      ),
+    });
+  run(['init']);
+  run(['add', '.']);
+  run([
+    '-c',
+    'user.name=Fixture',
+    '-c',
+    'user.email=fixture@example.invalid',
+    'commit',
+    '-m',
+    'fixture',
+  ]);
+  const resolve = (app: string, unitId?: string) =>
+    resolveRendererBuildIdentities({
+      projectRoot: path.join(workspaceRoot, 'apps', app),
+      renderer: 'solid',
+      profile: solidProfile,
+      routerBindings: routerBindings(solidProfile),
+      entryNames: ['main'],
+      mode: 'production',
+      appId: app,
+      ...(unitId ? { unitId } : {}),
+    });
+  const shell = resolve('shell', 'demo/shell');
+  const catalog = resolve('catalog', 'demo/catalog');
+  // Same revision, lockfile and renderer profile: only the unit differs.
+  expect(shell.sourceRevision).toMatch(/^[a-f0-9]{40}$/u);
+  expect(catalog.sourceRevision).toBe(shell.sourceRevision);
+  expect(catalog.profileKey).toBe(shell.profileKey);
+  expect(catalog.buildId).not.toBe(shell.buildId);
+  expect(shell.identities.main.buildId).toBe(shell.buildId);
+  expect(catalog.identities.main.buildId).toBe(catalog.buildId);
+  // Still reproducible per unit, and the unit id is part of the identity.
+  expect(resolve('shell', 'demo/shell').buildId).toBe(shell.buildId);
+  expect(resolve('shell', 'demo/shell-next').buildId).not.toBe(shell.buildId);
+  expect(resolve('shell').buildId).not.toBe(shell.buildId);
+  expect(() => resolve('shell', ' demo/shell')).toThrow(/unitId/u);
+});

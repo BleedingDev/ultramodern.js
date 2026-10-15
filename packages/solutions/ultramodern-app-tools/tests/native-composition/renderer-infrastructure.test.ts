@@ -44,6 +44,10 @@ import {
   nativeRendererInfrastructurePlugin,
 } from '../../src/native-composition/native-infrastructure';
 import {
+  isUltramodernReleaseIdentityBannerPlugin,
+  ultramodernReleaseIdentityBannerPlugin,
+} from '../../src/native-composition/preset';
+import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from '../../src/native-composition/renderer-profile';
@@ -1339,8 +1343,11 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         const distDirectory = path.join(root, 'dist');
         expect(api.getAppContext().distDirectory).toBe(distDirectory);
         const builderPlugins = resolved.builderPlugins as RsbuildPlugin[];
-        expect(builderPlugins.map(plugin => plugin.name)).toContain(
-          `ultramodern:${renderer}:development`,
+        expect(builderPlugins.map(plugin => plugin.name)).toEqual(
+          expect.arrayContaining([
+            `ultramodern:${renderer}:development`,
+            'ultramodern:renderer-release-identity',
+          ]),
         );
 
         const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
@@ -1388,6 +1395,12 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
             mode: 'development',
             plugins: [
               nativeRendererIsolationPlugin(renderer),
+              // The workspace preset's delivery-unit release banner.
+              ultramodernReleaseIdentityBannerPlugin([
+                '1'.repeat(16),
+                'workspace',
+                '1.0.0',
+              ]),
               ...builderPlugins,
             ],
             environments,
@@ -1397,6 +1410,16 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         const configs = await rsbuild.initConfigs({ action: 'dev' });
         const client = configs.find(config => config.name === 'client');
         const server = configs.find(config => config.name === 'server');
+        // The UI unit's renderer buildId replaces the preset release banner.
+        for (const config of [client, server]) {
+          const banners = (config?.plugins ?? []).filter(
+            plugin => plugin instanceof rspack.BannerPlugin,
+          );
+          expect(banners).toHaveLength(1);
+          expect(isUltramodernReleaseIdentityBannerPlugin(banners[0])).toBe(
+            false,
+          );
+        }
         expect(client?.output?.filename).toBe('[name].[contenthash].js');
         expect(client?.output?.path).toBe(
           path.join(distDirectory, '.ultramodern-dev', 'client'),

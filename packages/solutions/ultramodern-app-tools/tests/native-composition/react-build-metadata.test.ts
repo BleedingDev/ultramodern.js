@@ -35,6 +35,8 @@ import {
   RENDERER_BUILD_MANIFEST_FILE,
   RENDERER_DEVELOPMENT_DIRECTORY,
 } from '../../src/native-composition/native-build-manifest';
+import { createPresetUltramodernConfig } from '../../src/native-composition/preset';
+import { createRendererBuildOutputResolver } from '../../src/native-composition/renderer-build-output';
 import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
@@ -205,6 +207,8 @@ async function compileMetadata(
   api: Awaited<ReturnType<typeof initializeMetadata>>['api'],
   options: {
     entryNames?: string[];
+    /** Builder plugins the merged app config contributes before metadata. */
+    configuredPlugins?: RsbuildPlugin[];
     rsbuildConfig?: NonNullable<
       Parameters<typeof createRsbuild>[0]
     >['rsbuildConfig'];
@@ -238,6 +242,7 @@ async function compileMetadata(
             });
           },
         },
+        ...(options.configuredPlugins ?? []),
         ...(builderPlugins as RsbuildPlugin[]),
       ],
       output: {
@@ -563,6 +568,57 @@ describe('React metadata in the existing CLI build hooks', () => {
     } finally {
       await server.dispose();
     }
+  });
+
+  it('replaces the preset release banner so every script names the one UI build marker', async () => {
+    const root = createFixture();
+    const generationBuildMarker = '3'.repeat(16);
+    const preset = createPresetUltramodernConfig({
+      deliveryUnit: {
+        buildMarker: generationBuildMarker,
+        unitId: 'acme/catalog',
+        version: '9.8.7',
+        workspaceRoot: root,
+      },
+    });
+    const { api } = await initializeMetadata(root, {
+      resolveBuildIdentities: async () => buildIdentities(),
+    });
+    await analyzeFinalEntries(api, authoredEntries(root));
+    // Apply the preset as the builder does: its builder plugins and any
+    // `tools.rspack`, which Rsbuild runs after every plugin hook.
+    await compileMetadata(api, {
+      configuredPlugins: (preset.builderPlugins ?? []) as RsbuildPlugin[],
+      rsbuildConfig: preset.tools?.rspack
+        ? { tools: { rspack: preset.tools.rspack as never } }
+        : {},
+    });
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE),
+        'utf8',
+      ),
+    );
+    const scriptsDirectory = path.join(root, 'dist', 'static', 'js');
+    const scripts = fs
+      .readdirSync(scriptsDirectory)
+      .filter(name => name.endsWith('.js'))
+      .map(name => fs.readFileSync(path.join(scriptsDirectory, name), 'utf8'));
+    expect(scripts.length).toBeGreaterThan(0);
+    const banner = `${JSON.stringify(manifest.buildId)};${JSON.stringify(manifest.sourceRevision)};`;
+    for (const script of scripts) {
+      expect(script.startsWith(banner)).toBe(true);
+      expect(script).not.toContain(generationBuildMarker);
+      expect(script).not.toContain('"9.8.7";');
+    }
+    // The release metadata projects the same marker the scripts carry.
+    const finalized = await createRendererBuildOutputResolver('react')({
+      appDirectory: root,
+      distDirectory: path.join(root, 'dist'),
+      entrypoints: authoredEntries(root),
+    });
+    expect(finalized.buildMarker).toBe(manifest.buildId);
+    expect(finalized.ui.rendererIdentity.buildId).toBe(manifest.buildId);
   });
 
   it('keeps the first development identity, renders fresh HTML and writes no manifest', async () => {

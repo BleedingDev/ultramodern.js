@@ -456,13 +456,18 @@ export default defineConfig({
             version: '1.2.3',
           },
         });
-        const rspackConfig = {
-          plugins: [],
-        };
-        const configureRspack = preset.tools?.rspack as (
-          config: typeof rspackConfig,
-        ) => typeof rspackConfig;
-        configureRspack(rspackConfig);
+        const rspackConfig = { plugins: [] as unknown[] };
+        const banner = preset.builderPlugins?.find(
+          candidate =>
+            (candidate as { name?: string }).name ===
+            'ultramodern:release-identity-banner',
+        ) as { setup(api: unknown): void } | undefined;
+        expect(banner).toBeDefined();
+        banner!.setup({
+          modifyRspackConfig: (
+            handler: (config: typeof rspackConfig) => void,
+          ) => handler(rspackConfig),
+        });
 
         await new Promise<void>((resolve, reject) => {
           rspack.rspack(

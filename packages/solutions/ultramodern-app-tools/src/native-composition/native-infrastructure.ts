@@ -56,6 +56,7 @@ import {
   nativeInfrastructurePluginName,
   resolveNativeRendererAdapter,
 } from './renderer-registration';
+import { rendererReleaseIdentityBuilderPlugin } from './renderer-release-identity';
 import { resolveSdkServerPlugin } from './server-plugin-resolution';
 
 export interface NativeEntryGeneration {
@@ -220,7 +221,16 @@ export function nativeRendererInfrastructurePlugin(
       if (options.resolveBuildIdentities && !metadataRead)
         api.modifyResolvedConfig(config => {
           const { command, apiOnly } = api.getAppContext();
-          if (command !== 'dev' || apiOnly) return config;
+          if (apiOnly) return config;
+          // The UI unit's build marker is its renderer buildId in every bundle.
+          const identity = rendererReleaseIdentityBuilderPlugin(
+            () => buildIdentities,
+          );
+          if (command !== 'dev')
+            return {
+              ...config,
+              builderPlugins: [...(config.builderPlugins ?? []), identity],
+            };
           development ??= new NativeDevelopment({
             renderer,
             profile,
@@ -240,6 +250,7 @@ export function nativeRendererInfrastructurePlugin(
             ...config,
             builderPlugins: [
               ...(config.builderPlugins ?? []),
+              identity,
               development.plugin,
             ],
           };

@@ -5,7 +5,7 @@ import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensio
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
-import { type RspackChain, rspack } from '@rsbuild/core';
+import { type RsbuildPlugin, type RspackChain, rspack } from '@rsbuild/core';
 import { ultramodernModuleFederationSharedPlugin } from '../renderers/react/module-federation-shared-plugin';
 import { builderPluginServerMinify } from './server-minify';
 import { rendererTypeCheckerOptions } from './type-checker';
@@ -34,6 +34,38 @@ export class UltramodernReleaseIdentityBannerPlugin extends rspack.BannerPlugin 
  */
 export const releaseIdentityBanner = (values: readonly string[]): string =>
   values.map(value => `${JSON.stringify(value)};`).join('');
+
+/**
+ * Stamp every emitted script with the delivery unit's release identity.
+ *
+ * A default-order `modifyRspackConfig` hook, never `tools.rspack`: Rsbuild
+ * applies `tools.rspack` after every plugin hook, so a renderer that owns the
+ * UI unit's identity could not replace this banner from its `post` hook and
+ * UI chunks would carry two different build markers.
+ */
+export const ultramodernReleaseIdentityBannerPlugin = (
+  values: readonly string[],
+): RsbuildPlugin => ({
+  name: 'ultramodern:release-identity-banner',
+  setup(api) {
+    api.modifyRspackConfig(config => {
+      config.plugins ??= [];
+      config.plugins.push(
+        new UltramodernReleaseIdentityBannerPlugin({
+          banner: releaseIdentityBanner(values),
+          raw: true,
+          // The default additions stage runs before production minimization,
+          // which removes side-effect-free identity expressions from browser
+          // and Module Federation assets. Inject after minimization but
+          // before Rspack derives asset hashes, so the identity survives in
+          // browser assets and a changed identity changes [contenthash].
+          stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+          test: /\.(?:c|m)?js$/u,
+        }),
+      );
+    });
+  },
+});
 
 export function isUltramodernReleaseIdentityBannerPlugin(
   plugin: unknown,
@@ -268,6 +300,17 @@ const createRendererPreset = (
     ...(renderer === 'react'
       ? { plugins: [ultramodernModuleFederationSharedPlugin()] }
       : {}),
+    ...(bundledReleaseIdentity
+      ? {
+          builderPlugins: [
+            ultramodernReleaseIdentityBannerPlugin([
+              bundledReleaseIdentity.buildMarker,
+              bundledReleaseIdentity.sourceRevision,
+              bundledReleaseIdentity.releaseVersion,
+            ]),
+          ],
+        }
+      : {}),
     server,
     source: {
       // Client code only: the builder applies React Compiler to `web`
@@ -290,32 +333,6 @@ const createRendererPreset = (
       },
       // Keep generated Tailwind apps on Rsbuild's native CSS pipeline.
       lightningcssLoader: true,
-      ...(bundledReleaseIdentity
-        ? {
-            rspack: config => {
-              config.plugins ??= [];
-              config.plugins.push(
-                new UltramodernReleaseIdentityBannerPlugin({
-                  banner: releaseIdentityBanner([
-                    bundledReleaseIdentity.buildMarker,
-                    bundledReleaseIdentity.sourceRevision,
-                    bundledReleaseIdentity.releaseVersion,
-                  ]),
-                  raw: true,
-                  // The default additions stage runs before production
-                  // minimization, which removes side-effect-free identity
-                  // expressions from browser and Module Federation assets.
-                  // Inject after minimization but before Rspack derives asset
-                  // hashes, so the identity survives in browser assets and a
-                  // changed identity necessarily changes [contenthash].
-                  stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
-                  test: /\.(?:c|m)?js$/u,
-                }),
-              );
-              return config;
-            },
-          }
-        : {}),
     },
   };
 

@@ -25,6 +25,8 @@ export interface RendererBuildIdentityOptions {
   mode: 'development' | 'production';
   /** Delivery-unit app id; defaults to the application package name. */
   appId?: string;
+  /** Delivery-unit id from the authoritative topology record, when declared. */
+  unitId?: string;
   /** Externally authenticated source revision (delivery unit or CI). */
   sourceRevision?: string;
   /** Actual final entry ownership, supplied by the selected renderer composition. */
@@ -132,13 +134,25 @@ export function resolveRendererBuildIdentities(
     throw new Error(
       'Renderer application identity requires a delivery artifact appId or a package name.',
     );
+  const unitId = options.unitId;
+  if (
+    unitId !== undefined &&
+    (typeof unitId !== 'string' || !unitId || unitId.trim() !== unitId)
+  )
+    throw new Error(
+      'Renderer delivery-unit identity requires a nonempty trimmed unitId.',
+    );
   const profileKey = rendererProfileKey(options.profile);
   const sourceRevision = resolveUltramodernSourceRevision(
     projectRoot,
     options.sourceRevision,
   );
+  // The buildId is the delivery unit's buildMarker, so it must name the unit:
+  // every app of one workspace shares the revision, lockfile and profile.
   const buildId = sha256(
     JSON.stringify([
+      appId,
+      unitId ?? null,
       profileKey,
       lockfileHash(projectRoot),
       options.mode === 'development' || sourceRevision === 'workspace'
