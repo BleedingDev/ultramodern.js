@@ -2628,3 +2628,130 @@ describe('Shell apps are selected by kind, not by path', () => {
     ).toContain('invalid Shell public source export');
   });
 });
+
+describe('clients are built from their own API contract', () => {
+  const clientPath = () =>
+    path.join(root, 'verticals/catalog/src/api/catalog-client.ts');
+  const own =
+    'Effect.gen(function* () { return yield* makeEffectHttpApiClient(catalogApi); })';
+  const head = `import { Effect, HttpApi, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { identity } from 'effect'; import { catalogApi, catalogFoundationApi } from '../../shared/api';`;
+  const check = (body: string) => {
+    write(clientPath(), `${head}\n${body}`);
+    return checkMicroVerticalApiConsumerFiles({ workspaceRoot: root })
+      .diagnostics;
+  };
+  const violation =
+    'verticals/catalog/src/api/catalog-client.ts: must construct the client from its own API contract';
+
+  test.each([
+    ['the exported root API', `export const client = ${own};`],
+    [
+      'an API the root composes',
+      'export const client = makeEffectHttpApiClient(catalogFoundationApi);',
+    ],
+    [
+      'aliases and identity pipes',
+      'const api = catalogApi.pipe(identity); const alias = api; export const client = makeEffectHttpApiClient(alias.pipe(identity), { baseUrl: "/" });',
+    ],
+    [
+      'a sub-API declared in a sibling contract module',
+      `import { catalogSearchApi } from '../../shared/apis/catalog-search.ts'; export const client = makeEffectHttpApiClient(catalogSearchApi);`,
+    ],
+  ])('accepts %s', (_name, body) => {
+    write(
+      path.join(root, 'verticals/catalog/shared/apis/catalog-search.ts'),
+      subApi('catalogSearchApi', 'catalogSearch', '/catalog/search'),
+    );
+    write(
+      file,
+      contract.replace(
+        `export const catalogApi = HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi);`,
+        `import { catalogSearchApi } from './apis/catalog-search.ts';
+export const catalogApi = HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi).addHttpApi(catalogSearchApi);`,
+      ),
+    );
+    expect(check(body)).toEqual([]);
+  });
+
+  test.each([
+    [
+      'an API built in the client module',
+      `export const client = makeEffectHttpApiClient(HttpApi.make('Foreign'));`,
+    ],
+    [
+      'an API the contract package declares but never composes',
+      `import { strayApi } from '../../shared/stray.ts'; export const client = makeEffectHttpApiClient(strayApi);`,
+    ],
+    [
+      'another owner contract',
+      `import { ordersApi } from '@fixture/orders/api'; export const client = makeEffectHttpApiClient(ordersApi);`,
+    ],
+    [
+      'an API supplied by the caller',
+      `${'export const client = Effect.succeed(makeEffectHttpApiClient(catalogApi));'} export const make = (api) => makeEffectHttpApiClient(api);`,
+    ],
+    [
+      'a pipe alias the client module may mutate',
+      'const api = catalogApi.pipe(identity); export let swapped = 1; swapped = 2; const mapped = catalogApi.pipe((value) => value); export const client = makeEffectHttpApiClient(api);',
+    ],
+  ])('rejects %s', (_name, body) => {
+    write(
+      path.join(root, 'verticals/catalog/shared/stray.ts'),
+      `import { HttpApi } from '@modern-js/bff-effect/effect-client'; export const strayApi = HttpApi.make('Stray');`,
+    );
+    expect(check(body)).toContain(violation);
+  });
+
+  test('a split client is checked in every composed module', () => {
+    write(
+      path.join(root, 'verticals/catalog/src/api/foreign.ts'),
+      `import { HttpApi, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; export const foreign = makeEffectHttpApiClient(HttpApi.make('Foreign'));`,
+    );
+    expect(
+      check(
+        `export { foreign } from './foreign.ts'; export const client = ${own};`,
+      ),
+    ).toContain(
+      'verticals/catalog/src/api/foreign.ts: must construct the client from its own API contract',
+    );
+  });
+
+  test('an RPC client must receive the exported RPC group', () => {
+    const packagePath = path.join(root, 'verticals/catalog/package.json');
+    write(
+      packagePath,
+      JSON.stringify({
+        name: '@fixture/catalog',
+        exports: {
+          './api': './shared/rpc.ts',
+          './api/rpc-client': './src/api/catalog-rpc-client.ts',
+        },
+      }),
+    );
+    fs.rmSync(file);
+    write(
+      path.join(root, 'verticals/catalog/shared/rpc.ts'),
+      `import { Rpc, RpcGroup } from 'effect/rpc'; import { Schema } from '@modern-js/bff-effect/effect-client'; export const CatalogRpcGroup = RpcGroup.make(Rpc.make('ping', { success: Schema.Struct({}) })); export const OtherRpcGroup = RpcGroup.make(Rpc.make('pong', { success: Schema.Struct({}) }));`,
+    );
+    const rpcClient = (group: string) => {
+      write(
+        path.join(root, 'verticals/catalog/src/api/catalog-rpc-client.ts'),
+        `import { Effect, makeEffectRpcClient } from '@modern-js/bff-effect/effect-client'; import { CatalogRpcGroup, OtherRpcGroup } from '../../shared/rpc.ts'; const group = ${group}; export const client = makeEffectRpcClient(group, { url: '/rpc' });`,
+      );
+      return checkMicroVerticalApiConsumerFiles({
+        workspaceRoot: root,
+        configuredApps: [
+          {
+            path: 'verticals/catalog',
+            kind: 'vertical',
+            api: { protocol: 'rpc' },
+          },
+        ],
+      }).diagnostics.join('\n');
+    };
+    expect(rpcClient('CatalogRpcGroup')).not.toContain('own API contract');
+    expect(rpcClient('OtherRpcGroup')).toContain(
+      'catalog-rpc-client.ts: must construct the client from its own API contract',
+    );
+  });
+});

@@ -3,8 +3,10 @@ import path from 'node:path';
 import { parse } from '@babel/parser';
 import * as t from '@babel/types';
 import {
+  camelCaseStem,
   type MicroVerticalApiBaselineExpectation,
   microVerticalApiBaselineViolation,
+  pascalCaseStem,
 } from './microvertical-api-baseline';
 import {
   baselinePackage,
@@ -12,6 +14,7 @@ import {
 } from './microvertical-api-owner';
 import {
   createModuleGraph,
+  type GraphValue,
   type ModuleGraph,
   type ResolvedBinding,
   type SourceModule,
@@ -95,6 +98,12 @@ const ignored = new Set([
 ]);
 const MAX_CLOSURE_DEPTH = 128;
 const MAX_CLOSURE_MODULES = 2048;
+/** Alias hops and builder nesting followed when proving an HttpApi. */
+const MAX_API_HOPS = 128;
+/** Builder calls visited when proving one client's HttpApi arguments. */
+const MAX_API_VISITS = 2048;
+/** Modules whose `identity` makes `api.pipe(identity)` the same API. */
+const identitySources = ['effect', 'effect/Function'];
 const normalize = (file: string) =>
   file.split(path.sep).join('/').replace(/^\.\//u, '');
 const errorMessage = (error: unknown) =>
@@ -534,6 +543,264 @@ function check(
       }
       return queue.map(item => item.file);
     };
+    /**
+     * Prove that every native client factory call in a client's composed
+     * closure is handed this app's own contract. An RPC client must receive
+     * the exported `<Stem>RpcGroup`. An HttpApi client must receive an API
+     * built with `HttpApi.make` inside the contract package: the exported
+     * `<stem>Api` or an API it composes through `addHttpApi`, possibly
+     * through aliases and identity pipes.
+     */
+    const foreignClientConstructions = (
+      client: string,
+      appPath: string,
+      contract: string,
+      stem: string,
+      rpc: boolean,
+    ): string[] => {
+      const graph = createModuleGraph();
+      const contractModule = graph.module(absolute(contract));
+      const factory = rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient';
+      const ownExport = graph.resolve(
+        contractModule,
+        rpc ? `${pascalCaseStem(stem)}RpcGroup` : `${camelCaseStem(stem)}Api`,
+        'export',
+      );
+      const isIdentity = (value: GraphValue) =>
+        value.kind === 'external' &&
+        identitySources.includes(value.specifier) &&
+        value.name === 'identity' &&
+        value.members.length === 0;
+      /** `value.pipe(identity)`: the same API under another expression. */
+      const identityPipe = (module: SourceModule, node: t.Node) => {
+        if (
+          !t.isCallExpression(node) ||
+          !t.isMemberExpression(node.callee) ||
+          node.callee.computed ||
+          !t.isIdentifier(node.callee.property, { name: 'pipe' }) ||
+          node.arguments.length !== 1
+        )
+          return false;
+        const values = graph.evaluate(module, node.arguments[0]);
+        return values.length > 0 && values.every(isIdentity);
+      };
+      const withoutIdentity = (module: SourceModule, value: t.Node): t.Node => {
+        let node = unwrapExpression(value, true);
+        for (let pipes = 0; identityPipe(module, node); pipes += 1) {
+          if (pipes >= MAX_API_HOPS) return value;
+          node = unwrapExpression(
+            ((node as t.CallExpression).callee as t.MemberExpression).object,
+            true,
+          );
+        }
+        return node;
+      };
+      type Declaration = Extract<ResolvedBinding, { kind: 'declaration' }>;
+      /** Follow aliases and identity pipes to the expression that builds an API. */
+      const normalizedApi = (initial: Declaration): Declaration | undefined => {
+        let binding = initial;
+        const seen = new Set<t.Node>();
+        for (let hops = 0; hops < MAX_API_HOPS; hops += 1) {
+          const expression = withoutIdentity(
+            binding.module,
+            binding.expression,
+          );
+          if (seen.has(expression)) return undefined;
+          seen.add(expression);
+          if (!t.isIdentifier(expression) && !t.isMemberExpression(expression))
+            return { ...binding, expression: expression as t.Expression };
+          const next = graphBinding(graph, binding.module, expression);
+          if (next?.kind !== 'declaration') return undefined;
+          binding = next;
+        }
+        return undefined;
+      };
+      const apiBinding = (module: SourceModule, value: t.Node) => {
+        const binding = graphBinding(
+          graph,
+          module,
+          withoutIdentity(module, value),
+        );
+        return binding?.kind === 'declaration'
+          ? normalizedApi(binding)
+          : undefined;
+      };
+      const ownedApis = new Map<string, Set<t.Node>>();
+      const own = (binding: Declaration) => {
+        const identities = ownedApis.get(binding.module.path) ?? new Set();
+        identities.add(binding.expression);
+        ownedApis.set(binding.module.path, identities);
+      };
+      const proven = new Set<t.Node>();
+      const active = new Set<t.Node>();
+      let visits = 0;
+      /** Whether `expression` is an `HttpApi.make('Name')` builder chain. */
+      const builtApi = (module: SourceModule, expression: t.Node): boolean => {
+        const initial = withoutIdentity(module, expression);
+        if (active.has(initial) || active.size >= MAX_API_HOPS) return false;
+        active.add(initial);
+        try {
+          const children: t.Node[] = [];
+          for (let node = initial; ; ) {
+            if (++visits > MAX_API_VISITS) return false;
+            if (t.isIdentifier(node) || t.isMemberExpression(node)) {
+              const receiver = apiBinding(module, node);
+              if (!receiver || !builtApi(receiver.module, receiver.expression))
+                return false;
+              break;
+            }
+            if (!t.isCallExpression(node)) return false;
+            const callee = graph.evaluate(module, node.callee);
+            if (
+              callee.length > 0 &&
+              callee.every(
+                value =>
+                  value.kind === 'external' &&
+                  httpApiSources.includes(value.specifier) &&
+                  value.name === 'HttpApi' &&
+                  value.members.length === 1 &&
+                  value.members[0] === 'make',
+              )
+            ) {
+              if (
+                node.arguments.length !== 1 ||
+                !t.isStringLiteral(node.arguments[0])
+              )
+                return false;
+              break;
+            }
+            if (
+              !t.isMemberExpression(node.callee) ||
+              node.callee.computed ||
+              !t.isIdentifier(node.callee.property)
+            )
+              return false;
+            const method = node.callee.property.name;
+            const count = node.arguments.length;
+            const [first] = node.arguments;
+            if (method === 'addHttpApi' && count === 1) children.push(first);
+            else if (
+              !(
+                (method === 'add' && count > 0) ||
+                (method === 'annotate' && count === 2) ||
+                (['annotateMerge', 'middleware'].includes(method) &&
+                  count === 1) ||
+                (method === 'prefix' &&
+                  count === 1 &&
+                  t.isStringLiteral(first) &&
+                  first.value.startsWith('/'))
+              )
+            )
+              return false;
+            node = withoutIdentity(module, node.callee.object);
+          }
+          return children.every(child => {
+            const binding = apiBinding(module, child);
+            return binding !== undefined && collectApi(binding);
+          });
+        } finally {
+          active.delete(initial);
+        }
+      };
+      /** Prove `binding` and own it when it lives in the contract package. */
+      const collectApi = (binding: Declaration): boolean => {
+        if (proven.has(binding.expression)) return true;
+        if (!builtApi(binding.module, binding.expression)) return false;
+        proven.add(binding.expression);
+        if (binding.module.boundary === contractModule.boundary) own(binding);
+        return true;
+      };
+      if (!rpc && ownExport?.kind === 'declaration') {
+        const root = normalizedApi(ownExport);
+        if (root && collectApi(root)) own(root);
+        else ownedApis.clear();
+      }
+      /**
+       * A module that mutates anything may also mutate an API alias, so each
+       * `const alias = api.pipe(...)` of the client's API must be an identity
+       * pipe the graph still resolves.
+       */
+      const immutablePipeAliases = (
+        module: SourceModule,
+        target: Declaration,
+      ) => {
+        if (module.mutations.length === 0) return true;
+        let valid = true;
+        t.traverseFast(module.file, node => {
+          if (
+            !t.isVariableDeclarator(node) ||
+            !t.isIdentifier(node.id) ||
+            !node.init
+          )
+            return;
+          let initializer = unwrapExpression(node.init, true);
+          let identityOnly = true;
+          let piped = false;
+          while (
+            t.isCallExpression(initializer) &&
+            t.isMemberExpression(initializer.callee) &&
+            !initializer.callee.computed &&
+            t.isIdentifier(initializer.callee.property, { name: 'pipe' })
+          ) {
+            piped = true;
+            identityOnly &&= identityPipe(module, initializer);
+            initializer = unwrapExpression(initializer.callee.object, true);
+          }
+          if (!piped) return;
+          const receiver = apiBinding(module, initializer);
+          if (
+            receiver?.module.path !== target.module.path ||
+            receiver.expression !== target.expression
+          )
+            return;
+          if (
+            !identityOnly ||
+            graph.resolveReference(module, node.id)?.kind !== 'declaration'
+          )
+            valid = false;
+        });
+        return valid;
+      };
+      const ownedBy = (module: SourceModule, argument: t.Node | undefined) => {
+        if (!argument) return false;
+        if (rpc) {
+          const binding = graphBinding(graph, module, argument);
+          return (
+            binding?.kind === 'declaration' &&
+            ownExport?.kind === 'declaration' &&
+            binding.module.path === ownExport.module.path &&
+            binding.expression === ownExport.expression
+          );
+        }
+        const binding = apiBinding(module, argument);
+        return (
+          binding !== undefined &&
+          !!ownedApis.get(binding.module.path)?.has(binding.expression) &&
+          immutablePipeAliases(module, binding)
+        );
+      };
+      const violations = new Set<string>();
+      for (const source of composedModules(client, appPath)) {
+        const module = graph.module(absolute(source));
+        t.traverseFast(module.file, node => {
+          if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))
+            return;
+          const native = graph
+            .evaluate(module, node.callee)
+            .some(
+              value =>
+                value.kind === 'external' &&
+                value.specifier === effect &&
+                value.name === factory,
+            );
+          if (native && !ownedBy(module, node.arguments[0]))
+            violations.add(
+              `${source}: must construct the client from its own API contract`,
+            );
+        });
+      }
+      return [...violations];
+    };
     const moduleShape = (
       file: string,
       imports: readonly (readonly [string, readonly string[]])[],
@@ -619,6 +886,7 @@ function check(
         );
     };
     const effect = '@modern-js/bff-effect/effect-client';
+    const httpApiSources = [effect, 'effect/http-api'];
     const clientFactories = new Set([
       'makeEffectHttpApiClient',
       'makeEffectRpcClient',
@@ -843,6 +1111,16 @@ function check(
             undefined,
             appPath,
           );
+          if (exists(contract))
+            diagnostics.push(
+              ...foreignClientConstructions(
+                client,
+                appPath,
+                contract,
+                stem,
+                rpc,
+              ),
+            );
         }
         moduleShape(
           `${appPath}/api/effect-api.ts`,

@@ -1,6 +1,9 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off newPromise:off strictEffectProvide:off
 import {
-  createRequestContextHeaders,
+  BFF_OPERATION_CONTEXT_DETAIL_HEADER,
+  BFF_OPERATION_CONTEXT_HEADER,
+  createRequestContextSnapshot,
+  type OperationContext,
   type RequestContextInput,
 } from '@modern-js/runtime-extensions/request-context';
 import * as Data from 'effect/Data';
@@ -53,6 +56,13 @@ export {
 export type EffectHttpApiClientOptions = {
   crossProject?: EffectCrossProjectClientOptions;
   baseUrl?: URL | string;
+  /** Headers for every request. A header the request already sets wins; undefined values are skipped. */
+  headers?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Locale, trace and operation context for every request. An
+   * `operationContext` is sent as `x-operation-id` plus the
+   * `x-modernjs-bff-operation-context` detail the Effect BFF server reads.
+   */
   requestContext?: RequestContextInput;
   transformClient?: (client: HttpClient.HttpClient) => HttpClient.HttpClient;
   transformResponse?:
@@ -199,6 +209,45 @@ export function runEffectView<
   });
 }
 
+const operationContextStringFields = [
+  'requestId',
+  'operationId',
+  'routePath',
+  'method',
+  'schemaHash',
+  'traceparent',
+  'traceId',
+  'spanId',
+] as const;
+
+/** The operation headers the server reads; scope, claims and attributes stay local. */
+function operationContextHeaders(
+  context: OperationContext | undefined,
+): Record<string, string> {
+  if (context === undefined) {
+    return {};
+  }
+  const detail: Record<string, string | number> = {};
+  for (const field of operationContextStringFields) {
+    const value = context[field];
+    if (typeof value === 'string' && value.length > 0) {
+      detail[field] = value;
+    }
+  }
+  if (typeof context.operationVersion === 'number') {
+    detail.operationVersion = context.operationVersion;
+  }
+  if (Object.keys(detail).length === 0) {
+    return {};
+  }
+  return {
+    ...(typeof detail.operationId === 'string'
+      ? { [BFF_OPERATION_CONTEXT_HEADER]: detail.operationId }
+      : {}),
+    [BFF_OPERATION_CONTEXT_DETAIL_HEADER]: JSON.stringify(detail),
+  };
+}
+
 export function makeEffectHttpApiClient<
   ApiId extends string,
   Groups extends HttpApiGroup.Constraint,
@@ -210,19 +259,25 @@ export function makeEffectHttpApiClient<
   never,
   HttpApiGroup.MiddlewareClient<Groups>
 > {
-  const requestContextHeaders = createRequestContextHeaders(
-    options?.requestContext,
-  );
+  const requestContext = createRequestContextSnapshot(options?.requestContext);
+  // Request-context headers are more specific than the generic headers.
+  const defaultHeaders: Record<string, string> = {
+    ...Object.fromEntries(
+      Object.entries(options?.headers ?? {}).flatMap(([header, value]) =>
+        value === undefined ? [] : [[header.toLowerCase(), value]],
+      ),
+    ),
+    ...requestContext.headers,
+    ...operationContextHeaders(requestContext.operationContext),
+  };
   const transformClient = (client: HttpClient.HttpClient) => {
     const contextClient =
-      Object.keys(requestContextHeaders).length === 0
+      Object.keys(defaultHeaders).length === 0
         ? client
         : client.pipe(
             HttpClient.mapRequest(request => {
               let nextRequest = request;
-              for (const [header, value] of Object.entries(
-                requestContextHeaders,
-              )) {
+              for (const [header, value] of Object.entries(defaultHeaders)) {
                 if (nextRequest.headers[header.toLowerCase()] === undefined) {
                   nextRequest = HttpClientRequest.setHeader(
                     nextRequest,
