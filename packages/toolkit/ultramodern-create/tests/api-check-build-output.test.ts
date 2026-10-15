@@ -50,10 +50,7 @@ test('API checker excludes only registered app Cloudflare output, not authored l
     write(
       root,
       'apps/shell-super-app/package.json',
-      JSON.stringify({
-        name: '@fixture/shell',
-        exports: { './api/clients': './src/api/vertical-clients.ts' },
-      }),
+      JSON.stringify({ name: '@fixture/shell' }),
     );
     write(
       root,

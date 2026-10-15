@@ -1,4 +1,4 @@
-export { createApiClient, createShellApiClient } from './api/client';
+export { createApiClient } from './api/client';
 export { apiTopologyMetadata } from './api/contracts';
 export {
   verticalApiCreatePayloadSchemaExport,

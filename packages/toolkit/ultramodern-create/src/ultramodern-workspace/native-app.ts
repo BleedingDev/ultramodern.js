@@ -1,4 +1,3 @@
-import { createShellApiClient } from './api';
 import { writeAppApiFiles } from './api/write-app-api';
 import { createAppStyles, createTailwindConfig } from './app-files';
 import { appHasApi } from './descriptors';
@@ -107,6 +106,4 @@ export function writeNativeApp(
   if (enableTailwind) write('tailwind.config.ts', createTailwindConfig());
   for (const artifact of artifacts) write(artifact.path, artifact.content);
   writeAppApiFiles({ targetDir, scope, resolvedApp: app, emitsUi: true });
-  if (app.kind === 'shell' && remotes.some(appHasApi))
-    write('src/api/vertical-clients.ts', createShellApiClient(scope, remotes));
 }

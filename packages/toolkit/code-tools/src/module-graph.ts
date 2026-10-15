@@ -92,6 +92,17 @@ export interface ModuleGraph {
     scope: 'export' | 'local',
   ): ResolvedBinding | undefined;
   /**
+   * `resolve` for one lexical occurrence: an identifier `module` references
+   * or declares, or `namespace.member` on a namespace import. The binding is
+   * the one in scope at that node, not the module-scope name.
+   */
+  resolveReference(
+    module: SourceModule,
+    reference: t.Node,
+  ): ResolvedBinding | undefined;
+  /** True only for an identifier `module` references that has no binding (a global). */
+  isUnboundReference(module: SourceModule, reference: t.Node): boolean;
+  /**
    * Every value `expression` (a node of `module`) can evaluate to, following
    * any binding kind, destructuring, member access into object literals,
    * member assignments (`obj.key = value`), reassignments, conditional
@@ -134,6 +145,8 @@ interface ModuleFacts {
     t.Identifier | t.JSXIdentifier,
     Binding | undefined
   >;
+  /** Declared binding identifiers and the binding each one introduces. */
+  readonly declarations: ReadonlyMap<t.Identifier, Binding>;
   /** Return arguments per function. */
   readonly returns: ReadonlyMap<t.Node, readonly t.Expression[]>;
   /** Functions with a bare `return;`. */
@@ -412,6 +425,7 @@ function parseModule(filePath: string, workspace: string | undefined) {
     t.Identifier | t.JSXIdentifier,
     Binding | undefined
   >();
+  const declarations = new Map<t.Identifier, Binding>();
   const returns = new Map<t.Node, t.Expression[]>();
   const bareReturns = new Set<t.Node>();
   const functionScopes = new Map<t.Node, Scope>();
@@ -573,6 +587,11 @@ function parseModule(filePath: string, workspace: string | undefined) {
     ReferencedIdentifier(p) {
       references.set(p.node, p.scope.getBinding(p.node.name));
     },
+    BindingIdentifier(p) {
+      if (!t.isIdentifier(p.node)) return;
+      const binding = p.scope.getBinding(p.node.name);
+      if (binding?.identifier === p.node) declarations.set(p.node, binding);
+    },
     Function(p) {
       functionScopes.set(p.node, p.scope);
     },
@@ -672,6 +691,7 @@ function parseModule(filePath: string, workspace: string | undefined) {
     scope,
     workspace,
     references,
+    declarations,
     returns,
     bareReturns,
     functionScopes,
@@ -1953,6 +1973,7 @@ export function createModuleGraph(): ModuleGraph {
     scope: 'export' | 'local',
     chain: readonly ModuleGraphHop[],
     seen: Set<string>,
+    lexical?: Binding,
   ): ResolvedBinding | undefined => {
     const key = `${scope}:${module.path}#${name}`;
     if (seen.has(key) || seen.size >= MAX_LOOKUPS) return undefined;
@@ -1977,7 +1998,7 @@ export function createModuleGraph(): ModuleGraph {
         : resolveBinding(next, imported, 'export', hops, seen);
     };
     if (scope === 'local') {
-      const binding = factsOf(module).scope.getBinding(name);
+      const binding = lexical ?? factsOf(module).scope.getBinding(name);
       if (!binding || mutated(module, binding)) return undefined;
       if (binding.kind === 'module') {
         const imported = importOf(binding);
@@ -2014,6 +2035,59 @@ export function createModuleGraph(): ModuleGraph {
       if (resolved !== undefined) return resolved;
     }
     return undefined;
+  };
+
+  const resolveReference = (
+    module: SourceModule,
+    reference: t.Node,
+  ): ResolvedBinding | undefined => {
+    const node = unwrapExpression(reference, true);
+    const moduleFacts = factsOf(module);
+    const bindingAt = (identifier: t.Identifier) =>
+      moduleFacts.references.get(identifier) ??
+      moduleFacts.declarations.get(identifier);
+    if (t.isIdentifier(node)) {
+      const binding = bindingAt(node);
+      return binding
+        ? resolveBinding(module, node.name, 'local', [], new Set(), binding)
+        : undefined;
+    }
+    if (
+      !t.isMemberExpression(node) ||
+      node.computed ||
+      !t.isIdentifier(node.object) ||
+      !t.isIdentifier(node.property)
+    )
+      return undefined;
+    const binding = bindingAt(node.object);
+    if (!binding || binding.kind !== 'module' || mutated(module, binding))
+      return undefined;
+    const imported = importOf(binding);
+    if (imported?.name !== '*') return undefined;
+    const target = follow(module, imported.specifier);
+    const chain = [{ path: module.path, name: node.object.name }];
+    if (target === 'external')
+      return {
+        kind: 'external',
+        specifier: imported.specifier,
+        name: node.property.name,
+        chain,
+      };
+    return target === undefined
+      ? undefined
+      : resolveBinding(target, node.property.name, 'export', chain, new Set());
+  };
+  const isUnboundReference = (
+    module: SourceModule,
+    reference: t.Node,
+  ): boolean => {
+    const node = unwrapExpression(reference, true);
+    const { references } = factsOf(module);
+    return (
+      t.isIdentifier(node) &&
+      references.has(node) &&
+      references.get(node) === undefined
+    );
   };
 
   /** One evaluation query: shared cycle guard and budget. */
@@ -2954,6 +3028,8 @@ export function createModuleGraph(): ModuleGraph {
     module: filePath => load(filePath),
     resolve: (module, name, scope) =>
       resolveBinding(module, name, scope, [], new Set()),
+    resolveReference,
+    isUnboundReference,
     evaluate: (module, expression) =>
       evaluation(false).values(module, expression, []),
     reachable: (module, expression) =>
