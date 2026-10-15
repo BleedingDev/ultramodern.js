@@ -23,13 +23,23 @@ type ProofPlan = {
   verticalRefs: string[];
 };
 
-async function loadPlanner() {
-  const module = (await import(pathToFileURL(templatePath).href)) as {
-    planWorkerdSsrProof: (topology: unknown) => {
-      plans: ProofPlan[];
-    };
+type ProofModule = {
+  planWorkerdSsrProof: (topology: unknown) => {
+    plans: ProofPlan[];
   };
-  return module.planWorkerdSsrProof;
+  resolveAppOutputRoot: (
+    artifactRoot: string,
+    appId: string,
+    appPath: unknown,
+  ) => string;
+  validateWorkerdProofFixture: (fixture: unknown, apps: unknown[]) => unknown;
+};
+
+const loadProofModule = async () =>
+  (await import(pathToFileURL(templatePath).href)) as ProofModule;
+
+async function loadPlanner() {
+  return (await loadProofModule()).planWorkerdSsrProof;
 }
 
 type TopologyShell = Record<string, unknown> & {
@@ -210,6 +220,19 @@ const shellWorker = `export default {
     if (url.pathname.startsWith('/contacts-api')) {
       return env.CONTACTS.fetch(request);
     }
+    // An explicit HTTPS mount: forward to the approved owner origin.
+    if (url.pathname.startsWith('/mounted/')) {
+      if (request.headers.get('x-proof-revision') !== (await env.COMPOSITION.get('active'))) {
+        return new Response('stale composition revision', { status: 409 });
+      }
+      const owner = await fetch(new URL(url.pathname.slice('/mounted'.length), 'https://contacts.proof.test'), {
+        method: request.method,
+        redirect: 'manual',
+      });
+      return env.MOUNT_CONTENT_TYPE
+        ? new Response(owner.body, { status: owner.status, headers: { 'content-type': env.MOUNT_CONTENT_TYPE } })
+        : owner;
+    }
     if (env.GREETING !== 'hello') {
       return new Response('wrangler vars were not bound', { status: 500 });
     }
@@ -236,8 +259,15 @@ const shellWorker = `export default {
 const contactsWorker = `export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const active = env.COMPOSITION === undefined ? null : await env.COMPOSITION.get('active');
+    if (env.REQUIRE_ACTIVE === '1' && active === null) {
+      return Response.json(
+        { type: 'urn:proof:composition-missing', title: 'Active composition is not seeded', status: 503, detail: 'x'.repeat(600) },
+        { status: 503, headers: { 'content-type': 'application/problem+json' } },
+      );
+    }
     if (url.pathname === '/contacts-api/readiness') {
-      return Response.json({ status: 'ready', secretConfigured: env.PROOF_SECRET === 'local', hyperdriveConnectionString: env.HYPERDRIVE?.connectionString === undefined ? null : typeof env.HYPERDRIVE.connectionString, marker: { appId: 'contacts', build: 'b1', version: '1.0.0' } });
+      return Response.json({ status: 'ready', active, secretConfigured: env.PROOF_SECRET === 'local', hyperdriveConnectionString: env.HYPERDRIVE?.connectionString === undefined ? null : typeof env.HYPERDRIVE.connectionString, marker: { appId: 'contacts', build: 'b1', version: '1.0.0' } });
     }
     if (url.pathname === '/en/_mf/fragment/widget') {
       return new Response('<div>widget</div>', { headers: { 'content-type': 'text/html' } });
@@ -253,14 +283,18 @@ const contactsWorker = `export default {
 async function createFixtureWorkspace(options: {
   renderBoundary: boolean;
   shellCloudflare?: Record<string, unknown>;
+  shellWrangler?: Record<string, unknown>;
   contactsWrangler?: Record<string, unknown>;
   contactsDevVars?: string;
+  /** Write built `.output` directories below this subdirectory of the root. */
+  artifactDirectory?: string;
 }) {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'um-workerd-ssr-proof-')),
   );
-  const shellOutput = path.join(root, 'apps/shell/.output');
-  const contactsOutput = path.join(root, 'verticals/contacts/.output');
+  const artifactRoot = path.join(root, options.artifactDirectory ?? '');
+  const shellOutput = path.join(artifactRoot, 'apps/shell/.output');
+  const contactsOutput = path.join(artifactRoot, 'verticals/contacts/.output');
   writeFile(
     path.join(root, 'topology/reference-topology.json'),
     JSON.stringify({
@@ -312,9 +346,11 @@ async function createFixtureWorkspace(options: {
     path.join(shellOutput, 'wrangler.json'),
     wrangler('app-shell', {
       services: [{ binding: 'CONTACTS', service: 'app-contacts' }],
+      ...options.shellWrangler,
       vars: {
         GREETING: 'hello',
         RENDER_BOUNDARY: options.renderBoundary ? '1' : '0',
+        ...(options.shellWrangler?.vars as Record<string, string> | undefined),
       },
     }),
   );
@@ -346,7 +382,7 @@ async function createFixtureWorkspace(options: {
     },
   ]) {
     const appRoot = path.join(root, app.path);
-    const outputRoot = path.join(appRoot, '.output');
+    const outputRoot = path.join(artifactRoot, app.path, '.output');
     writeFile(
       path.join(appRoot, 'package.json'),
       JSON.stringify({ name: `@test/${app.id}` }),
@@ -584,6 +620,368 @@ describe('workerd SSR proof fixture execution', () => {
       assert.deepEqual(report.proofs[0].boundaries, []);
       assert.equal(report.verticalProofs.length, 1);
       assert.equal(report.verticalProofs[0].status, 200);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
+
+describe('workerd SSR proof artifact root', () => {
+  test('keeps topology paths inside the selected artifact root', async () => {
+    const { resolveAppOutputRoot } = await loadProofModule();
+    const root = path.resolve('/proof/artifacts');
+
+    assert.equal(
+      resolveAppOutputRoot(root, 'shell', 'apps/shell'),
+      path.join(root, 'apps/shell/.output'),
+    );
+    for (const appPath of [
+      '../shell',
+      'apps/../../shell',
+      '/apps/shell',
+      path.resolve('/elsewhere/shell'),
+      '.',
+      './',
+    ]) {
+      assert.throws(
+        () => resolveAppOutputRoot(root, 'shell', appPath),
+        /shell topology path .* escapes the selected artifact root/u,
+        appPath,
+      );
+    }
+    assert.throws(
+      () => resolveAppOutputRoot(root, 'shell', ''),
+      /shell topology path is missing/u,
+    );
+  });
+
+  test('proves built outputs from ULTRAMODERN_WORKERD_ARTIFACT_ROOT', async () => {
+    const root = await createFixtureWorkspace({
+      renderBoundary: true,
+      artifactDirectory: 'downloaded-artifacts',
+    });
+    try {
+      const missing = runProof(root);
+      assert.equal(missing.status, 1, missing.output);
+      assert.match(missing.output, /shell Cloudflare output is missing/u);
+
+      const { status, output } = runProof(root, {
+        ULTRAMODERN_WORKERD_ARTIFACT_ROOT: path.join(
+          root,
+          'downloaded-artifacts',
+        ),
+      });
+      assert.equal(status, 0, output);
+      const report = readReport(root);
+      assert.deepEqual(
+        report.executions.map(
+          (execution: { modulesRoot: string }) => execution.modulesRoot,
+        ),
+        ['apps/shell/.output', 'verticals/contacts/.output'],
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
+
+const proofApps = [
+  {
+    id: 'shell',
+    kind: 'shell',
+    hasApiSurface: false,
+    wrangler: {
+      kv_namespaces: [{ binding: 'COMPOSITION', id: 'composition' }],
+    },
+  },
+  {
+    id: 'contacts',
+    kind: 'vertical',
+    hasApiSurface: true,
+    wrangler: {
+      kv_namespaces: [{ binding: 'COMPOSITION', id: 'composition' }],
+    },
+  },
+];
+const proofFixture = (overrides: Record<string, unknown> = {}) => ({
+  schemaVersion: 1,
+  kvSeeds: [
+    {
+      appId: 'shell',
+      binding: 'COMPOSITION',
+      entries: [{ key: 'active', value: 'r1' }],
+    },
+    {
+      appId: 'contacts',
+      binding: 'COMPOSITION',
+      entries: [{ key: 'active', value: 'r1' }],
+    },
+  ],
+  ownerTargets: [
+    { appId: 'contacts', baseUrl: 'https://contacts.proof.test/' },
+  ],
+  shellApiTargets: [
+    {
+      shellId: 'shell',
+      appId: 'contacts',
+      routePrefix: '/mounted',
+      headers: { 'x-proof-revision': 'r1' },
+    },
+  ],
+  ...overrides,
+});
+
+describe('workerd SSR proof fixture validation', () => {
+  test('accepts declared KV seeds, HTTPS owners and Shell API mounts', async () => {
+    const { validateWorkerdProofFixture } = await loadProofModule();
+    const fixture = proofFixture();
+    assert.equal(validateWorkerdProofFixture(fixture, proofApps), fixture);
+  });
+
+  test('rejects fixture data the executed Workers do not declare', async () => {
+    const { validateWorkerdProofFixture } = await loadProofModule();
+    const rejects = (fixture: unknown, message: RegExp) =>
+      assert.throws(
+        () => validateWorkerdProofFixture(fixture, proofApps),
+        message,
+      );
+    const kvMessage =
+      /KV seed must name an executed Worker's declared kv_namespaces binding/u;
+    const ownerMessage =
+      /owner targets must be unique executed MicroVerticals at canonical HTTPS origins/u;
+    const mountMessage =
+      /Shell API targets must name one approved owner, an explicit mount and string headers/u;
+    const owner = (baseUrl: string, appId = 'contacts') => ({
+      ownerTargets: [{ appId, baseUrl }],
+    });
+    const mount = (target: Record<string, unknown>) => ({
+      shellApiTargets: [
+        {
+          shellId: 'shell',
+          appId: 'contacts',
+          routePrefix: '/mounted',
+          headers: {},
+          ...target,
+        },
+      ],
+    });
+
+    rejects(
+      { ...proofFixture(), schemaVersion: 2 },
+      /Invalid Workerd proof fixture/u,
+    );
+    rejects(
+      { schemaVersion: 1, kvSeeds: [] },
+      /Invalid Workerd proof fixture/u,
+    );
+    rejects(
+      proofFixture({
+        kvSeeds: [{ appId: 'shell', binding: 'MISSING', entries: [] }],
+      }),
+      kvMessage,
+    );
+    rejects(
+      proofFixture({
+        kvSeeds: [{ appId: 'pricing', binding: 'COMPOSITION', entries: [] }],
+      }),
+      kvMessage,
+    );
+    rejects(
+      proofFixture({
+        kvSeeds: [
+          {
+            appId: 'shell',
+            binding: 'COMPOSITION',
+            entries: [{ key: 'active', value: 1 }],
+          },
+        ],
+      }),
+      /unique string keys with string values/u,
+    );
+    rejects(
+      proofFixture({
+        kvSeeds: [
+          {
+            appId: 'shell',
+            binding: 'COMPOSITION',
+            entries: [{ key: 'active', value: 'r1' }],
+          },
+          {
+            appId: 'contacts',
+            binding: 'COMPOSITION',
+            entries: [{ key: 'active', value: 'r2' }],
+          },
+        ],
+      }),
+      /must not conflict in a shared namespace/u,
+    );
+    for (const baseUrl of [
+      'http://contacts.proof.test/',
+      'https://contacts.proof.test',
+      'https://contacts.proof.test/api/',
+      'https://user@contacts.proof.test/',
+      'https://contacts.proof.test/?x=1',
+      'not a url',
+    ]) {
+      rejects(proofFixture(owner(baseUrl)), ownerMessage);
+    }
+    rejects(
+      proofFixture(owner('https://shell.proof.test/', 'shell')),
+      ownerMessage,
+    );
+    rejects(
+      proofFixture({
+        ownerTargets: [
+          { appId: 'contacts', baseUrl: 'https://contacts.proof.test/' },
+          { appId: 'contacts', baseUrl: 'https://other.proof.test/' },
+        ],
+      }),
+      ownerMessage,
+    );
+    rejects(proofFixture({ ownerTargets: [] }), mountMessage);
+    for (const routePrefix of [
+      'mounted',
+      '/mounted/',
+      '/mounted/../admin',
+      '/mounted/%2fadmin',
+      '/mounted?x=1',
+      '/mounted\\admin',
+    ]) {
+      rejects(proofFixture(mount({ routePrefix })), mountMessage);
+    }
+    rejects(proofFixture(mount({ shellId: 'contacts' })), mountMessage);
+    rejects(proofFixture(mount({ headers: { 'x-a': 1 } })), mountMessage);
+    rejects(
+      proofFixture(mount({ headers: { 'x-a': 'one\r\nx-b: two' } })),
+      mountMessage,
+    );
+    rejects(
+      proofFixture(mount({ headers: { 'bad header': 'x' } })),
+      mountMessage,
+    );
+    rejects(proofFixture(mount({ headers: ['x'] })), mountMessage);
+  });
+});
+
+describe('workerd SSR proof fixture placement', () => {
+  const compositionNamespace = {
+    kv_namespaces: [{ binding: 'COMPOSITION', id: 'composition' }],
+  };
+  const createPlacedWorkspace = (shellVars: Record<string, string> = {}) =>
+    createFixtureWorkspace({
+      renderBoundary: true,
+      shellWrangler: { ...compositionNamespace, vars: shellVars },
+      contactsWrangler: {
+        ...compositionNamespace,
+        vars: { REQUIRE_ACTIVE: '1' },
+      },
+    });
+  const runPlacedProof = (
+    root: string,
+    fixture: Record<string, unknown> = proofFixture(),
+  ) => {
+    const fixturePath = path.join(root, 'workerd-proof-fixture.json');
+    writeFile(fixturePath, JSON.stringify(fixture));
+    return runProof(root, { ULTRAMODERN_WORKERD_PROOF_FIXTURE: fixturePath });
+  };
+
+  test('seeds KV and proves the Shell API through its approved HTTPS owner', async () => {
+    const root = await createPlacedWorkspace();
+    try {
+      const { status, output } = runPlacedProof(root);
+      assert.equal(status, 0, output);
+      const report = readReport(root);
+      const [apiProof] = report.apiProofs;
+      assert.equal(report.apiProofs.length, 1);
+      assert.equal(apiProof.shellRoute, '/mounted/contacts-api/readiness');
+      assert.equal(
+        apiProof.httpsTarget.baseUrl,
+        'https://contacts.proof.test/',
+      );
+      assert.equal(apiProof.binding, undefined);
+      assert.equal(apiProof.throughShell.sha256, apiProof.direct.sha256);
+      assert.equal(
+        apiProof.throughShell.contentType,
+        apiProof.direct.contentType,
+      );
+      assert.deepEqual(
+        apiProof.outboundRequests.map((request: Record<string, unknown>) => ({
+          callerId: request.callerId,
+          method: request.method,
+          targetAppId: request.targetAppId,
+          url: request.url,
+        })),
+        [
+          {
+            callerId: 'shell',
+            method: 'GET',
+            targetAppId: 'contacts',
+            url: 'https://contacts.proof.test/contacts-api/readiness',
+          },
+        ],
+      );
+      const body = JSON.parse(
+        Buffer.from(apiProof.direct.bodyBase64, 'base64').toString('utf8'),
+      );
+      assert.equal(body.active, 'r1');
+      // The vertical's own runtime receives the seeds as well.
+      assert.equal(report.verticalProofs[0].status, 200);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('summarizes an unseeded owner problem response', async () => {
+    const root = await createPlacedWorkspace();
+    try {
+      const { status, output } = runPlacedProof(
+        root,
+        proofFixture({ kvSeeds: [] }),
+      );
+      assert.equal(status, 1, output);
+      assert.match(output, /contacts direct API response returned HTTP 503/u);
+      assert.match(output, /"contentType":"application\/problem\+json"/u);
+      assert.match(output, /"title":"Active composition is not seeded"/u);
+      assert.match(output, /"type":"urn:proof:composition-missing"/u);
+      assert.ok(!output.includes('x'.repeat(256)), output);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('keeps every origin but the approved owners disabled', async () => {
+    const root = await createPlacedWorkspace();
+    try {
+      const { status, output } = runPlacedProof(
+        root,
+        proofFixture({
+          ownerTargets: [
+            { appId: 'contacts', baseUrl: 'https://elsewhere.proof.test/' },
+          ],
+        }),
+      );
+      assert.equal(status, 1, output);
+      assert.match(
+        output,
+        /contacts through-shell API response returned HTTP 502/u,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('requires the shell to return the owner content type', async () => {
+    const root = await createPlacedWorkspace({
+      MOUNT_CONTENT_TYPE: 'text/plain',
+    });
+    try {
+      const { status, output } = runPlacedProof(root);
+      assert.equal(status, 1, output);
+      assert.match(
+        output,
+        /contacts direct and through-shell API responses differ/u,
+      );
+      assert.match(output, /"contentType":"text\/plain"/u);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

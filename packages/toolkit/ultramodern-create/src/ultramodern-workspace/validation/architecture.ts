@@ -9,6 +9,7 @@ import {
   isApplicationRenderer,
 } from '../renderer-profile';
 import { assert, sameJson, selfCheckFailure } from './assertions';
+import { createNativeShellRuntimeEvidence } from './native-shell-runtime';
 import { isForeignRendererPackage } from './renderer';
 import type { JsonRecord, ValidationContract } from './types';
 
@@ -80,15 +81,17 @@ export function assertCompilerArchitecture(
         openFiles: [...absolutePaths],
       });
     };
-    const parseCompilerInput = (absolutePath: string) => {
+    const compilerInput = (absolutePath: string) => {
       const project = compilerSnapshot?.getDefaultProjectForFile(absolutePath);
       const sourceFile = project?.program.getSourceFile(absolutePath);
       assert(
-        sourceFile !== undefined,
+        project !== undefined && sourceFile !== undefined,
         `Native TypeScript compiler could not parse ${path.relative(root, absolutePath)}`,
       );
-      return sourceFile;
+      return { checker: project.checker, sourceFile };
     };
+    const parseCompilerInput = (absolutePath: string) =>
+      compilerInput(absolutePath).sourceFile;
     const nodeName = (node: ts.Node | undefined) => {
       if (!node) return undefined;
       if (
@@ -281,6 +284,21 @@ export function assertCompilerArchitecture(
       }
       const accessPath = propertyAccessPath(node.expression);
       return accessPath !== undefined && names.has(accessPath.at(-1)!);
+    };
+    // The called name whatever the receiver is, so `getInstance()!.loadRemote()`
+    // is recognized as well as `host.loadRemote()`.
+    const calleeName = (node: ts.CallExpression) => {
+      let callee: ts.Node = node.expression;
+      while (
+        typescript.isParenthesizedExpression(callee) ||
+        typescript.isNonNullExpression(callee) ||
+        typescript.isAsExpression(callee)
+      )
+        callee = callee.expression;
+      if (typescript.isIdentifier(callee)) return callee.text;
+      if (typescript.isPropertyAccessExpression(callee))
+        return callee.name.text;
+      return undefined;
     };
     const objectLiteralProperty = (
       objectLiteral: ts.ObjectLiteralExpression,
@@ -680,11 +698,21 @@ export function assertCompilerArchitecture(
           .filter(absolutePath => fs.existsSync(absolutePath)),
       ]);
       for (const absolutePath of checkedFiles) {
-        const sourceFile = parseCompilerInput(absolutePath);
+        const { checker, sourceFile } = compilerInput(absolutePath);
         const isShellRoute = shellRouteDirectories.some(relativeDirectory => {
           const absoluteDirectory = path.join(root, relativeDirectory);
           return absolutePath.startsWith(absoluteDirectory + path.sep);
         });
+        // Shell routes are bundled application source, where the framework
+        // defines the build target; config files run in Node and have none.
+        const shellRuntime = isShellRoute
+          ? createNativeShellRuntimeEvidence(
+              typescript,
+              typescriptApi!,
+              checker,
+              sourceFile,
+            )
+          : undefined;
         const moduleFederationAppPath =
           moduleFederationConfigAppPaths.get(absolutePath);
         const nativeFederation =
@@ -739,6 +767,12 @@ export function assertCompilerArchitecture(
               presetFactories.add(binding.name.text);
           }
         }
+        const manualLoadingCallees = new Set([
+          'hydrateRoot',
+          'loadRemote',
+          'loadShare',
+          ...nativeRemoteLoaders,
+        ]);
         const modernConfigApp = workspaceValidationContract.apps.find(
           app => absolutePath === path.join(root, app.path, 'modern.config.ts'),
         );
@@ -827,7 +861,10 @@ export function assertCompilerArchitecture(
             );
           }
           const accessPath = propertyAccessPath(node);
-          if (sameJson(accessPath, ['process', 'env'])) {
+          if (
+            sameJson(accessPath, ['process', 'env']) &&
+            !shellRuntime?.isBuildTargetCondition(node)
+          ) {
             compilerFailure(
               sourceFile,
               node,
@@ -889,16 +926,10 @@ export function assertCompilerArchitecture(
               );
             }
             if (
-              isCallNamed(
-                node,
-                new Set([
-                  'hydrateRoot',
-                  'loadRemote',
-                  'loadShare',
-                  ...nativeRemoteLoaders,
-                ]),
-              ) &&
-              !nativeLoaderCalls.has(node)
+              typescript.isCallExpression(node) &&
+              manualLoadingCallees.has(calleeName(node) ?? '') &&
+              !nativeLoaderCalls.has(node) &&
+              !shellRuntime?.isBrowserFederationMemberLoad(node)
             ) {
               compilerFailure(
                 sourceFile,
