@@ -48,7 +48,8 @@ export const transformServerGlobalVars = (
         const releaseIdentityBanner = RELEASE_IDENTITY_GLOBAL_NAMES.every(
           name => Object.hasOwn(globalVars, name),
         )
-          ? `${RELEASE_IDENTITY_GLOBAL_NAMES.map(name => `void ${globalVars[name]};`).join('')}\n`
+          ? // String statements, so a following "use strict" stays in the prologue.
+            `${RELEASE_IDENTITY_GLOBAL_NAMES.map(name => `${globalVars[name]};`).join('')}\n`
           : '';
 
         return filesPromise.then(files =>

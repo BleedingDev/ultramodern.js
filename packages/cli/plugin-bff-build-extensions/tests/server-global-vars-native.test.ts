@@ -111,6 +111,8 @@ const originalSourceMap = JSON.stringify({
 await writeFile(filename + '.map', originalSourceMap);
 const esmFilename = path.join(nested, 'entry.mjs');
 await writeFile(esmFilename, 'export const marker = ULTRAMODERN_BUILD_MARKER;\\n');
+const strictFilename = path.join(nested, 'strict.cjs');
+await writeFile(strictFilename, "'use strict';\\nmodule.exports = function () { return this; };\\n");
 const untouchedFilename = path.join(nested, 'readme.txt');
 await writeFile(untouchedFilename, 'ULTRAMODERN_BUILD_MARKER');
 const expected = {
@@ -135,6 +137,7 @@ assert.ok(swcLoads().some(filename => filename.endsWith('.node')), 'real SWC nat
 const require = createRequire(import.meta.url);
 assert.deepEqual(require(filename), expected);
 assert.equal((await import(pathToFileURL(esmFilename).href)).marker, expected.marker);
+assert.equal(require(strictFilename)(), undefined, 'the release banner must keep "use strict" in the prologue');
 const code = await readFile(filename, 'utf8');
 assert.ok(code.includes('// ULTRAMODERN_BUILD_MARKER remains a comment.'));
 assert.ok(code.includes('ULTRAMODERN_BUILD_MARKER_NEAR_MATCH'));
