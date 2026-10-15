@@ -7,6 +7,7 @@ import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
 import { ultramodernModuleFederationSharedPlugin } from '../renderers/react/module-federation-shared-plugin';
+import { builderPluginServerMinify } from './server-minify';
 import { rendererTypeCheckerOptions } from './type-checker';
 import type { AppUserConfig } from './types';
 
@@ -25,6 +26,14 @@ export class UltramodernReleaseIdentityBannerPlugin extends rspack.BannerPlugin 
     Object.defineProperty(this, RELEASE_IDENTITY_BANNER, { value: true });
   }
 }
+
+/**
+ * Raw release identity banner. String statements extend the chunk's directive
+ * prologue, so a following `"use strict"` still applies; `void` expressions
+ * would end the prologue and silently turn every chunk sloppy.
+ */
+export const releaseIdentityBanner = (values: readonly string[]): string =>
+  values.map(value => `${JSON.stringify(value)};`).join('');
 
 export function isUltramodernReleaseIdentityBannerPlugin(
   plugin: unknown,
@@ -287,7 +296,11 @@ const createRendererPreset = (
               config.plugins ??= [];
               config.plugins.push(
                 new UltramodernReleaseIdentityBannerPlugin({
-                  banner: `void ${JSON.stringify(bundledReleaseIdentity.buildMarker)};void ${JSON.stringify(bundledReleaseIdentity.sourceRevision)};void ${JSON.stringify(bundledReleaseIdentity.releaseVersion)};`,
+                  banner: releaseIdentityBanner([
+                    bundledReleaseIdentity.buildMarker,
+                    bundledReleaseIdentity.sourceRevision,
+                    bundledReleaseIdentity.releaseVersion,
+                  ]),
                   raw: true,
                   // The default additions stage runs before production
                   // minimization, which removes side-effect-free identity
@@ -338,6 +351,7 @@ export const presetUltramodern = (
   ]);
   merged.builderPlugins = [
     builderPluginAdapterPrecompress(merged.output?.precompress),
+    builderPluginServerMinify(merged.output?.minify),
     ...(merged.builderPlugins ?? []),
   ];
   return merged;

@@ -23,7 +23,10 @@ import {
   writeRendererBuildManifest,
 } from '../../native-composition/native-build-manifest';
 import type { NativeInfrastructureOptions } from '../../native-composition/native-infrastructure';
-import { isUltramodernReleaseIdentityBannerPlugin } from '../../native-composition/preset';
+import {
+  isUltramodernReleaseIdentityBannerPlugin,
+  releaseIdentityBanner,
+} from '../../native-composition/preset';
 import {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
@@ -168,7 +171,7 @@ export function reactRendererBuildMetadataPlugin(
           // identity changes every emitted script's content hash.
           config.plugins.push(
             new rspack.BannerPlugin({
-              banner: `void ${JSON.stringify(buildId)};void ${JSON.stringify(sourceRevision)};`,
+              banner: releaseIdentityBanner([buildId, sourceRevision]),
               raw: true,
               stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
               test: /\.(?:c|m)?js$/u,
