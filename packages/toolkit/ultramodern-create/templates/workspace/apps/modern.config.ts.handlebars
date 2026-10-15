@@ -8,8 +8,7 @@ export default defineConfig(
     {
 {{bffConfig}}{{builderPlugins}}      plugins: [
 {{uiPlugins}}{{bffPlugin}}{{federationPlugin}}      ],
-      renderer: 'react',
-    },
+{{renderer}}    },
     {
       appId: '{{appId}}',
       from: import.meta.url,

@@ -671,17 +671,30 @@ export default { exposes };`,
   it('never registers browser Zephyr for headless units and rejects inconsistent app identity and ports', () => {
     const workspace = fixture();
     try {
-      Object.assign(workspace.topology.verticals[0], {
-        surfaceProfile: 'api-only',
-      });
+      // Generated headless topology: renderer `none` and no browser Module
+      // Federation identity.
+      const headless = workspace.topology.verticals[0] as Record<
+        string,
+        unknown
+      >;
+      delete headless.moduleFederation;
+      Object.assign(headless, { surfaceProfile: 'api-only', renderer: 'none' });
       workspace.save();
+      const config = createPresetUltramodernWorkspaceConfig(
+        workspace.options('catalog'),
+      );
       expect(
-        createPresetUltramodernWorkspaceConfig(
-          workspace.options('catalog'),
-        ).plugins?.some(
+        config.plugins?.some(
           plugin => plugin.name === 'ultramodern-zephyr-rspack-plugin',
         ),
       ).toBe(false);
+      expect(config.renderer).toBeUndefined();
+      expect(() =>
+        presetUltramodernWorkspace(
+          { renderer: 'react' },
+          workspace.options('catalog'),
+        ),
+      ).toThrow('a headless unit selects no renderer');
       expect(() =>
         createPresetUltramodernWorkspaceConfig({
           ...workspace.options(),

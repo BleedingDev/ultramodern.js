@@ -345,15 +345,20 @@ const resolveWorkspaceConfig = (
     );
   }
   // Topology declares each UI app's renderer. The authored config may restate
-  // it for `defineConfig`, but cannot select a different renderer.
+  // it for `defineConfig`, but cannot select a different renderer. A headless
+  // unit declares renderer `none`: it has no UI renderer and no browser Module
+  // Federation identity, so its config selects no renderer at all.
   const declaredRenderer = (app as { renderer?: unknown }).renderer;
+  const headless =
+    app.surfaceProfile === 'api-only' || declaredRenderer === 'none';
   if (
-    declaredRenderer !== undefined &&
-    config.renderer !== undefined &&
-    config.renderer !== declaredRenderer
+    (headless && config.renderer !== undefined) ||
+    (declaredRenderer !== undefined &&
+      config.renderer !== undefined &&
+      config.renderer !== declaredRenderer)
   ) {
     throw new Error(
-      `[ultramodern-workspace] Renderer for ${options.appId} does not match topology.`,
+      `[ultramodern-workspace] Renderer for ${options.appId} does not match topology${headless ? ': a headless unit selects no renderer' : ''}.`,
     );
   }
   const portEnv = portEnvironment(app);
@@ -472,12 +477,16 @@ const resolveWorkspaceConfig = (
     );
     return binding ? [binding] : [];
   });
-  const mfName = requiredString(
-    app.moduleFederation?.name,
-    `${options.appId}.moduleFederation.name`,
-  );
+  // Only UI units own a browser Module Federation container whose chunk
+  // globals must stay distinct in a shared page.
+  const mfName = headless
+    ? undefined
+    : requiredString(
+        app.moduleFederation?.name,
+        `${options.appId}.moduleFederation.name`,
+      );
   const workspaceConfig: AppUserConfig = {
-    ...(declaredRenderer !== undefined
+    ...(!headless && declaredRenderer !== undefined
       ? { renderer: declaredRenderer as AppUserConfig['renderer'] }
       : {}),
     ...(cloudflare
@@ -530,9 +539,7 @@ const resolveWorkspaceConfig = (
             ),
           ]
         : []),
-      ...(app.surfaceProfile === 'api-only'
-        ? []
-        : [zephyrBuildPlugin(configFilename, environment)]),
+      ...(headless ? [] : [zephyrBuildPlugin(configFilename, environment)]),
     ],
     server: { port, publicDir: ['./locales', './assets'] },
     source: {
@@ -545,13 +552,17 @@ const resolveWorkspaceConfig = (
     },
     tools: {
       autoprefixer: { overrideBrowserslist: ['defaults'] },
-      bundlerChain: chain => {
-        chain.output
-          .uniqueName(mfName)
-          .chunkLoadingGlobal(
-            `__ULTRAMODERN_${envSegment(mfName)}_LOADED_CHUNKS__`,
-          );
-      },
+      ...(mfName
+        ? {
+            bundlerChain: chain => {
+              chain.output
+                .uniqueName(mfName)
+                .chunkLoadingGlobal(
+                  `__ULTRAMODERN_${envSegment(mfName)}_LOADED_CHUNKS__`,
+                );
+            },
+          }
+        : {}),
       devServer: {
         headers: {
           'Access-Control-Allow-Headers':

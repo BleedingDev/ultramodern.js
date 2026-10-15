@@ -143,6 +143,7 @@ test('API-only performance validation requires readiness and Node compatibility 
         id: 'inventory',
         kind: 'vertical',
         surfaceProfile: 'api-only',
+        renderer: 'none',
         path: 'verticals/inventory',
         api: { runtime: 'effect' },
         cloudflare,
@@ -161,11 +162,14 @@ test('API-only performance validation requires readiness and Node compatibility 
     });
 
   try {
-    for (const appPath of ['apps/shell', 'verticals/inventory']) {
+    // A headless unit has no router, so its config declares only the BFF.
+    const writeConfig = (appPath: string, source: string) => {
       const configPath = path.join(workspaceRoot, appPath, 'modern.config.ts');
       fs.mkdirSync(path.dirname(configPath), { recursive: true });
-      fs.writeFileSync(configPath, 'tanstackRouterPlugin();\n');
-    }
+      fs.writeFileSync(configPath, source);
+    };
+    writeConfig('apps/shell', 'tanstackRouterPlugin();\n');
+    writeConfig('verticals/inventory', 'bffPlugin();\n');
     writeTopology();
     run();
     const report = JSON.parse(
@@ -185,6 +189,18 @@ test('API-only performance validation requires readiness and Node compatibility 
       ).evidence,
       ['api-readiness-route-present', 'ui-routes-absent', 'nodejs-compat'],
     );
+    assert.deepEqual(
+      inventory.signals.find(signal => signal.id === 'save-data-behavior')
+        .evidence,
+      ['ui-router-absent', 'runtime-save-data-behavior-not-measured'],
+    );
+    // A UI unit still has to declare its router.
+    writeConfig('apps/shell', 'bffPlugin();\n');
+    assert.throws(
+      run,
+      /save-data-behavior static configuration invariant failed/u,
+    );
+    writeConfig('apps/shell', 'tanstackRouterPlugin();\n');
 
     delete topology.verticals[0].cloudflare.routes.apiReadiness;
     writeTopology();

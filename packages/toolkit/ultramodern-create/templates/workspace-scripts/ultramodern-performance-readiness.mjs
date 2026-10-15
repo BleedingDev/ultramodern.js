@@ -89,6 +89,7 @@ const readGeneratedContractView = () => {
         id: app.id,
         path: app.path,
         api: app.api,
+        renderer: app.renderer,
         surfaceProfile: app.surfaceProfile,
         deploy: { cloudflare: app.cloudflare },
         moduleFederation: { remotes: app.moduleFederation?.remotes ?? [] },
@@ -129,6 +130,8 @@ const evaluateApp = (app, contract, failOn) => {
   );
   const remotes = app.moduleFederation?.remotes ?? [];
   const apiOnly = app.surfaceProfile === 'api-only';
+  // Headless units (renderer `none`) render no UI, so they have no router.
+  const rendersUi = !apiOnly && app.renderer !== 'none';
   const cloudflareRoutes = app.deploy?.cloudflare?.routes;
   const apiRouteKey = app.api?.protocol === 'rpc' ? 'rpc' : 'apiReadiness';
   const otherApiRouteKey = apiRouteKey === 'rpc' ? 'apiReadiness' : 'rpc';
@@ -189,14 +192,14 @@ const evaluateApp = (app, contract, failOn) => {
     ),
     createSignal(
       'save-data-behavior',
-      /\btanstackRouterPlugin\b/u.test(generatedSource) &&
+      (!rendersUi || /\btanstackRouterPlugin\b/u.test(generatedSource)) &&
         contract.performanceReadiness?.signals?.some(
           signal => signal.id === 'save-data-behavior',
         )
         ? 'configuration-valid'
         : 'configuration-invalid',
       [
-        'tanstack-router-plugin-declared',
+        rendersUi ? 'tanstack-router-plugin-declared' : 'ui-router-absent',
         'runtime-save-data-behavior-not-measured',
       ],
     ),
