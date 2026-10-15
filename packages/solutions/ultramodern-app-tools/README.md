@@ -142,7 +142,9 @@ export default defineConfig(
 The workspace preset reads `topology/reference-topology.json` and
 `topology/local-overlays/development.json` relative to that config. Those records
 provide app identity, renderer, development ports, composed remote references
-and delivery unit identity. An authored `renderer` must match the topology.
+and delivery unit identity. An authored `renderer` must match the topology. A
+headless (API-only) unit declares renderer `none` and no Module Federation
+name; its config selects no `renderer`.
 Adding a shell or vertical changes the records; existing application configs
 keep their authored contents.
 

@@ -116,6 +116,9 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
       : '',
     bffPlugin: appHasApi(app) ? '        bffPlugin(),\n' : '',
     federationPlugin: emitsUi ? '        moduleFederationPlugin(),\n' : '',
+    // A headless unit's topology declares renderer `none`; its config selects
+    // no UI renderer, so presetUltramodernWorkspace accepts it unchanged.
+    renderer: emitsUi ? `      renderer: '${renderer}',\n` : '',
   });
 }
 
