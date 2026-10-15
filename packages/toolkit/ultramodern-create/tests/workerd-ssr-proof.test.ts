@@ -33,6 +33,14 @@ type ProofModule = {
     appPath: unknown,
   ) => string;
   validateWorkerdProofFixture: (fixture: unknown, apps: unknown[]) => unknown;
+  expectedEnvelopeSurfaces: (
+    kind: 'shell' | 'vertical',
+    surfaceProfile?: string,
+  ) => {
+    apiBackend: 'required' | 'optional' | 'forbidden';
+    backendFederation: boolean;
+    uiClient: boolean;
+  };
 };
 
 const loadProofModule = async () =>
@@ -986,4 +994,39 @@ describe('workerd SSR proof fixture placement', () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   }, 60_000);
+});
+
+describe('workerd SSR proof envelope surfaces', () => {
+  it('lets a Shell that is not ui-only own an API backend, never backend federation', async () => {
+    const { expectedEnvelopeSurfaces } = await loadProofModule();
+    expect(expectedEnvelopeSurfaces('shell', undefined)).toEqual({
+      apiBackend: 'optional',
+      backendFederation: false,
+      uiClient: true,
+    });
+    expect(expectedEnvelopeSurfaces('shell', 'ui-only')).toEqual({
+      apiBackend: 'forbidden',
+      backendFederation: false,
+      uiClient: true,
+    });
+  });
+
+  it('expects MicroVertical surfaces from the declared profile', async () => {
+    const { expectedEnvelopeSurfaces } = await loadProofModule();
+    expect(expectedEnvelopeSurfaces('vertical', undefined)).toEqual({
+      apiBackend: 'required',
+      backendFederation: true,
+      uiClient: true,
+    });
+    expect(expectedEnvelopeSurfaces('vertical', 'api-only')).toEqual({
+      apiBackend: 'required',
+      backendFederation: true,
+      uiClient: false,
+    });
+    expect(expectedEnvelopeSurfaces('vertical', 'ui-only')).toEqual({
+      apiBackend: 'forbidden',
+      backendFederation: false,
+      uiClient: true,
+    });
+  });
 });
