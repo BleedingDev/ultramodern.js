@@ -180,9 +180,12 @@ function workerFile(): string {
       throw new Error('Cannot find the UltraModern app tools package root');
     directory = parent;
   }
+  // The ESM build loads modern.config through `jiti.import()`; the CommonJS
+  // build's synchronous jiti cannot evaluate configs whose imports read
+  // `import.meta` (Effect's ConfigProvider does).
   return path.join(
     directory,
-    'dist/cjs/native-composition/config-metadata-worker.js',
+    'dist/esm-node/native-composition/config-metadata-worker.mjs',
   );
 }
 
