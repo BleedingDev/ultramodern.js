@@ -36,7 +36,11 @@ type ProofModule = {
   expectedEnvelopeSurfaces: (
     kind: 'shell' | 'vertical',
     surfaceProfile?: string,
-  ) => { apiBackend: boolean; backendFederation: boolean; uiClient: boolean };
+  ) => {
+    apiBackend: 'required' | 'optional' | 'forbidden';
+    backendFederation: boolean;
+    uiClient: boolean;
+  };
 };
 
 const loadProofModule = async () =>
@@ -53,8 +57,6 @@ type TopologyShell = Record<string, unknown> & {
 const shell = (cloudflare: Record<string, unknown> = {}): TopologyShell => ({
   id: 'shell',
   kind: 'shell',
-  // Generated Shells declare ui-only; an omitted profile owns an API backend.
-  surfaceProfile: 'ui-only',
   path: 'apps/shell',
   verticalRefs: ['contacts', 'catalog'],
   cloudflare: { routes: { ssr: '/en' }, ...cloudflare },
@@ -308,7 +310,6 @@ async function createFixtureWorkspace(options: {
       shell: {
         id: 'shell',
         kind: 'shell',
-        surfaceProfile: 'ui-only',
         path: 'apps/shell',
         portEnv: 'SHELL_PORT',
         deliveryUnit: { unitId: 'app/shell' },
@@ -996,15 +997,15 @@ describe('workerd SSR proof fixture placement', () => {
 });
 
 describe('workerd SSR proof envelope surfaces', () => {
-  it('expects a full-stack Shell API backend without backend federation', async () => {
+  it('lets a Shell that is not ui-only own an API backend, never backend federation', async () => {
     const { expectedEnvelopeSurfaces } = await loadProofModule();
     expect(expectedEnvelopeSurfaces('shell', undefined)).toEqual({
-      apiBackend: true,
+      apiBackend: 'optional',
       backendFederation: false,
       uiClient: true,
     });
     expect(expectedEnvelopeSurfaces('shell', 'ui-only')).toEqual({
-      apiBackend: false,
+      apiBackend: 'forbidden',
       backendFederation: false,
       uiClient: true,
     });
@@ -1013,17 +1014,17 @@ describe('workerd SSR proof envelope surfaces', () => {
   it('expects MicroVertical surfaces from the declared profile', async () => {
     const { expectedEnvelopeSurfaces } = await loadProofModule();
     expect(expectedEnvelopeSurfaces('vertical', undefined)).toEqual({
-      apiBackend: true,
+      apiBackend: 'required',
       backendFederation: true,
       uiClient: true,
     });
     expect(expectedEnvelopeSurfaces('vertical', 'api-only')).toEqual({
-      apiBackend: true,
+      apiBackend: 'required',
       backendFederation: true,
       uiClient: false,
     });
     expect(expectedEnvelopeSurfaces('vertical', 'ui-only')).toEqual({
-      apiBackend: false,
+      apiBackend: 'forbidden',
       backendFederation: false,
       uiClient: true,
     });

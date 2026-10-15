@@ -285,17 +285,24 @@ const readDevVars = (outputRoot) => {
 // A topology path names one app directory below the selected root. Built
 // artifacts may live in a separate root (ULTRAMODERN_WORKERD_ARTIFACT_ROOT),
 // but a topology path must never select output outside it.
-// Release envelope surfaces a unit must carry, from its topology profile, read
-// the way delivery units read it: any unit that is not `ui-only` owns an API
-// backend, a Shell included. Only MicroVerticals publish backend federation.
+// Release envelope surfaces a unit may carry, from its topology profile. A
+// MicroVertical's profile fixes its API backend and backend federation pair. A
+// Shell never publishes backend federation; unless it is `ui-only` it may own
+// an API backend of its own (its BFF), which must then be bound like any other.
 export const expectedEnvelopeSurfaces = (kind, surfaceProfile) => {
-  const apiBackend = surfaceProfile !== "ui-only";
+  const allowsApi = surfaceProfile !== "ui-only";
   return {
-    apiBackend,
-    backendFederation: kind === "vertical" && apiBackend,
+    apiBackend:
+      kind === "vertical"
+        ? allowsApi ? "required" : "forbidden"
+        : allowsApi ? "optional" : "forbidden",
+    backendFederation: kind === "vertical" && allowsApi,
     uiClient: surfaceProfile !== "api-only",
   };
 };
+
+const matchesSurface = (expected, present) =>
+  expected === "optional" || present === (expected === "required");
 
 export const resolveAppOutputRoot = (artifactRoot, appId, appPath) => {
   assert(typeof appPath === "string" && appPath.length > 0, `${appId} topology path is missing`);
@@ -354,7 +361,7 @@ const loadApps = async (workspaceRoot, artifactRoot, topology, overlay) => {
     );
     const { surfaces } = executedEnvelope.envelope;
     assert(
-      (surfaces.apiBackend.length > 0) === expectedSurfaces.apiBackend &&
+      matchesSurface(expectedSurfaces.apiBackend, surfaces.apiBackend.length > 0) &&
         Boolean(surfaces.backendFederation) === expectedSurfaces.backendFederation &&
         (surfaces.uiClient.length > 0) === expectedSurfaces.uiClient,
       `${plan.id} executed envelope surfaces differ from its declared application profile`,
@@ -363,7 +370,7 @@ const loadApps = async (workspaceRoot, artifactRoot, topology, overlay) => {
     return {
       ...plan,
       hasApiSurface,
-      ownsApiBackend: expectedSurfaces.apiBackend,
+      ownsApiBackend: surfaces.apiBackend.length > 0,
       path: appPath,
       apiPrefix:
         typeof rawApp.api?.bff?.prefix === "string"
