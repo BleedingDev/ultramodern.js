@@ -15,6 +15,19 @@ const assembly = '@modern-js/bff-effect/assembly';
 const failure =
   'Generated API entries must export defineEffectBff(...) or the native Effect BFF assembly helper with an explicitly composed handler Layer and an unshadowed executable root; entries must implement handlers through HttpApiBuilder.group.';
 const MAX_API_SOURCE_MODULES = 256;
+const httpRouteMethods = new Set([
+  '*',
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'HEAD',
+  'OPTIONS',
+  'TRACE',
+  'CONNECT',
+  'QUERY',
+]);
 
 /** A bounded, owner-local source resolver; never executes application modules. */
 export interface EffectApiSource {
@@ -99,9 +112,22 @@ export function strictEffectRuntimeTopologyViolation(
             ? nodePath.node.left
             : nodePath.node.argument;
           while (t.isMemberExpression(target)) target = target.object;
-          if (t.isIdentifier(target)) {
-            const binding = nodePath.scope.getBinding(target.name);
-            if (binding) mutated.add(binding);
+          // A write through `const alias = value` mutates `value` as well.
+          let binding = t.isIdentifier(target)
+            ? nodePath.scope.getBinding(target.name)
+            : undefined;
+          while (binding && !mutated.has(binding)) {
+            mutated.add(binding);
+            const declarator = binding.path.node;
+            const alias =
+              binding.kind === 'const' &&
+              t.isVariableDeclarator(declarator) &&
+              declarator.init
+                ? unwrapExpression(declarator.init, true)
+                : undefined;
+            binding = t.isIdentifier(alias)
+              ? binding.path.scope.getBinding(alias.name)
+              : undefined;
           }
         }
         if (
@@ -358,18 +384,115 @@ export function strictEffectRuntimeTopologyViolation(
           handled(node.arguments[2])
         );
       });
-    const transport = (node: t.Node): boolean =>
+    const effectSources = [edge, 'effect', 'effect/Effect'];
+    /** The handler of a literal `HttpRouter.add(method, path, handler)` route. */
+    const routeHandler = (node: t.Node): t.Function | undefined => {
+      node = unwrap(node);
+      if (
+        !t.isCallExpression(node) ||
+        !method(node.callee, 'HttpRouter', 'add') ||
+        node.arguments.length !== 3
+      )
+        return undefined;
+      const [verb, route, handler] = node.arguments;
+      return t.isStringLiteral(verb) &&
+        httpRouteMethods.has(verb.value) &&
+        t.isStringLiteral(route) &&
+        (route.value.startsWith('/') || route.value === '*') &&
+        (t.isArrowFunctionExpression(handler) ||
+          t.isFunctionExpression(handler))
+        ? handler
+        : undefined;
+    };
+    /** A named, non-namespace import: a service tag or Effect value. */
+    const effectReference = (node: t.Node): boolean =>
       guarded(node, node => {
         const init = initialized(node);
-        if (init) return transport(init);
+        if (init) return t.isIdentifier(unwrap(init)) && effectReference(init);
+        const value = imported(node);
+        return !!value && !value.namespace;
+      });
+    /** `service => HttpRouter.add(...)` whose handler captures `service`. */
+    const capturedRouteFactory = (node: t.Node): boolean =>
+      guarded(node, node => {
+        const init = initialized(node) ?? externalValue(node);
+        if (init) return capturedRouteFactory(init);
+        if (
+          !t.isArrowFunctionExpression(node) ||
+          node.async ||
+          node.params.length !== 1 ||
+          !t.isIdentifier(node.params[0]) ||
+          t.isBlockStatement(node.body)
+        )
+          return false;
+        const handler = routeHandler(node.body);
+        const parameter = binding(node.params[0]);
+        return (
+          !!handler &&
+          !!parameter &&
+          parameter.referencePaths.some(
+            reference => !!reference.findParent(path => path.node === handler),
+          )
+        );
+      });
+    /** `Effect.map(service, factory)` or `service.pipe(Effect.map(factory))`. */
+    const capturedTransport = (node: t.Node): boolean =>
+      guarded(node, node => {
+        const init = initialized(node);
+        if (init) return capturedTransport(init);
+        if (!t.isCallExpression(node)) return false;
+        if (method(node.callee, 'Effect', 'map', effectSources))
+          return (
+            node.arguments.length === 2 &&
+            effectReference(node.arguments[0]) &&
+            capturedRouteFactory(node.arguments[1])
+          );
+        if (
+          !t.isMemberExpression(node.callee) ||
+          node.callee.computed ||
+          !t.isIdentifier(node.callee.property, { name: 'pipe' }) ||
+          node.arguments.length !== 1 ||
+          !effectReference(node.callee.object)
+        )
+          return false;
+        const map = unwrap(node.arguments[0]);
+        return (
+          t.isCallExpression(map) &&
+          method(map.callee, 'Effect', 'map', effectSources) &&
+          map.arguments.length === 1 &&
+          capturedRouteFactory(map.arguments[0])
+        );
+      });
+    /**
+     * A transport Layer: CORS, literal routes, or a route that captures a
+     * service through `Layer.unwrap`. The captured service must be provided
+     * explicitly where the transport is composed.
+     */
+    const transport = (node: t.Node, provided = false): boolean =>
+      guarded(node, node => {
+        const init = initialized(node) ?? externalValue(node);
+        if (init) return transport(init, provided);
         if (!t.isCallExpression(node))
           return method(node, 'Layer', 'empty', layerSources);
+        const providedHere =
+          provided ||
+          node.arguments.some(
+            argument =>
+              t.isCallExpression(argument) &&
+              method(argument.callee, 'Layer', 'provide', layerSources) &&
+              argument.arguments.length === 1,
+          );
         return (
-          pipe(node, transport) ||
+          pipe(node, value => transport(value, providedHere)) ||
+          routeHandler(node) !== undefined ||
+          (provided &&
+            method(node.callee, 'Layer', 'unwrap', layerSources) &&
+            node.arguments.length === 1 &&
+            capturedTransport(node.arguments[0])) ||
           method(node.callee, 'HttpRouter', 'cors') ||
           (method(node.callee, 'Layer', 'mergeAll', layerSources) &&
             node.arguments.length > 0 &&
-            node.arguments.every(transport))
+            node.arguments.every(argument => transport(argument, provided)))
         );
       });
     const directLayer = (node: t.Node, api: string): boolean =>
