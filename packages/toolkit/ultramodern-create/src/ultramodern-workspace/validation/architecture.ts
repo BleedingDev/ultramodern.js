@@ -9,7 +9,10 @@ import {
   isApplicationRenderer,
 } from '../renderer-profile';
 import { assert, sameJson, selfCheckFailure } from './assertions';
-import { createNativeShellRuntimeEvidence } from './native-shell-runtime';
+import {
+  createNativeShellRuntimeEvidence,
+  isBuildTargetAccess,
+} from './native-shell-runtime';
 import { isForeignRendererPackage } from './renderer';
 import type { JsonRecord, ValidationContract } from './types';
 
@@ -861,15 +864,25 @@ export function assertCompilerArchitecture(
             );
           }
           const accessPath = propertyAccessPath(node);
-          if (
-            sameJson(accessPath, ['process', 'env']) &&
-            !shellRuntime?.isBuildTargetCondition(node)
-          ) {
+          if (sameJson(accessPath, ['process', 'env'])) {
             compilerFailure(
               sourceFile,
               node,
               'framework config API direct-process-env-access',
-              'Generated config must use the framework config environment API instead of process.env.',
+              isShellRoute
+                ? 'Shell routes must not read process.env.'
+                : 'Generated config must use the framework config environment API instead of process.env.',
+              isShellRoute
+                ? 'branch on import.meta.env.MODERN_TARGET for the build target'
+                : 'use getBuildConfigEnvironment',
+            );
+          }
+          if (!isShellRoute && isBuildTargetAccess(typescript, node)) {
+            compilerFailure(
+              sourceFile,
+              node,
+              'framework config API build-target-outside-bundle',
+              'Config runs in Node, where the framework defines no import.meta.env.MODERN_TARGET.',
               'use getBuildConfigEnvironment',
             );
           }

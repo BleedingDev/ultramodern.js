@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createRsbuild, type RsbuildPlugin } from '@rsbuild/core';
 import ssrPlugin from '../../../../runtime/plugin-runtime/src/cli/ssr';
 import { ultramodernSSRIntegrationPlugin } from '../../src/renderers/react/ssr-integration-plugin';
@@ -236,9 +239,68 @@ describe('native Rsbuild SSR composition', () => {
         'process.env.MODERN_TARGET': JSON.stringify(
           name === 'client' ? 'browser' : 'node',
         ),
+        'import.meta.env.MODERN_TARGET': JSON.stringify(
+          name === 'client' ? 'browser' : 'node',
+        ),
       });
       // Module Federation, not this policy, turns server splitChunks off.
       expect(result.splitChunks).not.toBe(false);
     },
   );
+});
+
+describe('native build target', () => {
+  // Apps branch on import.meta.env.MODERN_TARGET because generated type
+  // checking rejects process.env; each bundle must fold it like the native
+  // process.env.MODERN_TARGET define.
+  it('folds import.meta.env.MODERN_TARGET per bundler environment', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-build-target-'));
+    try {
+      fs.mkdirSync(path.join(root, 'src'));
+      fs.writeFileSync(
+        path.join(root, 'src/index.js'),
+        `if (import.meta.env.MODERN_TARGET === 'browser') console.log('browser-only-marker');
+if (import.meta.env.MODERN_TARGET === 'node') console.log('node-only-marker');
+`,
+      );
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: 'production',
+          plugins: createBuilderPlugins(false, {}),
+          output: { minify: false, distPath: { root: 'dist' } },
+          environments: {
+            client: {
+              source: { entry: { main: './src/index.js' } },
+              output: { target: 'web', distPath: { root: 'dist/client' } },
+            },
+            server: {
+              source: { entry: { main: './src/index.js' } },
+              output: { target: 'node', distPath: { root: 'dist/server' } },
+            },
+          },
+        },
+      });
+      await rsbuild.build();
+      const bundle = (environment: string) =>
+        fs
+          .readdirSync(path.join(root, 'dist', environment), {
+            recursive: true,
+          })
+          .map(String)
+          .filter(file => file.endsWith('.js'))
+          .map(file =>
+            fs.readFileSync(path.join(root, 'dist', environment, file), 'utf8'),
+          )
+          .join('\n');
+      const client = bundle('client');
+      const server = bundle('server');
+      expect(client).toContain('browser-only-marker');
+      expect(client).not.toContain('node-only-marker');
+      expect(server).toContain('node-only-marker');
+      expect(server).not.toContain('browser-only-marker');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

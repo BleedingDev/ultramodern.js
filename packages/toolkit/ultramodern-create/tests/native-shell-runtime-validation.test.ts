@@ -24,14 +24,14 @@ const runtimeImport =
 const admitted = {
   'build-target conditions': `
 export const target = () => {
-  if (process.env.MODERN_TARGET === 'browser') return 'browser';
-  if ('node' === process.env.MODERN_TARGET && Math.random() > 1) return 'never';
-  return process.env.MODERN_TARGET === 'node' ? 'server' : 'unknown';
+  if (import.meta.env.MODERN_TARGET === 'browser') return 'browser';
+  if ('node' === import.meta.env.MODERN_TARGET && Math.random() > 1) return 'never';
+  return import.meta.env.MODERN_TARGET === 'node' ? 'server' : 'unknown';
 };
 `,
   'browser-guarded loads on a dynamically imported instance': `
 export const loadPage = async () => {
-  if (process.env.MODERN_TARGET === 'browser') {
+  if (import.meta.env.MODERN_TARGET === 'browser') {
     const { getInstance } = await import('@module-federation/modern-js-v3/runtime');
     const host = getInstance();
     if (host === null) return undefined;
@@ -45,30 +45,25 @@ export const loadPage = async () => {
 ${runtimeImport}
 export const load = (enabled: boolean) => {
   const host = getInstance()!;
-  return process.env.MODERN_TARGET === 'browser' && enabled
+  return import.meta.env.MODERN_TARGET === 'browser' && enabled
     ? host.loadRemote('inventory/Widget')
     : undefined;
 };
 `,
 };
 
-// Shell route sources that read ambient environment.
-const ambientEnvironment = {
-  'a build-target value outside a condition':
-    'export const target = process.env.MODERN_TARGET;',
-  'a build-target comparison stored in a value':
-    "export const isBrowser = process.env.MODERN_TARGET === 'browser';",
-  'loose equality':
-    "export const run = () => { if (process.env.MODERN_TARGET == 'browser') return 1; };",
-  'an undefined build target':
-    "export const run = () => { if (process.env.MODERN_TARGET === 'edge') return 1; };",
+// Shell route sources that read process.env. Generated type checking rejects
+// every process.env read, including the build target, so validation does too.
+const processEnvironment = {
+  'a process.env build-target condition':
+    "export const run = () => { if (process.env.MODERN_TARGET === 'browser') return 1; };",
   'another environment variable':
     "export const run = () => { if (process.env.API_URL === 'browser') return 1; };",
-  'optional chaining':
-    "export const run = () => { if (process.env?.MODERN_TARGET === 'browser') return 1; };",
-  'a local process binding': `
-const process = { env: { MODERN_TARGET: 'browser' } };
-export const run = () => { if (process.env.MODERN_TARGET === 'browser') return 1; };
+  'a process.env-guarded instance load': `
+${runtimeImport}
+export const load = () => {
+  if (process.env.MODERN_TARGET === 'browser') return getInstance()!.loadRemote('inventory/Widget');
+};
 `,
 };
 
@@ -81,27 +76,52 @@ export const load = () => getInstance()!.loadRemote('inventory/Widget');
   'a node-guarded instance load': `
 ${runtimeImport}
 export const load = () => {
-  if (process.env.MODERN_TARGET === 'node') return getInstance()!.loadRemote('inventory/Widget');
+  if (import.meta.env.MODERN_TARGET === 'node') return getInstance()!.loadRemote('inventory/Widget');
+};
+`,
+  'an instance load guarded by loose equality': `
+${runtimeImport}
+export const load = () => {
+  if (import.meta.env.MODERN_TARGET == 'browser') return getInstance()!.loadRemote('inventory/Widget');
+};
+`,
+  'an instance load guarded by an undefined build target': `
+${runtimeImport}
+export const load = () => {
+  if (import.meta.env.MODERN_TARGET === 'edge') return getInstance()!.loadRemote('inventory/Widget');
+};
+`,
+  'an instance load guarded through optional chaining': `
+${runtimeImport}
+export const load = () => {
+  if (import.meta.env?.MODERN_TARGET === 'browser') return getInstance()!.loadRemote('inventory/Widget');
+};
+`,
+  'an instance load guarded by a stored comparison': `
+${runtimeImport}
+const isBrowser = import.meta.env.MODERN_TARGET === 'browser';
+export const load = () => {
+  if (isBrowser) return getInstance()!.loadRemote('inventory/Widget');
 };
 `,
   'an instance load in the else branch of a browser guard': `
 ${runtimeImport}
 export const load = () => {
-  if (process.env.MODERN_TARGET === 'browser') return undefined;
+  if (import.meta.env.MODERN_TARGET === 'browser') return undefined;
   else return getInstance()!.loadRemote('inventory/Widget');
 };
 `,
   'an instance load guarded by a disjunction': `
 ${runtimeImport}
 export const load = (enabled: boolean) => {
-  if (process.env.MODERN_TARGET === 'browser' || enabled) return getInstance()!.loadRemote('inventory/Widget');
+  if (import.meta.env.MODERN_TARGET === 'browser' || enabled) return getInstance()!.loadRemote('inventory/Widget');
 };
 `,
   'a hand-rolled loader object': `
 ${runtimeImport}
 const host = { loadRemote: (id: string) => import(id), instance: getInstance() };
 export const load = () => {
-  if (process.env.MODERN_TARGET === 'browser') return host.loadRemote('inventory/Widget');
+  if (import.meta.env.MODERN_TARGET === 'browser') return host.loadRemote('inventory/Widget');
 };
 `,
   'a look-alike ModuleFederation class': `
@@ -109,7 +129,7 @@ ${runtimeImport}
 class ModuleFederation { loadRemote(id: string) { return import(id); } }
 export const load = () => {
   getInstance();
-  if (process.env.MODERN_TARGET === 'browser') return new ModuleFederation().loadRemote('inventory/Widget');
+  if (import.meta.env.MODERN_TARGET === 'browser') return new ModuleFederation().loadRemote('inventory/Widget');
 };
 `,
   'an untyped receiver': `
@@ -117,13 +137,13 @@ ${runtimeImport}
 declare const host: any;
 export const load = () => {
   getInstance();
-  if (process.env.MODERN_TARGET === 'browser') return host.loadShare('react');
+  if (import.meta.env.MODERN_TARGET === 'browser') return host.loadShare('react');
 };
 `,
   'a browser-guarded runtime loadRemote function': `
 import { loadRemote } from '@module-federation/modern-js-v3/runtime';
 export const load = () => {
-  if (process.env.MODERN_TARGET === 'browser') return loadRemote('inventory/Widget');
+  if (import.meta.env.MODERN_TARGET === 'browser') return loadRemote('inventory/Widget');
 };
 `,
 };
@@ -182,7 +202,7 @@ test('shell routes may branch on the build target and load through the native br
     );
     const expectations: Array<[Record<string, string>, RegExp | undefined]> = [
       [admitted, undefined],
-      [ambientEnvironment, /framework config API direct-process-env-access/u],
+      [processEnvironment, /framework config API direct-process-env-access/u],
       [manualLoading, /module federation native loading/u],
     ];
     for (const [cases, failure] of expectations) {
@@ -212,11 +232,11 @@ test('shell routes may branch on the build target and load through the native br
     const config = fs.readFileSync(configFile, 'utf8');
     fs.writeFileSync(
       configFile,
-      `${config}\nif (process.env.MODERN_TARGET === 'browser') { console.log('browser'); }\n`,
+      `${config}\nif (import.meta.env.MODERN_TARGET === 'browser') { console.log('browser'); }\n`,
     );
     assert.throws(
       () => assertCompilerArchitecture(targetDir, contract),
-      /framework config API direct-process-env-access/u,
+      /framework config API build-target-outside-bundle/u,
     );
     fs.writeFileSync(configFile, config);
   } finally {
