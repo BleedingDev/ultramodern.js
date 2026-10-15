@@ -9,6 +9,12 @@ import { test } from '@rstest/core';
 const sourceUrl = pathToFileURL(
   path.resolve(__dirname, '../src/server-global-vars.ts'),
 ).href;
+const serializerUrl = pathToFileURL(
+  path.resolve(
+    __dirname,
+    '../../plugin-bff-extensions/src/server-global-vars/index.ts',
+  ),
+).href;
 
 const prelude = `
 import assert from 'node:assert/strict';
@@ -25,8 +31,8 @@ process.dlopen = function (...args) {
   nativeLoads.push(args[1]);
   return result;
 };
-const { serializeServerGlobalVars, transformServerGlobalVars } =
-  await import(${JSON.stringify(sourceUrl)});
+const { serializeServerGlobalVars } = await import(${JSON.stringify(serializerUrl)});
+const { transformServerGlobalVars } = await import(${JSON.stringify(sourceUrl)});
 const swcLoads = (loads = nativeLoads) => loads.filter(filename =>
   path.basename(filename).startsWith('swc.') && filename.endsWith('.node'),
 );

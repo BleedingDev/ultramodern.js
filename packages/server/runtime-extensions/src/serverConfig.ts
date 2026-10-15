@@ -2,6 +2,7 @@ import type {} from '@modern-js/plugin/server';
 import type {
   BffRuntimeUserConfig,
   BffRuntimeFramework as CanonicalBffRuntimeFramework,
+  ServerSourceConfigExtension,
   ServerTelemetryConfigExtension,
 } from '@modern-js/runtime-extensions/server-config';
 import type { BffUserConfig, ServerUserConfig } from '@modern-js/server-core';
@@ -20,6 +21,7 @@ declare module '@modern-js/plugin/server' {
 declare module '@modern-js/server-core' {
   interface BffUserConfig extends BffConfigExtension {}
   interface ServerUserConfig extends ServerTelemetryConfigExtension {}
+  interface SourceUserConfig extends ServerSourceConfigExtension {}
 }
 
 export type UltramodernBffUserConfig = Omit<

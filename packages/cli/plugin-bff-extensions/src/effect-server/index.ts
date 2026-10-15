@@ -78,6 +78,7 @@ export default (): ServerPlugin => ({
           : loadEffectSourceModule({
               resourcePath: entryFile,
               appDir: appDirectory || path.dirname(entryFile),
+              globalVars: api.getServerConfig()?.source?.globalVars,
             }))) as EffectApiModule;
       } catch (error) {
         logger.error(

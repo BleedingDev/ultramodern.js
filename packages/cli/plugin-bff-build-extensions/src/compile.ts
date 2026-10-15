@@ -1,16 +1,14 @@
 import type { AppTools, BffCompilation } from '@modern-js/app-tools';
 import type { CLIPluginAPI } from '@modern-js/plugin';
-import type { BffRuntimeBuildIdentity } from './runtime-build-identity';
 import {
+  type SerializedServerGlobalVars,
   serializeServerGlobalVars,
-  transformServerGlobalVars,
-} from './server-global-vars';
+} from '@modern-js/plugin-bff-extensions/server-global-vars';
+import type { BffRuntimeBuildIdentity } from './runtime-build-identity';
+import { transformServerGlobalVars } from './server-global-vars';
 
 export function registerBffCompilation(api: CLIPluginAPI<AppTools>) {
-  const serialized = new WeakMap<
-    BffCompilation,
-    ReturnType<typeof serializeServerGlobalVars>
-  >();
+  const serialized = new WeakMap<BffCompilation, SerializedServerGlobalVars>();
   api.onBeforeBffCompile(context => {
     serialized.set(
       context,

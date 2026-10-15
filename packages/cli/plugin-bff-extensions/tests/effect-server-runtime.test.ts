@@ -393,6 +393,97 @@ export { effectApi as api, effectLayer as layer };
     }
   });
 
+  test('applies source.globalVars when it loads a source entry in development', async () => {
+    const appDirectory = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-effect-server-global-vars-'),
+    );
+    const originalNodeEnv = process.env.NODE_ENV;
+    const entryFile = path.join(appDirectory, 'api', 'index.ts');
+    const entrySource = `
+import {
+  defineEffectBff,
+  Effect,
+  HttpApi,
+  HttpApiBuilder,
+  HttpApiEndpoint,
+  HttpApiGroup,
+  Layer,
+  Schema,
+} from '@modern-js/bff-effect/effect';
+
+declare const ULTRAMODERN_BUILD_MARKER: string;
+
+const api = HttpApi.make('DevGlobalVarsApi').add(
+  HttpApiGroup.make('build').add(
+    HttpApiEndpoint.get('marker', '/marker', { success: Schema.String }),
+  ),
+);
+const routes = HttpApiBuilder.group(api, 'build', handlers =>
+  handlers.handle('marker', () => Effect.succeed(ULTRAMODERN_BUILD_MARKER)),
+);
+const runtime = defineEffectBff({
+  api,
+  layer: HttpApiBuilder.layer(api).pipe(Layer.provide(routes)),
+});
+export const { api: effectApi, layer: effectLayer } = runtime;
+export { effectApi as api, effectLayer as layer };
+`;
+    const middlewares: Middleware[] = [];
+    const serverBase = {};
+
+    try {
+      await fs.promises.mkdir(
+        path.join(appDirectory, 'node_modules/@modern-js'),
+        {
+          recursive: true,
+        },
+      );
+      await fs.promises.symlink(
+        path.resolve(__dirname, '../node_modules/@modern-js/bff-effect'),
+        path.join(appDirectory, 'node_modules/@modern-js/bff-effect'),
+        'dir',
+      );
+      await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
+      await fs.promises.writeFile(entryFile, entrySource);
+      process.env.NODE_ENV = 'development';
+      const api = {
+        getServerContext: () => ({
+          appDirectory,
+          apiDirectory: path.dirname(entryFile),
+          bffRuntimeFramework: 'effect',
+          middlewares,
+          serverBase,
+        }),
+        getServerConfig: () => ({
+          bff: { effect: { entry: entryFile } },
+          source: {
+            globalVars: { ULTRAMODERN_BUILD_MARKER: 'dev-build-marker' },
+          },
+        }),
+      } as unknown as ServerPluginAPI;
+      const adapter = createServerHarness(api);
+      await adapter.prepare({ prefix: '/api' });
+
+      const response = (await middlewares[0]!.handler(
+        {
+          env: {},
+          req: {
+            method: 'GET',
+            path: '/api/marker',
+            raw: new Request('https://example.com/api/marker'),
+          },
+        },
+        async () => {},
+      )) as Response;
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toBe('dev-build-marker');
+      await adapter.dispose();
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      await fs.promises.rm(appDirectory, { recursive: true, force: true });
+    }
+  });
+
   test('propagates terminal runtime disposal failures through the server lifecycle', async () => {
     const appDirectory = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-effect-server-dispose-'),

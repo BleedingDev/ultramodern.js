@@ -9,7 +9,6 @@ import type {
   BffRuntimeBuildIdentity,
   BffRuntimeBuildIdentityProvider,
 } from '../src/runtime-build-identity';
-import { serializeServerGlobalVars } from '../src/server-global-vars';
 
 async function createRuntimeIdentityFixture(
   appDirectory: string,
@@ -344,26 +343,6 @@ describe('BFF compiler global variables', () => {
     } finally {
       await fs.remove(appDirectory);
     }
-  });
-
-  it('resolves the server option chain and rejects values without an exact JSON representation', () => {
-    expect(
-      serializeServerGlobalVars((_config: unknown, context: unknown) => ({
-        CONTEXT: context,
-        NULL_VALUE: null,
-      })),
-    ).toEqual({
-      CONTEXT: '{"env":"server","target":"node"}',
-      NULL_VALUE: 'null',
-    });
-
-    expect(() =>
-      serializeServerGlobalVars({
-        NOT_SERIALIZABLE: undefined,
-      }),
-    ).toThrow(
-      'source.globalVars["NOT_SERIALIZABLE"] cannot be serialized exactly for BFF compilation.',
-    );
   });
 
   it('emits a Node-executable Effect entry when it imports raw TypeScript from a workspace package', async () => {

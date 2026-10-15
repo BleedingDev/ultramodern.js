@@ -45,6 +45,7 @@ export function registerBffClientArtifacts(
         resourcePath: sourceEffectEntry,
         prefix: generation.prefix,
         requestId: generation.requestId,
+        globalVars: config.source.globalVars,
       });
       if (operationContracts === null) {
         throw new Error(

@@ -174,6 +174,70 @@ export const schemaIdentity = Schema.String;`,
     }
   });
 
+  test('replaces source.globalVars across the loaded source graph', async () => {
+    const appDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'modern-bff-effect-global-vars-'),
+    );
+
+    try {
+      const entryPath = path.join(appDir, 'api', 'index.ts');
+      await writeFile(
+        path.join(appDir, 'shared', 'build.ts'),
+        `declare const ULTRAMODERN_BUILD_MARKER: string;
+declare const BUILD_SETTINGS: { origin: string; retries: number };
+export const marker = ULTRAMODERN_BUILD_MARKER;
+export const settings = BUILD_SETTINGS;
+export const shadowed = ((ULTRAMODERN_BUILD_MARKER: string) => ULTRAMODERN_BUILD_MARKER)('local');`,
+      );
+      await writeFile(
+        entryPath,
+        `export { marker, settings, shadowed } from '../shared/build';`,
+      );
+
+      const first = (await loadEffectSourceModule({
+        appDir,
+        resourcePath: entryPath,
+        globalVars: [
+          { ULTRAMODERN_BUILD_MARKER: 'dev "first"' },
+          (config, context) => ({
+            ...config,
+            BUILD_SETTINGS: { origin: context.env, retries: 2 },
+          }),
+        ],
+      })) as { marker: string; settings: unknown; shadowed: string };
+      expect(first).toMatchObject({
+        marker: 'dev "first"',
+        settings: { origin: 'server', retries: 2 },
+        shadowed: 'local',
+      });
+
+      const second = (await loadEffectSourceModule({
+        appDir,
+        resourcePath: entryPath,
+        globalVars: {
+          ULTRAMODERN_BUILD_MARKER: 'dev-second',
+          BUILD_SETTINGS: { origin: 'config', retries: 0 },
+        },
+      })) as { marker: string; settings: unknown };
+      expect(second).toMatchObject({
+        marker: 'dev-second',
+        settings: { origin: 'config', retries: 0 },
+      });
+
+      await expect(
+        loadEffectSourceModule({
+          appDir,
+          resourcePath: entryPath,
+          globalVars: { ULTRAMODERN_BUILD_MARKER: undefined },
+        }),
+      ).rejects.toThrow(
+        'source.globalVars["ULTRAMODERN_BUILD_MARKER"] cannot be serialized exactly for BFF server code.',
+      );
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
+
   test('preserves CommonJS globals in bundled workspace dependencies', async () => {
     const fixtureDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-bff-effect-workspace-commonjs-'),
