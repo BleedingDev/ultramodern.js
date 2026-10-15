@@ -425,14 +425,6 @@ export function createAppPackage(
         './api/client': `./${clientDirectory}/${app.api.stem}-client.ts`,
       });
     }
-  } else if (
-    app.kind === 'shell' &&
-    (resolveWorkspaceRenderer(app) === 'react' ||
-      verticalApiApps(remotes).length > 0)
-  ) {
-    Object.assign(packageExports, {
-      './api/clients': './src/api/vertical-clients.ts',
-    });
   }
 
   if (Object.keys(packageExports).length > 0) {

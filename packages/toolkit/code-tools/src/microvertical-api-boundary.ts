@@ -13,9 +13,14 @@ import {
 import {
   createModuleGraph,
   type ModuleGraph,
+  type ResolvedBinding,
   type SourceModule,
 } from './module-graph';
-import { consumerParserPlugins, SourceSyntaxError } from './source-analysis';
+import {
+  consumerParserPlugins,
+  SourceSyntaxError,
+  unwrapExpression,
+} from './source-analysis';
 import {
   createEffectApiImportResolver,
   strictEffectRuntimeTopologyViolation,
@@ -41,7 +46,8 @@ export { createModuleGraph } from './module-graph';
 export interface MicroVerticalConfiguredApp {
   readonly path: string;
   readonly id?: string;
-  readonly kind?: string;
+  /** `shell` or `vertical`; selects the rules the app is checked against. */
+  readonly kind: string;
   readonly package?: string;
   readonly surfaceProfile?: string;
   readonly deliveryUnitKind?: string;
@@ -57,7 +63,7 @@ export interface MicroVerticalApiSourceRuleContext {
   /** Workspace-relative path of `module`. */
   readonly file: string;
   readonly module: SourceModule;
-  /** One graph per check, shared by every rule and source file. */
+  /** One graph per source file, shared by every rule for that file. */
   readonly graph: ModuleGraph;
 }
 /** A consumer-owned source rule; each returned message is a violation. */
@@ -87,6 +93,8 @@ const ignored = new Set([
   'node_modules',
   'repos',
 ]);
+const MAX_CLOSURE_DEPTH = 128;
+const MAX_CLOSURE_MODULES = 2048;
 const normalize = (file: string) =>
   file.split(path.sep).join('/').replace(/^\.\//u, '');
 const errorMessage = (error: unknown) =>
@@ -176,7 +184,7 @@ function configuredApps(
         )?.[1];
       return {
         id: entry.id,
-        kind: entry.kind,
+        kind: entry.kind as string,
         path: entry.path,
         package: manifest.name,
         surfaceProfile: entry.surfaceProfile,
@@ -234,8 +242,9 @@ function configuredApps(
     ) as (keyof typeof allowedFields)[]) {
       const value = app[field];
       if (
-        value !== undefined &&
-        !(allowedFields[field] as readonly string[]).includes(value)
+        (value !== undefined || field === 'kind') &&
+        (typeof value !== 'string' ||
+          !(allowedFields[field] as readonly string[]).includes(value))
       )
         throw new Error(`${key}: invalid ${field}`);
     }
@@ -300,6 +309,12 @@ function check(
   };
   try {
     const apps = configuredApps(root, options.configuredApps);
+    const workspace = fs.realpathSync(root);
+    /** Workspace-relative path of a real file, so symlinked spellings agree. */
+    const realRelative = (file: string) =>
+      normalize(path.relative(workspace, fs.realpathSync(absolute(file))));
+    const inside = (directory: string, real: string) =>
+      real.startsWith(`${directory}${path.sep}`);
     const byPath = new Map(apps.map(app => [normalize(app.path), app]));
     const directories = (base: string) =>
       exists(base)
@@ -355,7 +370,10 @@ function check(
         throw error;
       }
     };
-    /** Repo-relative target of a relative specifier, with TS extension rules. */
+    /**
+     * Real workspace-relative target of a relative specifier, with TS
+     * extension rules. Two spellings of one file resolve to one path.
+     */
     const resolveRelative = (
       fromFile: string,
       specifier: string,
@@ -364,12 +382,32 @@ function check(
       const base = path.posix
         .join(path.posix.dirname(fromFile), specifier)
         .replace(/\.(?:[cm]?[jt]sx?)$/u, '');
-      return [
+      const candidate = [
         `${base}.ts`,
         `${base}.tsx`,
         `${base}/index.ts`,
         `${base}/index.tsx`,
-      ].find(candidate => exists(candidate));
+      ].find(file => exists(file));
+      return candidate === undefined ? undefined : realRelative(candidate);
+    };
+    /** Follow identifier and member aliases to the binding they finally name. */
+    const graphBinding = (
+      graph: ModuleGraph,
+      module: SourceModule,
+      expression: t.Node,
+      seen = new Set<t.Node>(),
+    ): ResolvedBinding | undefined => {
+      if (seen.has(expression) || seen.size >= 128) return undefined;
+      seen.add(expression);
+      const binding =
+        t.isIdentifier(expression) || t.isMemberExpression(expression)
+          ? graph.resolveReference(module, expression)
+          : undefined;
+      return binding?.kind === 'declaration' &&
+        (t.isIdentifier(binding.expression) ||
+          t.isMemberExpression(binding.expression))
+        ? graphBinding(graph, binding.module, binding.expression, seen)
+        : binding;
     };
     const clientExportFile = (
       appPath: string,
@@ -400,39 +438,101 @@ function check(
       return normalize(path.relative(root, candidate));
     };
     /**
-     * A module plus everything it pulls in through relative imports and
-     * re-exports. A consumer may split one governed surface across sibling
-     * modules; the surface is still the union of what they import and call.
+     * A module plus everything it pulls in at runtime through relative
+     * imports, re-exports, `import()` and `require()`. A consumer may split
+     * one governed surface across sibling modules; the surface is still the
+     * union of what they import and call. The closure fails closed: an
+     * unresolved or computed dependency, a dependency outside the owning app,
+     * or a closure beyond the analysis budget is a tool error, never a
+     * smaller surface. Type-only imports and re-exports are not followed.
      */
     const composedModules = (file: string, appPath: string): string[] => {
-      const order: string[] = [];
-      const seen = new Set<string>();
-      const queue = [file];
       const owner = fs.realpathSync(absolute(appPath));
-      while (queue.length > 0 && order.length < 128) {
-        const current = queue.shift()!;
-        if (seen.has(current)) continue;
-        seen.add(current);
-        order.push(current);
+      if (!inside(owner, fs.realpathSync(absolute(file))))
+        throw new Error(`consumer module closure escapes its owner: ${file}`);
+      const entry = realRelative(file);
+      const discovered = new Set([entry]);
+      const queue = [{ file: entry, depth: 0 }];
+      let graph: ModuleGraph | undefined;
+      for (const { file: current, depth } of queue) {
         const ast = parseFile(current);
         if (!ast) continue;
-        for (const statement of ast.program.body) {
-          const source =
-            (t.isImportDeclaration(statement) ||
-              t.isExportNamedDeclaration(statement) ||
+        const sources: string[] = [];
+        let callsRequire = false;
+        for (const statement of ast.program.body)
+          if (
+            (t.isImportDeclaration(statement) &&
+              statement.importKind !== 'type' &&
+              statement.importKind !== 'typeof') ||
+            ((t.isExportNamedDeclaration(statement) ||
               t.isExportAllDeclaration(statement)) &&
-            statement.source
-              ? statement.source.value
-              : undefined;
-          const resolved =
-            source === undefined ? undefined : resolveRelative(current, source);
-          if (resolved !== undefined && !seen.has(resolved)) {
-            const real = fs.realpathSync(absolute(resolved));
-            if (real.startsWith(`${owner}${path.sep}`)) queue.push(resolved);
+              statement.exportKind !== 'type' &&
+              statement.source)
+          )
+            sources.push(statement.source!.value);
+        t.traverseFast(ast, node => {
+          if (t.isImportExpression(node)) {
+            if (!t.isStringLiteral(node.source))
+              throw new Error(
+                `consumer module closure has nonliteral runtime dependency: ${current}`,
+              );
+            sources.push(node.source.value);
           }
+          if (
+            (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
+            t.isIdentifier(unwrapExpression(node.callee, true), {
+              name: 'require',
+            })
+          )
+            callsRequire = true;
+        });
+        if (callsRequire) {
+          // Only the global `require` loads a module; a local binding named
+          // `require` is an ordinary function.
+          graph ??= createModuleGraph();
+          const module = graph.module(absolute(current));
+          t.traverseFast(module.file, node => {
+            if (!t.isCallExpression(node) && !t.isOptionalCallExpression(node))
+              return;
+            const callee = unwrapExpression(node.callee, true);
+            if (
+              !t.isIdentifier(callee, { name: 'require' }) ||
+              !graph!.isUnboundReference(module, callee)
+            )
+              return;
+            const [argument] = node.arguments;
+            if (node.arguments.length !== 1 || !t.isStringLiteral(argument))
+              throw new Error(
+                `consumer module closure has nonliteral runtime dependency: ${current}`,
+              );
+            sources.push(argument.value);
+          });
+        }
+        for (const source of sources) {
+          if (!/^\.\.?\//u.test(source)) continue;
+          const resolved = resolveRelative(current, source);
+          if (resolved === undefined)
+            throw new Error(
+              `consumer module closure has unresolved relative dependency: ${current} -> ${source}`,
+            );
+          if (!inside(owner, path.join(workspace, resolved)))
+            throw new Error(
+              `consumer module closure escapes its owner: ${current} -> ${source}`,
+            );
+          if (discovered.has(resolved)) continue;
+          if (depth + 1 >= MAX_CLOSURE_DEPTH)
+            throw new Error(
+              `consumer module closure exceeds ${MAX_CLOSURE_DEPTH} import-depth analysis budget`,
+            );
+          if (discovered.size >= MAX_CLOSURE_MODULES)
+            throw new Error(
+              `consumer module closure exceeds ${MAX_CLOSURE_MODULES}-module analysis budget`,
+            );
+          discovered.add(resolved);
+          queue.push({ file: resolved, depth: depth + 1 });
         }
       }
-      return order;
+      return queue.map(item => item.file);
     };
     const moduleShape = (
       file: string,
@@ -519,6 +619,10 @@ function check(
         );
     };
     const effect = '@modern-js/bff-effect/effect-client';
+    const clientFactories = new Set([
+      'makeEffectHttpApiClient',
+      'makeEffectRpcClient',
+    ]);
     const appDirectories = [
       ...new Set([
         ...directories('apps'),
@@ -789,10 +893,11 @@ function check(
         );
       });
     const sourceRules = options.sourceRules ?? [];
-    const graph = createModuleGraph();
     for (const file of sourceRules.length ? sourceFiles : [])
       if (/\.[cm]?[jt]sx?$/u.test(file))
         guarded(file, () => {
+          // A fresh graph per file keeps memory bounded by one file's closure.
+          const graph = createModuleGraph();
           let module: SourceModule;
           try {
             module = graph.module(absolute(file));
@@ -816,38 +921,298 @@ function check(
               diagnostics.push(`${file}: ${message}`);
           }
         });
-    const shell = 'apps/shell-super-app';
-    const verticals = apps.filter(
-      app => app.path.startsWith('verticals/') && apiApp(app),
-    );
-    if (exists(shell) && verticals.length) {
-      const file = `${shell}/src/api/vertical-clients.ts`;
-      assert(exists(file), `${file}: must aggregate vertical API clients`);
-      if (exists(file))
-        guarded(file, () => {
-          const ast = parseFile(file);
-          for (const app of verticals) {
-            const specifier = `${app.package}/api/${app.api?.protocol === 'rpc' ? 'rpc-client' : 'client'}`;
-            assert(
-              ast?.program.body.some(
-                item =>
-                  t.isExportNamedDeclaration(item) &&
-                  item.source?.value === specifier,
-              ),
-              `${file}: must re-export ${specifier}`,
-            );
-          }
-        });
-    }
-    if (exists(`${shell}/package.json`))
-      guarded(`${shell}/package.json`, () =>
-        assert(
-          JSON.parse(read(`${shell}/package.json`)).exports?.[
-            './api/clients'
-          ] === './src/api/vertical-clients.ts',
-          `${shell}/package.json: must export ./api/clients`,
-        ),
+    /**
+     * A Shell composes other owners' UI, never their API clients. It must not
+     * publish a client registry, and no value its public source exports may
+     * be, contain, return or re-export a client built from another owner's
+     * API contract.
+     */
+    const checkShellExports = (shellPath: string) => {
+      const packageFile = `${shellPath}/package.json`;
+      const manifest = JSON.parse(read(packageFile));
+      noPath(
+        `${shellPath}/src/api/vertical-clients.ts`,
+        'Shell client registries are forbidden; import each owner client directly',
       );
+      assert(
+        !Object.hasOwn(manifest.exports ?? {}, './api/clients'),
+        `${packageFile}: Shell ./api/clients exports are forbidden`,
+      );
+      const owner = fs.realpathSync(absolute(shellPath));
+      const invalidExport = () =>
+        assert(false, `${packageFile}: invalid Shell public source export`);
+      const targets = (exported: unknown): string[] =>
+        typeof exported === 'string'
+          ? [exported]
+          : exported && typeof exported === 'object'
+            ? Object.values(exported).flatMap(targets)
+            : [];
+      const filesUnder = (
+        directory: string,
+        seen = new Set<string>(),
+      ): string[] => {
+        const real = fs.realpathSync(absolute(directory));
+        if (real !== owner && !inside(owner, real)) {
+          invalidExport();
+          return [];
+        }
+        if (seen.has(real)) return [];
+        seen.add(real);
+        return fs
+          .readdirSync(absolute(directory), { withFileTypes: true })
+          .flatMap(entry => {
+            if (ignored.has(entry.name)) return [];
+            const file = `${directory}/${entry.name}`;
+            const stat = fs.statSync(absolute(file));
+            return stat.isDirectory()
+              ? filesUnder(file, seen)
+              : stat.isFile()
+                ? [file]
+                : [];
+          });
+      };
+      const exportedFiles = (target: string): string[] => {
+        if (!target.includes('*')) return [`${shellPath}/${target.slice(2)}`];
+        const prefix = target.slice(0, target.indexOf('*'));
+        const pattern = new RegExp(
+          `^${target
+            .split('*')
+            .map(part => part.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
+            .join('.*')}$`,
+          'u',
+        );
+        return filesUnder(
+          `${shellPath}/${prefix.slice(2, prefix.lastIndexOf('/'))}`,
+        ).filter(file =>
+          pattern.test(`./${path.posix.relative(shellPath, file)}`),
+        );
+      };
+      const ownClientPrefix = `${manifest.name}/api/`;
+      const foreignSpecifier = (specifier: string) =>
+        /\/api\/(?:rpc-)?client$/u.test(specifier) &&
+        !specifier.startsWith(ownClientPrefix);
+      for (const target of targets(manifest.exports)) {
+        if (!/\.[cm]?[jt]sx?$/u.test(target)) continue;
+        if (!target.startsWith('./') || target.split(/[\\/]/u).includes('..')) {
+          invalidExport();
+          continue;
+        }
+        for (const candidate of exportedFiles(target)) {
+          const file = clientExportFile(
+            shellPath,
+            `./${path.posix.relative(shellPath, candidate)}`,
+          );
+          if (!file) {
+            invalidExport();
+            continue;
+          }
+          assert(
+            !exposesForeignClient(file, owner, foreignSpecifier),
+            `${file}: Shell public exports must not expose another owner's API client`,
+          );
+        }
+      }
+    };
+    /** Whether any value module `entry` exports reaches a foreign API client. */
+    const exposesForeignClient = (
+      entry: string,
+      owner: string,
+      foreignSpecifier: (specifier: string) => boolean,
+    ): boolean => {
+      const graph = createModuleGraph();
+      const seenValues = new Set<t.Node>();
+      const seenExports = new Map<string, Set<string>>();
+      const workspacePath = (module: SourceModule) =>
+        normalize(path.relative(workspace, module.path));
+      const resolveSource = (from: string, specifier: string) =>
+        resolveRelative(from, specifier) ?? ownerClients.get(specifier);
+      const returnExpressions = (node: t.Node): t.Node[] => {
+        if (t.isReturnStatement(node))
+          return node.argument ? [node.argument] : [];
+        if (t.isFunction(node)) return [];
+        return (t.VISITOR_KEYS[node.type] ?? []).flatMap(key => {
+          const value: unknown = Reflect.get(node, key);
+          return (Array.isArray(value) ? value : [value]).flatMap(child =>
+            t.isNode(child) ? returnExpressions(child) : [],
+          );
+        });
+      };
+      const nestedValues = (node: t.Node): t.Node[] => {
+        if (t.isObjectExpression(node))
+          return node.properties.flatMap(property =>
+            t.isObjectProperty(property)
+              ? [property.value]
+              : t.isObjectMethod(property)
+                ? returnExpressions(property.body)
+                : t.isSpreadElement(property)
+                  ? [property.argument]
+                  : [],
+          );
+        if (t.isArrayExpression(node))
+          return node.elements.filter(element => element !== null);
+        if (t.isFunction(node))
+          return t.isBlockStatement(node.body)
+            ? returnExpressions(node.body)
+            : [node.body];
+        return [];
+      };
+      const foreignValue = (
+        value: ReturnType<ModuleGraph['evaluate']>[number],
+        from: SourceModule,
+      ): boolean => {
+        if (value.kind === 'external') {
+          const source = resolveSource(workspacePath(from), value.specifier);
+          if (!source) return foreignSpecifier(value.specifier);
+          return value.name === '*'
+            ? inspect(source)
+            : exportedValue(source, value.name);
+        }
+        if (
+          value.kind === 'unresolved' &&
+          t.isImportDeclaration(value.node) &&
+          value.node.specifiers.some(specifier =>
+            t.isImportNamespaceSpecifier(specifier),
+          )
+        ) {
+          const specifier = value.node.source.value;
+          const source = resolveSource(workspacePath(value.module), specifier);
+          return source ? inspect(source) : foreignSpecifier(specifier);
+        }
+        if (value.kind !== 'node' || seenValues.has(value.node)) return false;
+        seenValues.add(value.node);
+        const { node, module } = value;
+        if (
+          (t.isCallExpression(node) || t.isOptionalCallExpression(node)) &&
+          graph
+            .evaluate(module, node.callee)
+            .some(
+              callee =>
+                callee.kind === 'external' &&
+                callee.specifier === effect &&
+                clientFactories.has(callee.name),
+            )
+        ) {
+          const [argument] = node.arguments;
+          const binding = argument
+            ? graphBinding(graph, module, argument)
+            : undefined;
+          if (
+            module.boundary !== owner ||
+            binding?.kind !== 'declaration' ||
+            binding.module.boundary !== owner
+          )
+            return true;
+        }
+        return nestedValues(node).some(expression =>
+          graph
+            .evaluate(module, expression)
+            .some(nested => foreignValue(nested, module)),
+        );
+      };
+      const exportName = (node: t.Identifier | t.StringLiteral) =>
+        t.isIdentifier(node) ? node.name : node.value;
+      const names = (source: string, visited = new Set<string>()): string[] => {
+        if (visited.has(source)) return [];
+        visited.add(source);
+        return graph
+          .module(absolute(source))
+          .file.program.body.flatMap(statement => {
+            if (t.isExportDefaultDeclaration(statement)) return ['default'];
+            if (
+              (!t.isExportNamedDeclaration(statement) &&
+                !t.isExportAllDeclaration(statement)) ||
+              statement.exportKind === 'type'
+            )
+              return [];
+            if (t.isExportAllDeclaration(statement)) {
+              const target = resolveSource(source, statement.source.value);
+              return target
+                ? names(target, visited).filter(name => name !== 'default')
+                : [];
+            }
+            return statement.declaration
+              ? Object.keys(t.getOuterBindingIdentifiers(statement.declaration))
+              : statement.specifiers.flatMap(specifier =>
+                  t.isExportSpecifier(specifier) &&
+                  specifier.exportKind === 'type'
+                    ? []
+                    : [exportName(specifier.exported)],
+                );
+          });
+      };
+      const exportedValue = (source: string, name: string): boolean => {
+        const visited = seenExports.get(source) ?? new Set<string>();
+        if (visited.has(name)) return false;
+        visited.add(name);
+        seenExports.set(source, visited);
+        const module = graph.module(absolute(source));
+        const evaluates = (from: SourceModule, node: t.Node) =>
+          graph.evaluate(from, node).some(value => foreignValue(value, from));
+        const binding = graph.resolve(module, name, 'export');
+        if (binding?.kind === 'external')
+          return foreignValue({ ...binding, members: [] }, module);
+        if (binding?.kind === 'declaration')
+          return evaluates(binding.module, binding.expression);
+        for (const statement of module.file.program.body) {
+          if (t.isExportDefaultDeclaration(statement) && name === 'default')
+            return evaluates(module, statement.declaration);
+          if (
+            !t.isExportNamedDeclaration(statement) ||
+            statement.exportKind === 'type'
+          )
+            continue;
+          if (
+            t.isFunctionDeclaration(statement.declaration) &&
+            statement.declaration.id?.name === name
+          )
+            return evaluates(module, statement.declaration);
+          const specifier = statement.specifiers.find(
+            item => exportName(item.exported) === name,
+          );
+          if (!specifier) continue;
+          if (t.isExportSpecifier(specifier) && specifier.exportKind === 'type')
+            return false;
+          if (!statement.source)
+            return t.isExportSpecifier(specifier)
+              ? evaluates(module, specifier.local)
+              : false;
+          const target = resolveSource(source, statement.source.value);
+          if (!target) return foreignSpecifier(statement.source.value);
+          if (t.isExportNamespaceSpecifier(specifier)) return inspect(target);
+          if (t.isExportSpecifier(specifier))
+            return exportedValue(target, exportName(specifier.local));
+        }
+        return module.file.program.body.some(statement => {
+          if (
+            !t.isExportAllDeclaration(statement) ||
+            statement.exportKind === 'type'
+          )
+            return false;
+          const target = resolveSource(source, statement.source.value);
+          return (
+            !!target &&
+            names(target).includes(name) &&
+            exportedValue(target, name)
+          );
+        });
+      };
+      const inspect = (source: string): boolean =>
+        [...new Set(names(source))].some(name => exportedValue(source, name));
+      return inspect(entry);
+    };
+    // Public client entry points by specifier, so a Shell re-export of
+    // another owner's `<package>/api/client` is followed into that owner.
+    const ownerClients = new Map<string, string>();
+    for (const app of apps)
+      if (exists(`${app.path}/package.json`)) {
+        const manifest = JSON.parse(read(`${app.path}/package.json`));
+        for (const key of ['./api/client', './api/rpc-client'] as const) {
+          const file = clientExportFile(app.path, manifest.exports?.[key]);
+          if (file) ownerClients.set(`${manifest.name}${key.slice(1)}`, file);
+        }
+      }
+    for (const shell of apps.filter(app => app.kind === 'shell'))
+      guarded(shell.path, () => checkShellExports(normalize(shell.path)));
     if (exists('topology/reference-topology.json'))
       guarded('topology/reference-topology.json', () => {
         for (const vertical of JSON.parse(

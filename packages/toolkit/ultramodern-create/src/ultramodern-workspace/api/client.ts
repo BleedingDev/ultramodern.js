@@ -1,14 +1,7 @@
-import {
-  resolveApiProtocol,
-  resolveApiStem,
-  verticalApiApps,
-} from '../descriptors';
-import { packageName, toPascalCase } from '../naming';
-import type { WorkspaceApi, WorkspaceApp } from '../types';
-import {
-  createCheckoutCartClientExports,
-  serviceHasCheckoutCartState,
-} from './checkout-cart';
+import { resolveApiStem } from '../descriptors';
+import { toPascalCase } from '../naming';
+import type { WorkspaceApi } from '../types';
+import { createCheckoutCartClientExports } from './checkout-cart';
 import {
   verticalApiErrorStem,
   verticalApiExport,
@@ -165,51 +158,5 @@ export const ${createName} = (
       client.${groupName}.create({ payload: { title } }),
     ),
   );${checkoutCartClientExports}
-`;
-}
-
-export function createShellApiClient(
-  scope: string,
-  remotes: WorkspaceApp[] = [],
-): string {
-  const exports = verticalApiApps(remotes)
-    .map(remote => {
-      const stem = resolveApiStem(remote);
-      const pascalStem = toPascalCase(stem);
-      const rpc = resolveApiProtocol(remote) === 'rpc';
-      const pascalSingular = toPascalCase(verticalApiErrorStem(remote));
-      const checkoutCartExports =
-        !rpc && serviceHasCheckoutCartState(remote)
-          ? `  addCheckoutCartItem,
-  clearCheckoutCart,
-  getCheckoutCart,
-  removeCheckoutCartItem,
-  type CheckoutAddCartItemInput,
-  type CheckoutCart,
-  type CheckoutCartLine,
-`
-          : '';
-      if (rpc) {
-        return `export {
-  get${pascalStem}Rpc,
-  list${pascalStem}Rpc,
-  make${pascalStem}RpcClient,
-  type ${pascalStem}RpcClientOptions,
-} from '${packageName(scope, remote.packageSuffix)}/api/rpc-client';`;
-      }
-      return `export {
-${checkoutCartExports}  create${pascalSingular},
-  create${pascalStem}Client,
-  get${pascalSingular},
-  get${pascalStem}Readiness,
-  list${pascalStem},
-  type ${pascalStem}ClientOptions,
-} from '${packageName(scope, remote.packageSuffix)}/api/client';`;
-    })
-    .join('\n\n');
-
-  return exports
-    ? `${exports}\n`
-    : `export const ultramodernVerticalClients = [] as const;
 `;
 }

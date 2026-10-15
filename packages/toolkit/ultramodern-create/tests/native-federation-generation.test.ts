@@ -6,6 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { parse } from '@babel/parser';
 import { transformSync } from 'esbuild';
+import { WORKSPACE_PACKAGE_VERSION } from '../src/ultramodern-package-source';
 import { rewriteShellAppFiles } from '../src/ultramodern-workspace/add-vertical/shell-files';
 import {
   createVerticalDescriptor,
@@ -208,8 +209,10 @@ for (const renderer of ['solid', 'octane'] as const) {
         const shellManifest = JSON.parse(
           files[`${shell.directory}/package.json`]!,
         );
+        // The Shell imports owner clients directly and republishes none.
+        assert.equal(shellManifest.exports?.['./api/clients'], undefined);
         for (const target of Object.values(manifest.exports).concat(
-          Object.values(shellManifest.exports),
+          Object.values(shellManifest.exports ?? {}),
         )) {
           if (
             typeof target !== 'string' ||
@@ -425,7 +428,7 @@ test('native MF rejects foreign-renderer composition before writing output', () 
   }
 });
 
-test('native shells emit headless API clients without declaring a UI remote', () => {
+test('native shells depend on headless API units without declaring a UI remote', () => {
   const temporary = fs.mkdtempSync(
     path.join(
       process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
@@ -464,10 +467,17 @@ test('native shells emit headless API clients without declaring a UI remote', ()
       manifest.dependencies['@module-federation/modern-js-v3'],
       undefined,
     );
-    assert.ok(
-      fs.existsSync(
-        path.join(temporary, shell.directory, 'src/api/vertical-clients.ts'),
-      ),
+    // A Shell may import each owner's client directly, but never republishes
+    // them through a client registry.
+    const shellManifest = JSON.parse(files[`${shell.directory}/package.json`]!);
+    assert.equal(
+      shellManifest.dependencies[manifest.name],
+      WORKSPACE_PACKAGE_VERSION,
+    );
+    assert.equal(shellManifest.exports?.['./api/clients'], undefined);
+    assert.equal(
+      files[`${shell.directory}/src/api/vertical-clients.ts`],
+      undefined,
     );
     const config = evaluateConfig(
       fs.readFileSync(

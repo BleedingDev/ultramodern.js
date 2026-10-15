@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createShellApiClient } from '../api';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
@@ -14,7 +13,6 @@ import {
 } from '../demo-components';
 import {
   appEmitsBrowserUi,
-  appHasApi,
   appI18nNamespace,
   resolveRemoteRefs,
   shellApp,
@@ -131,12 +129,6 @@ export function shellAppArtifacts(
           ],
         ),
       ),
-      ...(remotes.some(appHasApi)
-        ? {
-            [`${shellHost.directory}/src/api/vertical-clients.ts`]:
-              createShellApiClient(scope, remotes),
-          }
-        : {}),
     };
     return {
       shellHost,
@@ -202,8 +194,6 @@ export function shellAppArtifacts(
       createShellWorkerRemoteComponents(shellHost, uiRemotes),
     [`${shellHost.directory}/src/routes/shell-frame.tsx`]:
       createShellFrameComponent(shellHost),
-    [`${shellHost.directory}/src/api/vertical-clients.ts`]:
-      createShellApiClient(scope, remotes),
   };
   return {
     shellHost,

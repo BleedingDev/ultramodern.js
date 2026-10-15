@@ -1,4 +1,3 @@
-import { createShellApiClient } from './api';
 import { writeAppApiFiles } from './api/write-app-api';
 import {
   createAppEnvDts,
@@ -60,7 +59,7 @@ type WriteAppContext = {
   /** Whether this app emits browser/UI artifacts (false for `api-only`). */
   emitsUi: boolean;
   remotes: WorkspaceApp[];
-  /** Complete caller inventory for backend dependencies and API clients. */
+  /** Complete caller inventory for backend and API package dependencies. */
   availableRemotes: WorkspaceApp[];
   bridge: UltramodernBridgeConfig | undefined;
   publicWeb: ReturnType<typeof createPublicWebAppArtifacts>;
@@ -310,7 +309,6 @@ function writeAppRouteAndShellFiles({
   resolvedApp,
   emitsUi,
   remotes,
-  availableRemotes,
   publicWeb,
   writeAppFile,
 }: WriteAppContext) {
@@ -360,11 +358,6 @@ function writeAppRouteAndShellFiles({
     writeAppFile(
       'src/routes/shell-frame.tsx',
       createShellFrameComponent(resolvedApp),
-    );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/src/api/vertical-clients.ts`,
-      createShellApiClient(scope, availableRemotes),
     );
   } else {
     for (const expose of distributedSsrExposes(resolvedApp)) {

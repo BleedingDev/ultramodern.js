@@ -2001,7 +2001,7 @@ test('config errors and missing owners fail closed as tool failures', () => {
   expect(
     checkMicroVerticalApiBoundaries({
       workspaceRoot: root,
-      configuredApps: [{ path: '../escape' }],
+      configuredApps: [{ path: '../escape', kind: 'vertical' }],
     }).toolErrors.length,
   ).toBe(1);
   fs.rmSync(owner, { recursive: true });
@@ -2108,8 +2108,8 @@ test('API-only units resolve a callable app-owned client from the public export'
   write(packagePath, JSON.stringify(manifest));
 
   write(authoredClient, `export { client } from '../../../foreign-client.ts';`);
-  expect(check().diagnostics.join('\n')).toContain(
-    'must call makeEffectHttpApiClient(...)',
+  expect(check().toolErrors.join('\n')).toContain(
+    'consumer module closure escapes its owner',
   );
   write(authoredClient, fs.readFileSync(foreignClient, 'utf8'));
 
@@ -2119,7 +2119,9 @@ test('API-only units resolve a callable app-owned client from the public export'
       .readFileSync(authoredClient, 'utf8')
       .replace("'../../shared/api'", "'../../shared/rpc'"),
   );
-  expect(check().diagnostics.join('\n')).toContain('must import');
+  expect(check().toolErrors.join('\n')).toContain(
+    'unresolved relative dependency',
+  );
 });
 
 test('legacy operation mappings are explicit and business-agnostic', () => {
@@ -2325,4 +2327,304 @@ test('infers non-cart operations only from reachable named native endpoint group
         "\nconst disconnected = HttpApiEndpoint.post('reindex', '/catalog/search/reindex', {success: Schema.String});",
     ),
   ).toContain('operation map');
+});
+
+test('every configured and topology app must declare a known kind', () => {
+  const check = (configuredApps?: readonly { path: string; kind: string }[]) =>
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      ...(configuredApps ? { configuredApps } : {}),
+    }).toolErrors.join('\n');
+  expect(
+    check([{ path: 'verticals/catalog' } as { path: string; kind: string }]),
+  ).toContain('verticals/catalog: invalid kind');
+  expect(check([{ path: 'verticals/catalog', kind: 'portal' }])).toContain(
+    'verticals/catalog: invalid kind',
+  );
+  const topologyPath = path.join(root, 'topology/reference-topology.json');
+  const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
+  delete topology.verticals[0].kind;
+  write(topologyPath, JSON.stringify(topology));
+  expect(check()).toContain('verticals/catalog: invalid kind');
+});
+
+test('module graph resolves exact lexical references and unbound globals', () => {
+  const modulePath = path.join(root, 'verticals/catalog/src/lexical.ts');
+  write(
+    modulePath,
+    `import * as contract from '../shared/api.ts';
+const api = contract.catalogApi;
+export const outer = api;
+export function inner() { const api = 'shadow'; return api; }
+const loader = require;
+export const loaded = require('./x');
+export function local(require: (id: string) => unknown) { return require('./y'); }`,
+  );
+  const graph = createModuleGraph();
+  const module = graph.module(modulePath);
+  const identifiers: t.Identifier[] = [];
+  t.traverseFast(module.file, node => {
+    if (t.isIdentifier(node)) identifiers.push(node);
+  });
+  // Declaration and reference of the module `api`, then of the shadowing one.
+  const resolvedApis = identifiers
+    .filter(node => node.name === 'api')
+    .map(node => {
+      const binding = graph.resolveReference(module, node);
+      return binding?.kind === 'declaration' ? binding.expression.type : 'none';
+    });
+  expect(resolvedApis).toEqual([
+    'MemberExpression',
+    'MemberExpression',
+    'StringLiteral',
+    'StringLiteral',
+  ]);
+  const namespaceMember = (() => {
+    let found: t.MemberExpression | undefined;
+    t.traverseFast(module.file, node => {
+      if (
+        t.isMemberExpression(node) &&
+        t.isIdentifier(node.object, { name: 'contract' })
+      )
+        found = node;
+    });
+    return found!;
+  })();
+  const resolved = graph.resolveReference(module, namespaceMember);
+  expect(resolved?.kind).toBe('declaration');
+  expect(
+    resolved?.kind === 'declaration' &&
+      resolved.module.path === fs.realpathSync(file),
+  ).toBe(true);
+  const requires = identifiers.filter(node => node.name === 'require');
+  // `const loader = require` and `require('./x')` read the global; the
+  // parameter and its call are bound.
+  expect(requires.map(node => graph.isUnboundReference(module, node))).toEqual([
+    true,
+    true,
+    false,
+    false,
+  ]);
+});
+
+test('client closures follow runtime dependencies and fail closed', () => {
+  const clientPath = path.join(
+    root,
+    'verticals/catalog/src/api/catalog-client.ts',
+  );
+  const factory = path.join(root, 'verticals/catalog/src/api/factory.ts');
+  write(
+    factory,
+    `import { makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from '../../shared/api'; export const make = () => makeEffectHttpApiClient(catalogApi);`,
+  );
+  const check = (source: string) => {
+    write(clientPath, source);
+    return checkMicroVerticalApiConsumerFiles({ workspaceRoot: root });
+  };
+  const head = `import { Effect } from '@modern-js/bff-effect/effect-client';`;
+  // `import()` and the global `require()` reach the composed factory.
+  for (const load of [
+    `export const client = import('./factory.ts');`,
+    `export const client = require('./factory.ts');`,
+  ])
+    expect(check(`${head} ${load}`)).toMatchObject({
+      diagnostics: [],
+      toolErrors: [],
+    });
+  // A type-only import is not a runtime dependency, so it is not followed.
+  expect(
+    check(
+      `${head} import type { Missing } from './missing.ts'; export type { Gone } from './gone.ts'; export const client = import('./factory.ts');`,
+    ),
+  ).toMatchObject({ diagnostics: [], toolErrors: [] });
+  expect(
+    check(`${head} export const client = './factory.ts';`).diagnostics.join(
+      '\n',
+    ),
+  ).toContain('must call makeEffectHttpApiClient(...)');
+  // A locally bound `require` is an ordinary function.
+  expect(
+    check(
+      `${head} import './factory.ts'; const require = (name: string) => name; export const client = require(name);`,
+    ).toolErrors,
+  ).toEqual([]);
+  for (const [source, error] of [
+    [
+      `${head} export const client = import('./missing.ts');`,
+      'unresolved relative dependency',
+    ],
+    [
+      `${head} export const client = import(name);`,
+      'nonliteral runtime dependency',
+    ],
+    [
+      `${head} export const client = require(name);`,
+      'nonliteral runtime dependency',
+    ],
+    [
+      `${head} export { client } from '../../../../packages/escape.ts';`,
+      'escapes its owner',
+    ],
+  ] as const) {
+    if (source.includes('escape.ts'))
+      write(path.join(root, 'packages/escape.ts'), 'export const client = 1;');
+    expect(check(source).toolErrors.join('\n')).toContain(error);
+  }
+});
+
+test('client closures enforce depth and module budgets', () => {
+  const directory = path.join(root, 'verticals/catalog/src/api');
+  const chain = (length: number) => {
+    for (let index = 0; index < length; index += 1)
+      write(
+        path.join(directory, `step-${index}.ts`),
+        index + 1 < length ? `export * from './step-${index + 1}.ts';` : '',
+      );
+    write(
+      path.join(directory, 'catalog-client.ts'),
+      `import { Effect, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from '../../shared/api'; export * from './step-0.ts'; export const client = makeEffectHttpApiClient(catalogApi);`,
+    );
+    return checkMicroVerticalApiConsumerFiles({ workspaceRoot: root })
+      .toolErrors;
+  };
+  expect(chain(100)).toEqual([]);
+  expect(chain(130).join('\n')).toContain('import-depth analysis budget');
+});
+
+test('two spellings of one module resolve to the same contract', () => {
+  fs.symlinkSync(
+    path.join(root, 'verticals/catalog/shared'),
+    path.join(root, 'verticals/catalog/src/contract'),
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/api/catalog-client.ts'),
+    `import { Effect, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from '../contract/api.ts'; export const client = makeEffectHttpApiClient(catalogApi);`,
+  );
+  expect(
+    checkMicroVerticalApiConsumerFiles({ workspaceRoot: root }),
+  ).toMatchObject({ diagnostics: [], toolErrors: [] });
+});
+
+test('source rules get one graph per source file', () => {
+  const graphs = new Map<string, unknown>();
+  const rule: MicroVerticalApiSourceRule = ({ file, graph }) => {
+    graphs.set(file, graph);
+    return [];
+  };
+  const second: MicroVerticalApiSourceRule = ({ file, graph }) =>
+    graphs.get(file) === graph ? [] : ['rules saw different graphs'];
+  expect(
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      sourceRules: [rule, second],
+    }),
+  ).toMatchObject({ diagnostics: [], toolErrors: [] });
+  expect(graphs.size).toBeGreaterThan(1);
+  expect(new Set(graphs.values()).size).toBe(graphs.size);
+});
+
+describe('Shell apps are selected by kind, not by path', () => {
+  const shellRoot = () => path.join(root, 'apps/portal');
+  beforeEach(() => {
+    const topologyPath = path.join(root, 'topology/reference-topology.json');
+    const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
+    topology.shell = {
+      id: 'portal',
+      kind: 'shell',
+      path: 'apps/portal',
+      package: '@fixture/portal',
+    };
+    write(topologyPath, JSON.stringify(topology));
+  });
+  const shell = (exports: Record<string, unknown>, files = {}) => {
+    write(
+      path.join(shellRoot(), 'package.json'),
+      JSON.stringify({ name: '@fixture/portal', exports }),
+    );
+    for (const [file, source] of Object.entries(files))
+      write(path.join(shellRoot(), file), source as string);
+    return checkMicroVerticalApiConsumerFiles({ workspaceRoot: root });
+  };
+  const foreign =
+    "Shell public exports must not expose another owner's API client";
+
+  test('rejects client registries and the ./api/clients export', () => {
+    const result = shell(
+      { './api/clients': './src/api/vertical-clients.ts' },
+      {
+        'src/api/vertical-clients.ts': `export * from '@fixture/catalog/api/client';`,
+      },
+    );
+    const output = result.diagnostics.join('\n');
+    expect(output).toContain('apps/portal/src/api/vertical-clients.ts');
+    expect(output).toContain('./api/clients exports are forbidden');
+  });
+
+  test('accepts UI-only public exports and its own client', () => {
+    expect(
+      shell(
+        {
+          '.': './src/index.ts',
+          './components/*': './src/components/*.tsx',
+          './styles.css': './src/styles.css',
+        },
+        {
+          'src/index.ts': `export const title = 'Portal'; export type { CatalogClient } from '@fixture/catalog/api/client';`,
+          'src/components/card.tsx': 'export const Card = () => null;',
+          'src/styles.css': '',
+        },
+      ),
+    ).toMatchObject({ diagnostics: [], toolErrors: [] });
+  });
+
+  test.each([
+    [
+      'a direct re-export',
+      `export { client } from '@fixture/catalog/api/client';`,
+    ],
+    ['a star re-export', `export * from '@fixture/catalog/api/client';`],
+    [
+      'a namespace re-export',
+      `export * as catalog from '@fixture/catalog/api/client';`,
+    ],
+    [
+      'an object that holds the client',
+      `import { client } from '@fixture/catalog/api/client'; export const clients = { catalog: client };`,
+    ],
+    [
+      'a function that returns the client',
+      `import * as catalog from '@fixture/catalog/api/client'; export function clients() { return catalog.client; }`,
+    ],
+    [
+      'a client the Shell builds from a foreign contract',
+      `import { makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from '@fixture/catalog/api'; export const client = makeEffectHttpApiClient(catalogApi);`,
+    ],
+    [
+      'an unresolved foreign client specifier',
+      `export { client } from '@fixture/unknown/api/rpc-client';`,
+    ],
+  ])('rejects %s', (_name, source) => {
+    expect(
+      shell({ '.': './src/index.ts' }, { 'src/index.ts': source }).diagnostics,
+    ).toContain(`apps/portal/src/index.ts: ${foreign}`);
+  });
+
+  test('inspects every file a wildcard export publishes', () => {
+    const result = shell(
+      { './features/*': { import: './src/features/*.ts' } },
+      {
+        'src/features/home.ts': 'export const home = 1;',
+        'src/features/catalog.ts': `export { client } from '@fixture/catalog/api/client';`,
+      },
+    );
+    expect(result.diagnostics).toEqual([
+      `apps/portal/src/features/catalog.ts: ${foreign}`,
+    ]);
+  });
+
+  test('rejects exports that escape the Shell', () => {
+    expect(
+      shell({ '.': '../catalog/src/index.ts' }).diagnostics.join('\n'),
+    ).toContain('invalid Shell public source export');
+  });
 });
