@@ -42,7 +42,7 @@ describe('UltraModern release identity', () => {
       unitId,
     });
 
-    expect(marker).toMatch(/^[a-f0-9]{16}$/u);
+    expect(marker).toMatch(/^[a-f0-9]{64}$/u);
     expect(
       createUltramodernReleaseBuildMarker({
         generationBuildMarker,

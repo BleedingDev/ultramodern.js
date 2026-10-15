@@ -124,7 +124,8 @@ test('Cloudflare proof expects the release marker of the proven source revision'
   const generationBuildMarker = '26e7bfcc7c19d1d4';
   const sourceRevision = '42d9606f9556053f96c8c694660ded1811b6d149';
   // Marker observed on the live app/assortment worker built at sourceRevision.
-  const releaseBuildMarker = 'ecaecb8391528f91';
+  const releaseBuildMarker =
+    'ecaecb8391528f91311aaf330469255806369bbf36c456de772d3a6d555d6dc2';
   fs.mkdirSync(path.join(root, 'topology/local-overlays'), { recursive: true });
   fs.writeFileSync(
     path.join(root, 'topology/reference-topology.json'),

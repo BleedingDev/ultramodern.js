@@ -25,9 +25,18 @@ export interface RendererBuildIdentityOptions {
   mode: 'development' | 'production';
   /** Delivery-unit app id; defaults to the application package name. */
   appId?: string;
-  /** Delivery-unit id from the authoritative topology record, when declared. */
-  unitId?: string;
-  /** Externally authenticated source revision (delivery unit or CI). */
+  /**
+   * The declared delivery unit's release identity, resolved before the build
+   * by `resolveUltramodernReleaseIdentity`. A promotable production build
+   * adopts its buildMarker as the buildId, so consumers that resolve the unit
+   * identity before compiling see the marker the built artifacts carry.
+   */
+  deliveryUnit?: {
+    readonly unitId: string;
+    readonly buildMarker: string;
+    readonly sourceRevision: string;
+  };
+  /** Externally authenticated source revision (CI) for an undeclared app. */
   sourceRevision?: string;
   /** Actual final entry ownership, supplied by the selected renderer composition. */
   routerBindings: RendererRouterBindings;
@@ -50,6 +59,8 @@ const LOCKFILES = [
   'bun.lock',
   'bun.lockb',
 ];
+
+const RELEASE_BUILD_MARKER_PATTERN = /^[a-f0-9]{64}$/u;
 
 /** Stable per process: one dev session or dirty build keeps one buildId. */
 const processNonce = randomUUID();
@@ -134,10 +145,12 @@ export function resolveRendererBuildIdentities(
     throw new Error(
       'Renderer application identity requires a delivery artifact appId or a package name.',
     );
-  const unitId = options.unitId;
+  const { deliveryUnit } = options;
   if (
-    unitId !== undefined &&
-    (typeof unitId !== 'string' || !unitId || unitId.trim() !== unitId)
+    deliveryUnit !== undefined &&
+    (typeof deliveryUnit.unitId !== 'string' ||
+      !deliveryUnit.unitId ||
+      deliveryUnit.unitId.trim() !== deliveryUnit.unitId)
   )
     throw new Error(
       'Renderer delivery-unit identity requires a nonempty trimmed unitId.',
@@ -145,21 +158,34 @@ export function resolveRendererBuildIdentities(
   const profileKey = rendererProfileKey(options.profile);
   const sourceRevision = resolveUltramodernSourceRevision(
     projectRoot,
-    options.sourceRevision,
+    deliveryUnit ? deliveryUnit.sourceRevision : options.sourceRevision,
   );
-  // The buildId is the delivery unit's buildMarker, so it must name the unit:
-  // every app of one workspace shares the revision, lockfile and profile.
-  const buildId = sha256(
-    JSON.stringify([
-      appId,
-      unitId ?? null,
-      profileKey,
-      lockfileHash(projectRoot),
-      options.mode === 'development' || sourceRevision === 'workspace'
-        ? processNonce
-        : sourceRevision,
-    ]),
-  );
+  const promotable =
+    options.mode === 'production' && sourceRevision !== 'workspace';
+  let buildId: string;
+  if (promotable && deliveryUnit) {
+    // One identity per delivery unit, known before compilation.
+    if (
+      deliveryUnit.sourceRevision !== sourceRevision ||
+      !RELEASE_BUILD_MARKER_PATTERN.test(deliveryUnit.buildMarker)
+    )
+      throw new Error(
+        `Renderer delivery unit ${deliveryUnit.unitId} must carry the release identity of source revision ${sourceRevision}.`,
+      );
+    buildId = deliveryUnit.buildMarker;
+  } else {
+    // Undeclared apps and non-promotable builds (development, dirty trees)
+    // keep a per-app id; non-promotable ids are unique per process.
+    buildId = sha256(
+      JSON.stringify([
+        appId,
+        deliveryUnit?.unitId ?? null,
+        profileKey,
+        lockfileHash(projectRoot),
+        promotable ? sourceRevision : processNonce,
+      ]),
+    );
+  }
   const identities = Object.fromEntries(
     entries.map(entryName => [
       entryName,

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveUltramodernReleaseIdentity } from '../src/release-identity';
 import {
   type RendererBuildIdentityOptions,
   rendererProfileKey,
@@ -169,7 +170,7 @@ test('a renderer that disagrees with its profile is rejected', async () => {
   ).toThrow(/Renderer\/profile identity mismatch/u);
 });
 
-test('apps of one workspace at one clean commit get distinct buildIds', async () => {
+test('apps of one workspace at one clean commit adopt their distinct release identities', async () => {
   const workspaceRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), 'renderer-build-identity-workspace-'),
   );
@@ -203,29 +204,59 @@ test('apps of one workspace at one clean commit get distinct buildIds', async ()
     '-m',
     'fixture',
   ]);
-  const resolve = (app: string, unitId?: string) =>
+  // Each unit's release identity, as consumers resolve it before the build.
+  const release = (app: string) =>
+    resolveUltramodernReleaseIdentity({
+      generationBuildMarker: `${app}-generation`,
+      unitId: `demo/${app}`,
+      workspaceRoot,
+    });
+  const resolve = (
+    app: string,
+    deliveryUnit: RendererBuildIdentityOptions['deliveryUnit'] | undefined = {
+      unitId: `demo/${app}`,
+      ...release(app),
+    },
+    mode: RendererBuildIdentityOptions['mode'] = 'production',
+  ) =>
     resolveRendererBuildIdentities({
       projectRoot: path.join(workspaceRoot, 'apps', app),
       renderer: 'solid',
       profile: solidProfile,
       routerBindings: routerBindings(solidProfile),
       entryNames: ['main'],
-      mode: 'production',
+      mode,
       appId: app,
-      ...(unitId ? { unitId } : {}),
+      ...(deliveryUnit ? { deliveryUnit } : {}),
     });
-  const shell = resolve('shell', 'demo/shell');
-  const catalog = resolve('catalog', 'demo/catalog');
+  const shell = resolve('shell');
+  const catalog = resolve('catalog');
   // Same revision, lockfile and renderer profile: only the unit differs.
   expect(shell.sourceRevision).toMatch(/^[a-f0-9]{40}$/u);
   expect(catalog.sourceRevision).toBe(shell.sourceRevision);
   expect(catalog.profileKey).toBe(shell.profileKey);
   expect(catalog.buildId).not.toBe(shell.buildId);
+  // A promotable build adopts the unit's pre-build release identity.
+  expect(shell.buildId).toBe(release('shell').buildMarker);
+  expect(catalog.buildId).toBe(release('catalog').buildMarker);
+  expect(shell.buildId).toMatch(/^[a-f0-9]{64}$/u);
   expect(shell.identities.main.buildId).toBe(shell.buildId);
-  expect(catalog.identities.main.buildId).toBe(catalog.buildId);
-  // Still reproducible per unit, and the unit id is part of the identity.
-  expect(resolve('shell', 'demo/shell').buildId).toBe(shell.buildId);
-  expect(resolve('shell', 'demo/shell-next').buildId).not.toBe(shell.buildId);
-  expect(resolve('shell').buildId).not.toBe(shell.buildId);
-  expect(() => resolve('shell', ' demo/shell')).toThrow(/unitId/u);
+  // Undeclared apps still get distinct per-app ids.
+  expect(resolve('shell', undefined).buildId).not.toBe(
+    resolve('catalog', undefined).buildId,
+  );
+  // Development stays per process, never the release identity.
+  expect(resolve('shell', undefined, 'development').buildId).not.toBe(
+    shell.buildId,
+  );
+  expect(() =>
+    resolve('shell', { unitId: ' demo/shell', ...release('shell') }),
+  ).toThrow(/unitId/u);
+  expect(() =>
+    resolve('shell', {
+      unitId: 'demo/shell',
+      ...release('shell'),
+      buildMarker: 'shell-generation',
+    }),
+  ).toThrow(/must carry the release identity/u);
 });
