@@ -138,10 +138,11 @@ try {
   const nativePlatformManifest = createRequire(join(native.sourceDirectory, 'package.json')).resolve('@typescript/typescript-' + process.platform + '-' + process.arch + '/package.json');
   const upstream = JSON.parse(readFileSync(join(dirname(effectPlatformManifest), 'lib/upstream.json'), 'utf8'));
   assert.equal(upstream.schemaVersion, 5);
+  assert.equal(upstream.tags.typescript.latest, native.sourcePackageJson.version);
   assert.equal(upstream.components.typescript[native.sourcePackageJson.version].gitHead, native.sourcePackageJson.gitHead);
   assert.equal(upstream.components.typescript[native.sourcePackageJson.version].provider, 'typescript-go');
   const binaryName = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
-  const artifactPath = realpathSync(join(dirname(effectPlatformManifest), 'artifacts/typescript', native.sourcePackageJson.version, binaryName));
+  const artifactPath = realpathSync(join(dirname(effectPlatformManifest), 'lib', binaryName));
   const nativeCompilerPath = realpathSync(join(dirname(nativePlatformManifest), 'lib', binaryName));
   const digest = filename => createHash('sha256').update(readFileSync(filename)).digest('hex');
   const proof = {

@@ -31,7 +31,7 @@ export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
 // The cohort consumes upstream Effect without a patch or sidecar.
 // See FORK-DIVERGENCE.md, packages/toolkit/ultramodern-create.
 export const EFFECT_VERSION = '4.0.0';
-export const EFFECT_TSGO_VERSION = '0.47.2';
+export const EFFECT_TSGO_VERSION = '0.53.0';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
 export const OXLINT_VERSION = '1.86.0';
