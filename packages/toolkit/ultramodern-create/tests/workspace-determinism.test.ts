@@ -206,7 +206,7 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
       `const fs = require('node:fs');
 const path = require('node:path');
 const script = path.basename(process.argv[1] || '');
-const kind = script === 'oxfmt' ? 'formatter' : script === 'config-metadata-worker.js' ? 'metadata' : undefined;
+const kind = script === 'oxfmt' ? 'formatter' : script === 'config-metadata-worker.mjs' ? 'metadata' : undefined;
 if (kind) {
   const record = event => fs.appendFileSync(process.env.UM_GENERATION_PROCESS_AUDIT, JSON.stringify({ kind, pid: process.pid, time: Date.now(), ...event }) + '\\n');
   record({ event: 'start' });
