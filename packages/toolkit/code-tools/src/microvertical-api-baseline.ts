@@ -24,12 +24,14 @@ type CallExpression = t.CallExpression;
 /** The graph a contract validation reads, rooted at the contract module. */
 type ContractGraph = ModuleGraph & { readonly root: SourceModule };
 
-const camelCaseStem = (stem: string): string =>
+/** `order-items` -> `orderItems`: the stem as contract export names spell it. */
+export const camelCaseStem = (stem: string): string =>
   stem.replaceAll(/-([a-z0-9])/gu, (_match, letter: string) =>
     letter.toUpperCase(),
   );
 
-const pascalCaseStem = (stem: string): string => {
+/** `order-items` -> `OrderItems`. */
+export const pascalCaseStem = (stem: string): string => {
   const camelStem = camelCaseStem(stem);
   return `${camelStem.slice(0, 1).toUpperCase()}${camelStem.slice(1)}`;
 };

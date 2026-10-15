@@ -10,6 +10,7 @@ import {
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { createHttpApiHandler } from '../src/effect';
+import { createEffectOperationContext } from '../src/effect/operation-context';
 import { makeEffectHttpApiClient } from '../src/effect-client';
 
 class ItemMissing extends Schema.TaggedError<ItemMissing>()('ItemMissing', {
@@ -87,6 +88,78 @@ test('native HttpApi clients encode requests and decode responses and declared e
     expect(invalid._tag).toBe('SchemaError');
   } finally {
     transport.mockRestore();
+    await server.dispose();
+  }
+});
+
+test('native HttpApi clients forward operation context and headers the server reads', async () => {
+  const server = createHttpApiHandler({
+    api,
+    layer: HttpApiBuilder.layer(api).pipe(Layer.provide(handlers)),
+  });
+  const requests: Request[] = [];
+  const fetch: typeof globalThis.fetch = (input, init) => {
+    const request = new Request(input, init);
+    requests.push(request.clone());
+    return server.handler(request);
+  };
+  try {
+    const client = await Effect.runPromise(
+      makeEffectHttpApiClient(api, {
+        baseUrl: 'http://localhost',
+        headers: {
+          Authorization: 'Bearer token',
+          'x-absent': undefined,
+          'accept-language': 'en',
+        },
+        requestContext: {
+          locale: 'cs',
+          operationContext: {
+            operationId: 'NativeClientApi:items:read',
+            routePath: '/items/:id',
+            method: 'GET',
+            source: 'client',
+            operationVersion: 2,
+            sessionClaims: { subject: 'private' },
+          },
+        },
+      }),
+    );
+    await Effect.runPromise(
+      client.items
+        .read({ params: { id: '42' }, query: { count: 1 } })
+        .pipe(Effect.provideService(FetchHttpClient.Fetch, fetch)),
+    );
+    const [request] = requests;
+    expect(request!.headers.get('authorization')).toBe('Bearer token');
+    expect(request!.headers.has('x-absent')).toBe(false);
+    // The request context is more specific than the generic headers.
+    expect(request!.headers.get('accept-language')).toBe('cs');
+    expect(request!.headers.get('x-operation-id')).toBe(
+      'NativeClientApi:items:read',
+    );
+    const detail = JSON.parse(
+      request!.headers.get('x-modernjs-bff-operation-context')!,
+    );
+    expect(detail).toEqual({
+      operationId: 'NativeClientApi:items:read',
+      routePath: '/items/:id',
+      method: 'GET',
+      operationVersion: 2,
+    });
+    expect(
+      createEffectOperationContext({
+        request: request!,
+        env: {},
+        path: '/items/42',
+        method: 'GET',
+      }),
+    ).toMatchObject({
+      operationId: 'NativeClientApi:items:read',
+      operationVersion: 2,
+      locale: 'cs',
+    });
+  } finally {
     await server.dispose();
   }
 });
