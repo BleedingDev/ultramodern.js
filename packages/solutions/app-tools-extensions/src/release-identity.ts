@@ -51,8 +51,7 @@ export const createUltramodernReleaseBuildMarker = ({
     .update(
       `${BUILD_MARKER_NAMESPACE}:${unitId}:${generationBuildMarker}:${sourceRevision}`,
     )
-    .digest('hex')
-    .slice(0, 16);
+    .digest('hex');
 
 export const resolveUltramodernSourceRevision = (
   workspaceRoot = process.cwd(),
@@ -119,6 +118,16 @@ export const resolveUltramodernSourceRevision = (
   return revision;
 };
 
+/**
+ * The one release identity of a delivery unit, resolvable before its build.
+ *
+ * For a clean source revision the build marker is a 64-hex digest of the unit
+ * id, its generation marker and the revision. API bundles carry it, and a UI
+ * unit's renderer adopts it as its `buildId`, so contracts, release plans and
+ * Worker names derived from it before the build match the built
+ * `ultramodern-build.json`, `renderer-build.json`, chunk banners and envelope.
+ * A dirty or non-Git checkout yields the non-promotable `workspace` identity.
+ */
 export const resolveUltramodernReleaseIdentity = ({
   generationBuildMarker,
   sourceRevision: configuredSourceRevision,

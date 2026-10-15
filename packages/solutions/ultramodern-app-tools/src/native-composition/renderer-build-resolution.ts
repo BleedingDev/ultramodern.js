@@ -39,8 +39,12 @@ export function createRendererBuildIdentityResolver(
       ...(delivery
         ? {
             appId: delivery.appId,
-            unitId: delivery.unitId,
-            sourceRevision: delivery.sourceRevision,
+            // Already resolved by `resolveUltramodernReleaseIdentity`.
+            deliveryUnit: {
+              unitId: delivery.unitId,
+              buildMarker: delivery.buildMarker,
+              sourceRevision: delivery.sourceRevision,
+            },
           }
         : { appId: context.packageName || undefined }),
     });

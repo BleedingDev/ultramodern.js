@@ -909,10 +909,7 @@ for (const apiOnly of [false, true]) {
       bind().apps[0].marker.build,
       built.finalized.deliveryUnit.buildMarker,
     );
-    assert.equal(
-      built.finalized.deliveryUnit.buildMarker.length,
-      apiOnly ? 16 : 64,
-    );
+    assert.equal(built.finalized.deliveryUnit.buildMarker.length, 64);
     // Public envelope factory recalculates digest and actual file SHA; the
     // marker must still match the original source's finalized producer contract.
     await writeVerticalRelease(root, { apiOnly, marker: '0'.repeat(64) });
