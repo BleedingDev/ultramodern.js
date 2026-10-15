@@ -155,6 +155,68 @@ export default defineEffectBff({ api, layer, rpc: { group: fixtureRpcGroup, laye
     expect(violation(source, resolve(false))).toBeUndefined();
     expect(violation(source, resolve(true))).toBeDefined();
   });
+  test('treats a write through a const alias as a write to its source', () => {
+    expect(violation(direct)).toBeUndefined();
+    expect(
+      violation(
+        `${direct}\nconst alias = Layer;\nalias.mergeAll = () => undefined;`,
+      ),
+    ).toBeDefined();
+    expect(
+      violation(
+        `${direct}\nconst first = Layer;\nconst second = (first);\nsecond.provide = () => undefined;`,
+      ),
+    ).toBeDefined();
+  });
+  test('accepts literal routes and provided service-capturing routes as transport', () => {
+    const transportImports = `${imports}import { Effect, HttpRouter } from '@modern-js/bff-effect/effect-edge';
+import { Authority, AuthorityLive } from './authority.ts';
+`;
+    const runtime = (transport: string, declarations = '') =>
+      `${transportImports}${group}
+${declarations}
+export default assembleEffectBffRuntime({api: fixtureApi, handlers, transport: ${transport}});`;
+    const route = `const route = (authority) => HttpRouter.add('*', '/proxy/*', request => authority.forward(request));`;
+    const captured = `${route}
+const captured = Layer.unwrap(Authority.pipe(Effect.map(route)));`;
+    const valid = [
+      runtime(`HttpRouter.add('GET', '/health', () => Effect.succeed('ok'))`),
+      runtime('captured.pipe(Layer.provide(AuthorityLive))', captured),
+      runtime(
+        'unwrapped.pipe(Layer.provide(AuthorityLive))',
+        `${route}
+const unwrapped = Layer.unwrap(Effect.map(Authority, route));`,
+      ),
+    ];
+    for (const source of valid) expect(violation(source)).toBeUndefined();
+    const invalid = [
+      // The captured service must be provided where the transport is composed.
+      runtime('captured', captured),
+      runtime('Layer.mergeAll(captured)', captured),
+      runtime(
+        'captured.pipe(Layer.provide(AuthorityLive))',
+        captured.replace(
+          'request => authority.forward(request)',
+          'request => request',
+        ),
+      ),
+      runtime(
+        'captured.pipe(Layer.provide(AuthorityLive))',
+        captured.replace("'/proxy/*'", 'path'),
+      ),
+      runtime(
+        'captured.pipe(Layer.provide(AuthorityLive))',
+        captured.replace("'*', '/proxy/*'", "'BREW', '/proxy/*'"),
+      ),
+      runtime(
+        'captured.pipe(Layer.provide(AuthorityLive))',
+        captured.replace('Effect.map(route)', 'Effect.flatMap(route)'),
+      ),
+      runtime(`HttpRouter.add('GET', 'health', () => Effect.succeed('ok'))`),
+      runtime(`HttpRouter.add('GET', '/health', handler)`),
+    ];
+    for (const source of invalid) expect(violation(source)).toBeDefined();
+  });
   test('rejects the removed shared-contracts assembly forwarding path', () => {
     expect(
       violation(
