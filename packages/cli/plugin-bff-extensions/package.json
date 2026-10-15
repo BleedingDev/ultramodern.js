@@ -69,6 +69,15 @@
       },
       "default": "./dist/cjs/effect-source-loader/index.js"
     },
+    "./server-global-vars": {
+      "types": "./dist/types/server-global-vars/index.d.ts",
+      "modern:source": "./src/server-global-vars/index.ts",
+      "node": {
+        "import": "./dist/esm-node/server-global-vars/index.mjs",
+        "require": "./dist/cjs/server-global-vars/index.js"
+      },
+      "default": "./dist/cjs/server-global-vars/index.js"
+    },
     "./backend-federation": {
       "types": "./dist/types/backend-federation/index.d.ts",
       "modern:source": "./src/backend-federation/index.ts",
@@ -165,6 +174,10 @@
       "effect-source-loader": [
         "./dist/types/effect-source-loader/index.d.ts",
         "./src/effect-source-loader/index.ts"
+      ],
+      "server-global-vars": [
+        "./dist/types/server-global-vars/index.d.ts",
+        "./src/server-global-vars/index.ts"
       ],
       "backend-federation": [
         "./dist/types/backend-federation/index.d.ts",

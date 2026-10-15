@@ -1,11 +1,5 @@
-import type { AppTools } from '@modern-js/app-tools';
-import type { RsbuildTarget } from '@modern-js/builder';
-import { applyOptionsChain, fs, upath as path } from '@modern-js/utils';
-
-type SerializedGlobalVars = Record<string, string>;
-type ServerGlobalVarsOptions = NonNullable<
-  NonNullable<AppTools['config']>['source']
->['globalVars'];
+import type { SerializedServerGlobalVars } from '@modern-js/plugin-bff-extensions/server-global-vars';
+import { fs, upath as path } from '@modern-js/utils';
 
 const RELEASE_IDENTITY_GLOBAL_NAMES = [
   'ULTRAMODERN_BUILD_MARKER',
@@ -28,41 +22,9 @@ const collectJavaScriptFiles = (directory: string): Promise<string[]> =>
       ).then(nested => nested.flat()),
     );
 
-export const serializeServerGlobalVars = (
-  options: ServerGlobalVarsOptions,
-): SerializedGlobalVars => {
-  const globalVars = applyOptionsChain<
-    Record<string, unknown>,
-    { env: string; target: RsbuildTarget }
-  >({}, options, {
-    env: 'server',
-    target: 'node',
-  });
-
-  return Object.fromEntries(
-    Object.entries(globalVars).map(([key, value]) => {
-      let serialized: string | undefined;
-      try {
-        serialized = JSON.stringify(value);
-      } catch (error) {
-        throw new Error(
-          `source.globalVars["${key}"] cannot be serialized exactly for BFF compilation.`,
-          { cause: error },
-        );
-      }
-      if (serialized === undefined) {
-        throw new Error(
-          `source.globalVars["${key}"] cannot be serialized exactly for BFF compilation.`,
-        );
-      }
-      return [key, serialized];
-    }),
-  );
-};
-
 export const transformServerGlobalVars = (
   outputDirectories: string[],
-  globalVars: SerializedGlobalVars,
+  globalVars: SerializedServerGlobalVars,
 ) =>
   Promise.resolve().then(() => {
     if (Object.keys(globalVars).length === 0) {

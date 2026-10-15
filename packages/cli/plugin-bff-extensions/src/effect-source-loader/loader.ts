@@ -12,6 +12,10 @@ import {
   type Plugin,
   transform,
 } from 'esbuild';
+import {
+  type ServerGlobalVarsOptions,
+  serializeServerGlobalVars,
+} from '../server-global-vars';
 
 const NODE_TARGET = 'node26.10';
 const SOURCE_LOADERS = new Map<string, Loader>([
@@ -28,6 +32,8 @@ const SOURCE_LOADERS = new Map<string, Loader>([
 export type EffectSourceLoaderOptions = {
   resourcePath: string;
   appDir?: string;
+  /** `source.globalVars`, replaced in the loaded source graph. */
+  globalVars?: ServerGlobalVarsOptions;
   onDependency?: (dependency: string) => void;
 };
 
@@ -352,6 +358,7 @@ export async function loadEffectSourceModule(
       js: `import { createRequire as __modernCreateEffectRequire } from 'node:module'; const require = __modernCreateEffectRequire(${JSON.stringify(pathToFileURL(resourcePath).href)});`,
     },
     bundle: true,
+    define: serializeServerGlobalVars(options.globalVars),
     entryPoints: [resourcePath],
     format: 'esm',
     jsx: 'automatic',

@@ -4,6 +4,7 @@ import {
   type HttpApiReflect,
 } from '@modern-js/bff-effect/effect';
 import { HttpApi } from 'effect/http-api';
+import type { ServerGlobalVarsOptions } from '../server-global-vars';
 import { loadEffectSourceModule } from './loader';
 
 type HttpApiRuntime = {
@@ -29,6 +30,7 @@ export function getHttpApiRuntime(): Promise<HttpApiRuntime> {
 export function loadEffectApi(options: {
   appDir: string;
   resourcePath: string;
+  globalVars?: ServerGlobalVarsOptions;
   onDependency?: (dependency: string) => void;
 }): Promise<HttpApiLike | null> {
   return getHttpApiRuntime().then(httpApiRuntime =>

@@ -7,6 +7,7 @@ import {
   resolveOperationProducer,
 } from '@modern-js/server-runtime-extensions/bff-policy/node';
 import { upath as path } from '@modern-js/utils';
+import type { ServerGlobalVarsOptions } from '../server-global-vars';
 import { getHttpApiRuntime, loadEffectApi } from './http-api-runtime';
 
 /** Derives server policy metadata without emitting or typing a client. */
@@ -15,6 +16,7 @@ export async function resolveEffectOperationContracts(options: {
   resourcePath: string;
   prefix: string;
   requestId?: string;
+  globalVars?: ServerGlobalVarsOptions;
   onDependency?: (dependency: string) => void;
 }) {
   const api = await loadEffectApi(options);

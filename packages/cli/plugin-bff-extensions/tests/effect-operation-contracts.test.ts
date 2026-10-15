@@ -76,4 +76,32 @@ describe('Effect server operation contracts', () => {
       await fs.promises.rm(appDir, { recursive: true, force: true });
     }
   });
+
+  test('applies source.globalVars while it loads the HttpApi contract', async () => {
+    const { appDir, resourcePath } = await createFixtureApp();
+    try {
+      await fs.promises.writeFile(
+        resourcePath,
+        `const { HttpApi, HttpApiEndpoint, HttpApiGroup, Layer, Schema } = require('@modern-js/bff-effect/effect-client');
+const api = HttpApi.make('GlobalVarsApi').add(
+  HttpApiGroup.make('build').add(
+    HttpApiEndpoint.get('marker', BFF_MARKER_PATH, { success: Schema.String }),
+  ),
+);
+module.exports = { api, layer: Layer.empty };`,
+      );
+      const contracts = await resolveEffectOperationContracts({
+        appDir,
+        resourcePath,
+        prefix: '/api',
+        globalVars: { BFF_MARKER_PATH: '/build-marker' },
+      });
+      expect(contracts?.['GET:/api/build-marker']).toMatchObject({
+        method: 'GET',
+        routePath: '/api/build-marker',
+      });
+    } finally {
+      await fs.promises.rm(appDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -69,6 +69,7 @@ async function clientGenerator(
     getNormalizedConfig: () => ({
       bff: { runtimeFramework: 'effect' },
       output: { distPath: { root: options.relativeDistPath } },
+      source: {},
     }),
     modifyBffClientArtifacts: hooks.modifyBffClientArtifacts.tap,
     modifyBffGeneratedEntries: hooks.modifyBffGeneratedEntries.tap,
