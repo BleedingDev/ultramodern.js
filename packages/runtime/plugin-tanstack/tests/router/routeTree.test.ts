@@ -106,6 +106,82 @@ describe('tanstack route tree from RouteObject[]', () => {
     expect(loaderData).not.toContainEqual({ value: 'alpha' });
   });
 
+  describe('flat leaf that prefixes other routes', () => {
+    const leaf = (id: string, path: string): TestRouteObject => ({
+      id,
+      path,
+      loader: ({ params }: LoaderArgs) => ({ id, params }),
+      Component: nullComponent,
+    });
+    const lastMatch = (router: TestRouter) => router.state.matches.at(-1);
+
+    test('matches the leaf as the index of its prefix, not the sibling splat', async () => {
+      const routes = root([
+        leaf('lang/page', ':lang'),
+        leaf('lang/$', ':lang/*'),
+        leaf('lang/login/page', ':lang/login'),
+        leaf('about/page', 'about'),
+      ]);
+
+      for (const [pathname, routeId, loaderData] of [
+        ['/en', '/$lang/', { id: 'lang/page', params: { lang: 'en' } }],
+        [
+          '/en/login',
+          '/$lang/login',
+          { id: 'lang/login/page', params: { lang: 'en' } },
+        ],
+        [
+          '/en/x/y',
+          '/$lang/$',
+          { id: 'lang/$', params: { lang: 'en', '*': 'x/y' } },
+        ],
+        ['/about', '/about', { id: 'about/page', params: {} }],
+      ] as const) {
+        const match = lastMatch(await loadRouteTree(routes, pathname));
+        expect(match?.routeId).toBe(routeId);
+        expect(match?.loaderData).toMatchObject(loaderData);
+      }
+    });
+
+    test('treats routes under sibling pathless layouts as descendants', async () => {
+      const pathless = (child: TestRouteObject): TestRouteObject => ({
+        id: `${child.id}/layout`,
+        Component: nullComponent,
+        children: [child],
+      });
+      const routes = root([
+        pathless(leaf('lang/page', ':lang')),
+        pathless(leaf('lang/$', ':lang/*')),
+      ]);
+
+      const indexMatch = lastMatch(await loadRouteTree(routes, '/en'));
+      expect(indexMatch?.routeId).toBe('/lang/page/layout/$lang/');
+      expect(indexMatch?.loaderData).toMatchObject({ id: 'lang/page' });
+
+      const splatMatch = lastMatch(await loadRouteTree(routes, '/en/x'));
+      expect(splatMatch?.routeId).toBe('/lang/$/layout/$lang/$');
+    });
+
+    test('leaves a layout route with the same prefix as a layout', async () => {
+      const routes = root([
+        {
+          id: 'lang/layout',
+          path: ':lang',
+          Component: () => createElement(Outlet),
+          children: [leaf('lang/settings/page', 'settings')],
+        },
+        leaf('lang/$', ':lang/*'),
+      ]);
+
+      const router = await loadRouteTree(routes, '/en/settings');
+      expect(router.state.matches.map(match => match.routeId)).toEqual([
+        '__root__',
+        '/$lang',
+        '/$lang/settings',
+      ]);
+    });
+  });
+
   test('reports native TanStack unknown routes as HTTP 404', async () => {
     const router = await loadRouteTree(
       root([{ id: 'known', path: 'known', Component: nullComponent }]),
