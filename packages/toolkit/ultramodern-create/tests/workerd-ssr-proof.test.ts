@@ -33,6 +33,10 @@ type ProofModule = {
     appPath: unknown,
   ) => string;
   validateWorkerdProofFixture: (fixture: unknown, apps: unknown[]) => unknown;
+  expectedEnvelopeSurfaces: (
+    kind: 'shell' | 'vertical',
+    surfaceProfile?: string,
+  ) => { apiBackend: boolean; backendFederation: boolean; uiClient: boolean };
 };
 
 const loadProofModule = async () =>
@@ -49,6 +53,8 @@ type TopologyShell = Record<string, unknown> & {
 const shell = (cloudflare: Record<string, unknown> = {}): TopologyShell => ({
   id: 'shell',
   kind: 'shell',
+  // Generated Shells declare ui-only; an omitted profile owns an API backend.
+  surfaceProfile: 'ui-only',
   path: 'apps/shell',
   verticalRefs: ['contacts', 'catalog'],
   cloudflare: { routes: { ssr: '/en' }, ...cloudflare },
@@ -302,6 +308,7 @@ async function createFixtureWorkspace(options: {
       shell: {
         id: 'shell',
         kind: 'shell',
+        surfaceProfile: 'ui-only',
         path: 'apps/shell',
         portEnv: 'SHELL_PORT',
         deliveryUnit: { unitId: 'app/shell' },
@@ -986,4 +993,39 @@ describe('workerd SSR proof fixture placement', () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   }, 60_000);
+});
+
+describe('workerd SSR proof envelope surfaces', () => {
+  it('expects a full-stack Shell API backend without backend federation', async () => {
+    const { expectedEnvelopeSurfaces } = await loadProofModule();
+    expect(expectedEnvelopeSurfaces('shell', undefined)).toEqual({
+      apiBackend: true,
+      backendFederation: false,
+      uiClient: true,
+    });
+    expect(expectedEnvelopeSurfaces('shell', 'ui-only')).toEqual({
+      apiBackend: false,
+      backendFederation: false,
+      uiClient: true,
+    });
+  });
+
+  it('expects MicroVertical surfaces from the declared profile', async () => {
+    const { expectedEnvelopeSurfaces } = await loadProofModule();
+    expect(expectedEnvelopeSurfaces('vertical', undefined)).toEqual({
+      apiBackend: true,
+      backendFederation: true,
+      uiClient: true,
+    });
+    expect(expectedEnvelopeSurfaces('vertical', 'api-only')).toEqual({
+      apiBackend: true,
+      backendFederation: true,
+      uiClient: false,
+    });
+    expect(expectedEnvelopeSurfaces('vertical', 'ui-only')).toEqual({
+      apiBackend: false,
+      backendFederation: false,
+      uiClient: true,
+    });
+  });
 });

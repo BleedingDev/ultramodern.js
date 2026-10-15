@@ -285,6 +285,18 @@ const readDevVars = (outputRoot) => {
 // A topology path names one app directory below the selected root. Built
 // artifacts may live in a separate root (ULTRAMODERN_WORKERD_ARTIFACT_ROOT),
 // but a topology path must never select output outside it.
+// Release envelope surfaces a unit must carry, from its topology profile, read
+// the way delivery units read it: any unit that is not `ui-only` owns an API
+// backend, a Shell included. Only MicroVerticals publish backend federation.
+export const expectedEnvelopeSurfaces = (kind, surfaceProfile) => {
+  const apiBackend = surfaceProfile !== "ui-only";
+  return {
+    apiBackend,
+    backendFederation: kind === "vertical" && apiBackend,
+    uiClient: surfaceProfile !== "api-only",
+  };
+};
+
 export const resolveAppOutputRoot = (artifactRoot, appId, appPath) => {
   assert(typeof appPath === "string" && appPath.length > 0, `${appId} topology path is missing`);
   const segments = normalizePath(appPath).split("/");
@@ -307,7 +319,9 @@ const loadApps = async (workspaceRoot, artifactRoot, topology, overlay) => {
   const { plans, rawApps } = planWorkerdSsrProof(topology);
   return Promise.all(rawApps.map(async (rawApp, index) => {
     const plan = plans[index];
-    const hasApiSurface = plan.kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
+    const expectedSurfaces = expectedEnvelopeSurfaces(plan.kind, rawApp.surfaceProfile);
+    // A MicroVertical API that the Shell reaches through a service binding.
+    const hasApiSurface = expectedSurfaces.backendFederation;
     const appPath = rawApp.path;
     const outputRoot = resolveAppOutputRoot(artifactRoot, plan.id, appPath);
     const wranglerPath = path.join(outputRoot, "wrangler.json");
@@ -340,15 +354,16 @@ const loadApps = async (workspaceRoot, artifactRoot, topology, overlay) => {
     );
     const { surfaces } = executedEnvelope.envelope;
     assert(
-      (surfaces.apiBackend.length > 0) === hasApiSurface &&
-        Boolean(surfaces.backendFederation) === hasApiSurface &&
-        (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
+      (surfaces.apiBackend.length > 0) === expectedSurfaces.apiBackend &&
+        Boolean(surfaces.backendFederation) === expectedSurfaces.backendFederation &&
+        (surfaces.uiClient.length > 0) === expectedSurfaces.uiClient,
       `${plan.id} executed envelope surfaces differ from its declared application profile`,
     );
 
     return {
       ...plan,
       hasApiSurface,
+      ownsApiBackend: expectedSurfaces.apiBackend,
       path: appPath,
       apiPrefix:
         typeof rawApp.api?.bff?.prefix === "string"
@@ -591,7 +606,7 @@ const createWorkerOptions = (app, artifactRoot, extra = {}) => {
   );
   const { apiBackend, ssr } = app.envelope.surfaces;
   assert(
-    !app.hasApiSurface ||
+    !app.ownsApiBackend ||
       (Array.isArray(apiBackend) &&
         apiBackend.length > 0 &&
         apiBackend.every((logicalPath) =>
