@@ -4,7 +4,7 @@ overview: Project the external dependency task's qualified merge into a real blo
 todos:
   - id: modernjs-2uw9v.1
     content: Verify all exact-head PR249 checks and its authorized merged fork ancestry
-    status: in_progress
+    status: completed
 isProject: false
 ---
 
@@ -12,7 +12,7 @@ isProject: false
 
 ## Execution notes
 
-This is an external gate, owned by modernjs-2uw9v's existing continuation. A frontier marked ready permits checking the external gate only, not starting feature implementation. All renderer implementation tasks remain blocked behind it and baseline. At the latest check PR249 is OPEN at f1c7209ae393669994c8336ed9478f93d750d62b. The authenticated maturity deadline, 17 October 2026 at 00:26:48.350 CEST, has passed. Native run38930201933 attempt2 passed ERP but exposed a real Tractor projection-order defect. Commit f1c7209ae3 fixes authored renderer-profile reconciliation before strict tuple validation; the regression failed before the fix and all23 focused tests, strict types and full boundary checks pass. Fresh exact-head canonical CI is running, with no observed failure at this read. Require every exact-head check successful before merging. Do not retry unchanged failures or assume the old age-only diagnosis still applies. Use the current repository rules and user-authorized rebase merge where required, never an admin override. New commits require their own complete qualification.
+This is an external gate, owned by modernjs-2uw9v's existing continuation. A frontier marked ready permits checking the external gate only, not starting feature implementation. All renderer implementation tasks remain blocked behind it and baseline. PR249 merged on 17 October 2026 at 00:56 CEST. Every exact-head check at f1c7209ae393669994c8336ed9478f93d750d62b passed, including packed ERP/Tractor, all OS unit/integration checks and the isolated Windows retry. No review threads remained unresolved. Normal merge e61746843a39ab6de0af397c6f58f7bae72342dd is verified as an ancestor of bleedingdev/main-ultramodern. Beads gate modernjs-2uw9v.1 is closed. Baseline extraction may now begin. Dependency publication remains separate: parser sidecar run38978677451 is active on that merged SHA; no framework cohort dispatch yet.
 
 ## Success criteria
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T22:39:37.675690+00:00",
+  "generated_at": "2026-10-16T22:57:52.805431+00:00",
   "graph_id": "renderer-completion-20261017",
   "plan_set_hash": "e1da013b4a",
   "selection_hash": "a406e62e1a",
@@ -176,7 +176,7 @@
         {
           "id": "modernjs-2uw9v.1",
           "content": "Verify all exact-head PR249 checks and its authorized merged fork ancestry",
-          "status": "in_progress",
+          "status": "completed",
           "ordinal": 1
         }
       ],
@@ -308,17 +308,17 @@
       "total": 1
     },
     {
-      "plan_slug": "merge-gate",
-      "plan_name": "Verify the dependency PR249 merge gate",
-      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
-      "plan_status": "in_progress",
-      "state": "in_progress",
+      "plan_slug": "baseline",
+      "plan_name": "Reconcile preserved renderer work with the merged dependency release",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
       "blocked_by": [],
       "active": [
         {
-          "id": "modernjs-2uw9v.1",
-          "content": "Verify all exact-head PR249 checks and its authorized merged fork ancestry",
-          "status": "in_progress",
+          "id": "modernjs-dnpv3.58.14",
+          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
+          "status": "pending",
           "ordinal": 1
         }
       ],
@@ -520,24 +520,15 @@
       "total": 1
     },
     {
-      "plan_slug": "baseline",
-      "plan_name": "Reconcile preserved renderer work with the merged dependency release",
-      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
-      "plan_status": "pending",
-      "state": "blocked",
-      "blocked_by": [
-        "merge-gate"
-      ],
-      "active": [
-        {
-          "id": "modernjs-dnpv3.58.14",
-          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
-          "status": "pending",
-          "ordinal": 1
-        }
-      ],
+      "plan_slug": "merge-gate",
+      "plan_name": "Verify the dependency PR249 merge gate",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
+      "plan_status": "completed",
+      "state": "done",
+      "blocked_by": [],
+      "active": [],
       "upcoming": [],
-      "completed": 0,
+      "completed": 1,
       "total": 1
     }
   ],
