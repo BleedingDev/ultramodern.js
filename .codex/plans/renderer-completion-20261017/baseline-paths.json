@@ -1,0 +1,43 @@
+{
+  "snapshot": "ca61247ac2c09bc9bd1982556f15ee01b6f0e81b",
+  "mergedBaseline": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+  "count": 161,
+  "sourceTestConfigPaths": 160,
+  "trackingPaths": 1,
+  "runtimeAudit": "baseline-runtime-audit.json",
+  "supportAudit": "baseline-support-audit.json",
+  "verification": "Exact git diff-tree path partition, no duplicates/missing/extra paths; semantic evidence is per-path in referenced audits.",
+  "nativeContractGap": {
+    "historicalRef": "52c14da5",
+    "currentRef": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+    "currentAcceptedRelease": "https://github.com/BleedingDev/octane/releases/tag/ultramodern-octane-d5988dd93614",
+    "missingContracts": [
+      "prepareExternalSnapshotRequest",
+      "renderExternalSnapshot",
+      "externalSnapshotBoundary",
+      "packages/tanstack-router/src/ssr/routerRenderSnapshot.ts"
+    ],
+    "historicalInputFiles": [
+      "packages/octane/src/external-snapshot-protocol.ts",
+      "packages/octane/src/server/external-snapshot-preparation.ts",
+      "packages/tanstack-router/src/ssr/routerRenderSnapshot.ts"
+    ],
+    "sequencing": "native-snapshots owner root, then native-refresh owner root; never restore full old runtime/router files."
+  },
+  "sdkPrerequisite": {
+    "issue": "modernjs-dnpv3.58.11.3",
+    "artifactQualified": true,
+    "sourceAliasStillMissing": true,
+    "owner": "root integrator",
+    "branch": "feat/renderer-completion-20261017",
+    "blocks": "modernjs-dnpv3.58.11.1.1",
+    "evidence": "baseline-sdk-evidence.json"
+  },
+  "rootCorrections": [
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/add-vertical/shell-files.ts",
+      "decision": "superseded",
+      "reason": "Historical WIP re-adds createShellApiClient/appHasApi and vertical-clients.ts. Merged 51a6829e8d intentionally removes the Shell API client barrel while updating generation and fail-closed Shell API boundaries together. Preserve merged owner contract; formatter injection is already carried. No missing tooling extraction here."
+    }
+  ]
+}

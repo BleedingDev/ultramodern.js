@@ -1,0 +1,37 @@
+{
+  "graph_id": "renderer-completion-20261017",
+  "selection_hash": "a406e62e1a",
+  "plan_selection": "graph-spec.json via graph.py",
+  "snapshot_path": ".codex/plan-graphs/renderer-completion-20261017/snapshot.json",
+  "limits": {
+    "max_threads": 50,
+    "max_depth": 3
+  },
+  "wave1": {
+    "root": "Current baseline branches/ownership; exact signed SDK/probe; combine audits.",
+    "baseline_runtime_audit": "Read-only65runtimeWIPpaths, writes baseline-runtime-audit.json only.",
+    "baseline_history_audit": "Read-onlyoldhistorycontentaudit, writes baseline-history-audit.json only.",
+    "baseline_support_audit": "Read-onlynonruntimeWIPpaths, writes baseline-support-audit.json only."
+  },
+  "critical_path": [
+    "baseline evidence",
+    "Opus5.5 phase review and fixes",
+    "native-snapshots current source",
+    "Worker/dev-refresh consumer",
+    "cohort",
+    "installed acceptance",
+    "release"
+  ],
+  "wave2": [
+    "root native snapshots implementation",
+    "independent navigation/tooling only after baseline review"
+  ],
+  "shared_write_owner": "root",
+  "outside_scope": [
+    "Ontos",
+    "unrelated deployment portability",
+    "broad renderer admission policy removal",
+    "Effect/NFT/Zod/CSP research"
+  ],
+  "review_rule": "Fresh Opus5.5 delegated task after each phase, fix substantive findings before advancing."
+}

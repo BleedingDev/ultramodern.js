@@ -1,0 +1,86 @@
+{
+  "modernBase": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+  "nativeBase": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+  "lanes": {
+    "integrator": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-integration-20261017",
+      "branch": "feat/renderer-completion-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root",
+      "scope": "Shared manifest/profile/lockfile/release identity and contested entrypoint integration. Authors retain semantic ownership; root commits serially on lane branches then replays once during convergence.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "clean": true
+    },
+    "worker": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-worker-20261017",
+      "branch": "feat/renderer-worker-federation-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root until assigned worker lane",
+      "scope": "worker-federation subsystem, Worker compiler/publisher/config semantics, Cloudflare templates and context profiles, generated Worker consumer/proof. Tooling reviews generator mechanics; root commits shared paths.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "clean": true
+    },
+    "dev-refresh": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-refresh-20261017",
+      "branch": "feat/renderer-retained-refresh-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root until assigned refresh lane",
+      "scope": "federation-runtime refresh plugin, Node publisher revisions/assets, native dev proof and installed-pack refresh consumer. No Worker publisher edits.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "clean": true
+    },
+    "navigation": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-navigation-20261017",
+      "branch": "feat/renderer-localized-navigation-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root until assigned navigation lane",
+      "scope": "Solid/Octane localized native links/navigation and router-core negative-control recipes/tests. Preserve latest-wins i18n cleanup and own-key guards.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "clean": true
+    },
+    "tooling": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-tooling-20261017",
+      "branch": "feat/renderer-support-tooling-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root until assigned tooling lane",
+      "scope": "Only missing bounded generator/process/tracer behavior. Already-carried byte-equivalent changes remain untouched. Review Worker generator integration, no independent generator architecture expansion.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "clean": true
+    },
+    "native-snapshots": {
+      "repo": "octane",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/octane/code/octane-renderer-snapshots-20261017",
+      "branch": "feat/renderer-external-snapshots-20261017",
+      "base": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+      "owner": "root (single native source owner)",
+      "scope": "Selective current-native external/router snapshot ownership APIs and tests. Historical 52c14da5 is input only.",
+      "verifiedHead": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+      "clean": true
+    },
+    "native-refresh": {
+      "repo": "octane",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/octane/code/octane-renderer-refresh-20261017",
+      "branch": "feat/renderer-retained-refresh-20261017",
+      "base": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+      "owner": "root (same native source owner)",
+      "dependsOn": "native-snapshots accepted source merged before any native refresh writes; advance this clean branch to that source first",
+      "scope": "Native provider/signal/engine/compiler refresh edits, serial with snapshots. Prove both behaviors together.",
+      "verifiedHead": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+      "clean": true
+    }
+  },
+  "rules": [
+    "No full historical branch merge.",
+    "Root serializes all shared paths. Exact per-path authors are in runtime/support audits.",
+    "Worker author owns capability/template semantics; tooling reviews mechanics.",
+    "Native snapshots precede native refresh, one source owner.",
+    "Non-shrink upstream-owned source change carries same-PR FORK-DIVERGENCE entry.",
+    "User requested Opus5.5 feedback after every phase. No next feature phase until baseline findings addressed.",
+    "No generated outputs created in the new source-only CoW worktrees."
+  ]
+}

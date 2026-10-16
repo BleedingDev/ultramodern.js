@@ -4,7 +4,7 @@ overview: Establish the merged dependency cohort and an explicit disposition for
 todos:
   - id: modernjs-dnpv3.58.14
     content: Verify the PR249 merge and prepare current-baseline feature branches
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
@@ -12,7 +12,7 @@ isProject: false
 
 ## Execution notes
 
-The input is the pushed WIP commit ca61247ac2c09bc9bd1982556f15ee01b6f0e81b on wip/renderer-federation-navigation-20261017. The original 160 source/test/config paths plus the Beads tracking file, 161 changed paths in total, are real unfinished implementation, separate from the already published renderer baseline. PR249 is OPEN at 81f4530297 at planning time. This task may inspect it now but must not mark its gate complete until GitHub reports merged and that exact merge is an ancestor of fork main-ultramodern. The user authorized merging PR249 after every exact-head job passes. Keep that existing dependency release task modernjs-2uw9v alive and deduplicate its publication work.
+The input is the pushed WIP commit ca61247ac2c09bc9bd1982556f15ee01b6f0e81b on wip/renderer-federation-navigation-20261017. The original 160 source/test/config paths plus the Beads tracking file, 161 changed paths in total, are real unfinished implementation, separate from the already published renderer baseline. PR249 merged as e61746843a39ab6de0af397c6f58f7bae72342dd after every exact-head job passed; GitHub merge state and fork main ancestry are verified. The merge gate is complete. The user authorized merging PR249 after every exact-head job passes. Keep that existing dependency release task modernjs-2uw9v alive and deduplicate its publication work.
 
 Fetch fork refs. Create new CoW worktrees/branches from the actual merged fork baseline. Do not merge the old research branch's entire divergent history. The WIP commit is not the branch's only historical divergence. Audit the remaining branch-only commits by content and give every useful unmatched behavior a disposition too; do not claim those older commits are already carried solely from patch-equivalence counts. Compare the snapshot tree to the baseline and record each original path as already carried, required extraction with owner, superseded with evidence, or independent follow-up issue. Preserve all useful behavior through extraction or a named follow-up; no silent dropping. Check the historical Octane snapshot implementation from fork PR4, which is MERGED at 52c14da5, against the current native main. A historical merge is not proof those APIs exist in the currently accepted cohort.
 

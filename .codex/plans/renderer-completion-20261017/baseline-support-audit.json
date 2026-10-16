@@ -1,0 +1,2204 @@
+{
+  "schema": "renderer-baseline-per-path-audit",
+  "scope": "all non packages/runtime paths changed by ca61247 parent..ca61247; source only, no builds or installs",
+  "sourceCommit": "ca61247ac2c09bc9bd1982556f15ee01b6f0e81b",
+  "baselineCommit": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+  "method": "Exact git object blob comparison; original per-path hunks and merged-baseline differences inspected. Already-carried denotes semantic WIP change present even where baseline has independent newer work.",
+  "count": 96,
+  "counts": {
+    "tracking": 1,
+    "already_carried": 19,
+    "required_extraction": 72,
+    "superseded": 4
+  },
+  "ownershipRule": "Author lane owns semantics; integrator exclusively commits shared files and metadata. Worker semantic changes to generator/template files require tooling mechanics review. FORK-DIVERGENCE evidence travels in same PR as upstream-owned non-shrink change.",
+  "phaseCaution": "No feature acceptance inferred from preservation snapshot; carry source/tests into current-baseline lanes and qualify actual installed final artifacts.",
+  "paths": [
+    {
+      "path": ".beads/issues.jsonl",
+      "disposition": "tracking",
+      "authorLane": "integrator",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Tracking only: three preserved issue records describe renderer continuation; canonical Beads DB is authoritative and unrelated records must remain unchanged.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "01d0d84c58a42bc0fbf011637fbbb1257af50016",
+        "preservedBlob": "17a48d7762ca5fe654bea9652d24c2bc196700cf",
+        "mergedBaselineBlob": "a91ef1cfc3221e3a840591500bf2d31a62658a13",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -1223,2 +1223,2 @@",
+        "@@ -1228 +1228 @@"
+      ]
+    },
+    {
+      "path": ".changeset/avoid-duplicate-ownership-formatting.md",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in merged baseline; retain existing release note.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "68bca04fa5f1490601a90c91fc51adbe144ffe2f",
+        "mergedBaselineBlob": "68bca04fa5f1490601a90c91fc51adbe144ffe2f",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,5 @@"
+      ]
+    },
+    {
+      "path": ".changeset/boundary-debugger-runtime-plugin-type.md",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in merged baseline; retain existing release note.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "123a68ac2e26cf0703d1958c582551fb0a1798bc",
+        "mergedBaselineBlob": "123a68ac2e26cf0703d1958c582551fb0a1798bc",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,5 @@"
+      ]
+    },
+    {
+      "path": ".changeset/lazy-deployment-trace.md",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in merged baseline; retain existing release note.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "e78ac4642be2078da619e055856d682e4fa9b488",
+        "mergedBaselineBlob": "e78ac4642be2078da619e055856d682e4fa9b488",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,5 @@"
+      ]
+    },
+    {
+      "path": ".changeset/native-localized-router-masks.md",
+      "disposition": "required_extraction",
+      "authorLane": "navigation",
+      "commitOwner": "navigation",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Preserves native masks/search/preloading/blocker behavior release note; update scope to qualified current router recipe.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "70081195e8ca9a2539dc2fc9cce1ec64846024cd",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,11 @@"
+      ]
+    },
+    {
+      "path": ".changeset/native-workspace-format-workers.md",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in merged baseline; retain existing release note.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "23d46a5e9cc5d57e2dd5fe3d4e25b32478b10586",
+        "mergedBaselineBlob": "23d46a5e9cc5d57e2dd5fe3d4e25b32478b10586",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,9 @@"
+      ]
+    },
+    {
+      "path": ".changeset/octane-native-module-federation.md",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP adds federation-runtime/app-tools/app-tools-extensions release participants and atomic graph refresh/provider retention description. Worker text still says unsupported: update only after actual Worker acceptance.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "8b7baf9148892cb8f002b4199e2e46d67d78260f",
+        "preservedBlob": "704dbbdad6654089cc9ef5f9e09e224aaf2fdd15",
+        "mergedBaselineBlob": "8b7baf9148892cb8f002b4199e2e46d67d78260f",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -4,0 +5 @@",
+        "@@ -5,0 +7,2 @@",
+        "@@ -14,0 +18,4 @@ Serve the current completed Node federation container and its emitted dependenci"
+      ]
+    },
+    {
+      "path": ".github/workflows/ut-Windows.yml",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP resource report and --pool.maxWorkers=1 are present in baseline. Baseline additionally has ordinary/generator disjoint groups, coverage verification, native PowerShell and DEPOT runner selectors.",
+      "preserveBaseline": "Keep baseline workflow; old four-shard matrix would remove newer qualified coverage and runner fixes.",
+      "gitEvidence": {
+        "sourceParentBlob": "0bf33e334191b631e4a3919604ad8a1ab646f83c",
+        "preservedBlob": "fed391648be8f11c5c9701d3122111f3f67ecf7a",
+        "mergedBaselineBlob": "6553d6e6dfd97f996230ea721e2a40cd75bd999f",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -97,0 +98,9 @@ jobs:",
+        "@@ -99 +108 @@ jobs:"
+      ]
+    },
+    {
+      "path": "FORK-DIVERGENCE.md",
+      "disposition": "required_extraction",
+      "authorLane": "integrator",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP adds six-line Worker getServerRoutes export review entry; keep current ledger and add the same-PR entry beside its non-shrink upstream-owned export.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "5242ba5b6225c041def8aad2e7e268ebe57aec63",
+        "preservedBlob": "0400901c388b64fc233e9286592a316e26620eba",
+        "mergedBaselineBlob": "0b269e8976a2ab7496cbbb6eb12bf0957912c6a8",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -240,0 +241,6 @@ fork audit passed. Owner: `bleedingdev`."
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/package.json",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP adds workspace federation-runtime and renderer-core runtime dependencies for Worker publication/validation imports. Reconcile current dependency versions; root serializes metadata.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "465e9c35c9eb3ee6f60fa18509e47a1bb6bb7a98",
+        "preservedBlob": "a8c8ad05ab4478dd673746f45ec118425e9f5392",
+        "mergedBaselineBlob": "a579224bcc0db50dda27bebe405ba767e9e8cf2a",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -212,0 +213 @@",
+        "@@ -214,0 +216 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/cloudflare-output-contract.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add request_signal_passthrough to required flags so service-binding subrequests receive incoming cancellation.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "0294d30c4c2e3d0f16ddcb47d103e5ec934fac48",
+        "preservedBlob": "85e2f7c84592b096423c2e891f0821e24b67db79",
+        "mergedBaselineBlob": "0294d30c4c2e3d0f16ddcb47d103e5ec934fac48",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -109,0 +110,3 @@ export const CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS = ["
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/cloudflare/native-renderer.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add exact renderer/Worker publication, pinned manifest URL and service-fragment coordinate validation, client hydration hash matching and no conflicting aliases.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "2ea0ef26bb5a3752ea043a41f796bf4b4436b274",
+        "preservedBlob": "01b6103e7f8fbf8b3001bc5f06547df10b662c40",
+        "mergedBaselineBlob": "2ea0ef26bb5a3752ea043a41f796bf4b4436b274",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -2,0 +3,12 @@ import path from 'node:path';",
+        "@@ -25,0 +38,10 @@ export interface NativeRendererWorkerEntry {",
+        "@@ -31,0 +54,3 @@ export interface NativeRendererWorkerResources {",
+        "@@ -65,0 +91,107 @@ function validateEntry(entryName: string, value: unknown) {",
+        "@@ -115,0 +248 @@ export async function readNativeRendererWorkerResources("
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/cloudflare/worker-manifest.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add one compiled bundle per expose and declared service-binding checks. Baseline independently retains responseHeaders in emitted routes; preserve those newer headers.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "6cac5385bd206f8eacfb95d3817f69a73a9f3d40",
+        "preservedBlob": "f21c6fff0646ab4279125150e28bcf2a1479de87",
+        "mergedBaselineBlob": "72b3fab6b5b34950dafd5f2b115ecb96a3d9f94f",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -221,0 +222,15 @@ export const createWorkerManifest = async (",
+        "@@ -232,0 +248,14 @@ export const createWorkerManifest = async ("
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/config.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add deploy.worker.federation.contextProfiles bounded source-module configuration contract.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "b746b4b32b7dc565bf0f69ed979709e70dbd5e54",
+        "preservedBlob": "5957a131b2cef34f5a001391a68703d14057361d",
+        "mergedBaselineBlob": "b746b4b32b7dc565bf0f69ed979709e70dbd5e54",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -249,0 +250,5 @@ export interface CloudflareWorkerDeployConfig {"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/deploy-output/trace-files.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in baseline: lazy NFT import captures invocation paths and keeps public CJS/ESM tracing regression.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "e5b96ab9c6c8de49e9b5f17a0b01f8fbda06b844",
+        "preservedBlob": "749ad55de4ca3ef9cc1b34b889934d401e76202b",
+        "mergedBaselineBlob": "749ad55de4ca3ef9cc1b34b889934d401e76202b",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -3 +3 @@ import path from 'node:path';",
+        "@@ -62,6 +62,19 @@ export const traceDeployFiles = ({"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/templates/cloudflare-entry.005-worker-dispatch.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add exact-path native snapshot dispatch and pass Worker publication/service metadata to native dispatcher. Preserve baseline native route-data protocol bypass, response-header merge, ASCII identity serialization, and native framing.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "923dff15b1abff637d8da3b85da355d606b1ec01",
+        "preservedBlob": "2993606bef3a64553ceec8b9709b44999dfed1a1",
+        "mergedBaselineBlob": "9d2e5b6c3c4d002bb5523bc9637fa1457723e4dc",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -236,0 +237,24 @@ async function dispatchRouteWorker(route, request, env, ctx) {",
+        "@@ -285 +309,15 @@ async function invokeNativeRouteWorker(route, identity, request, env, ctx) {"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/src/templates/cloudflare-entry.006-fetch-handler.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Run exact native federation dispatch before BFF/prefix/page fallbacks, applying existing finalization/CORS. Preserve baseline native locale detection and HEAD request identity behavior.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "df65393af090bce0fd372158e0cee9e891b03737",
+        "preservedBlob": "a286de3bafac53fec2670e818de699553f70195e",
+        "mergedBaselineBlob": "652edfbcd268063a8a559fee1b9cfbbed6704186",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -18,0 +19,12 @@ export default {"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/tests/deploy-output/cloudflare-native-worker-federation.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "614-line new contract tests cover publication drift, pinned manifest, missing compiled expose/service, exact native path/method/body forwarding and no fallback on faults.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "78754e606c021d987a37cd2fee4d57df2447edde",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,614 @@"
+      ],
+      "addedTestEvidence": [
+        "describe('completed native Worker federation publication', () => {",
+        "it('preserves the full authority, native client hash, and service topology', async () => {",
+        "it('requires a pinned URL for a producer publication', async () => {",
+        "it('accepts a host with service topology and no exposed snapshots', async () => {",
+        "it('requires the exposed entry bundle and each compiled service binding at deploy', async () => {",
+        ".filter(filename => /^cloudflare-entry\\.\\d{3}-.*\\.mjs$/u.test(filename))",
+        "describe('native Worker snapshot routing', () => {",
+        "it('keeps a page without a producer publication in ordinary routing', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/tests/deploy-output/cloudflare-output-verifier.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Extend required flag fixture and missing-flag diagnostic for request_signal_passthrough.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "9e79212d47bc570f41304908d274ae36fc34203e",
+        "preservedBlob": "cc03b66a36be8180d60bda216f4c85cf0ce806fc",
+        "mergedBaselineBlob": "9e79212d47bc570f41304908d274ae36fc34203e",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -241,0 +242 @@ const createOutputFixture = async ({",
+        "@@ -403,0 +405 @@ describe('Cloudflare output verifier', () => {"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "packages/solutions/app-tools-extensions/tests/deploy-output/trace-files.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already exists in baseline: lazy NFT import captures invocation paths and keeps public CJS/ESM tracing regression.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "15d95ad28d0b72ba73c002c7554acad82b3e8d0f",
+        "preservedBlob": "f1a49b79ccda805f7e5d4b905855c07d1b6b8d0b",
+        "mergedBaselineBlob": "f1a49b79ccda805f7e5d4b905855c07d1b6b8d0b",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -1 +1,9 @@",
+        "@@ -23,0 +32,121 @@ describe('deploy file trace', () => {"
+      ],
+      "addedTestEvidence": [
+        "it(`loads the tracing dependency only when a ${format === 'cjs' ? 'CJS' : 'ESM'} public config traces files`, async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/app-tools/src/builder/index.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add export of existing getServerRoutes analyzer for fork-owned endpoint-prefix analysis. Non-shrink upstream-owned line needs same-PR reviewed ledger.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "9c970e4f557104cd3aae543665cbecd5fc6e10cb",
+        "preservedBlob": "19ed16765f6a0cd7623563706cf4d19162f55865",
+        "mergedBaselineBlob": "9c970e4f557104cd3aae543665cbecd5fc6e10cb",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -9,0 +10 @@ export { getBundleEntry } from '../plugins/analyze/getBundleEntry';"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/config.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Resolve native entryBasePaths from existing modifyServerRoutes/getServerRoutes hooks; reject multiple analyzed public prefixes.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "45fadba991248a1d56439aafef9d90499012c4fa",
+        "preservedBlob": "b5e7b2d5983ce8aa5225b81f9b5742e94b54d70a",
+        "mergedBaselineBlob": "d7a8e336a8d548d5809b5806a8e2c6e477fa95c6",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -187 +187,3 @@ export async function resolveUltramodernEntryIdentities({",
+        "@@ -194,0 +197,26 @@ export async function resolveUltramodernEntryIdentities({",
+        "@@ -198 +226 @@ export async function resolveUltramodernEntryIdentities({",
+        "@@ -206 +234,6 @@ export async function resolveUltramodernEntryIdentities({"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-development.ts",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "dev-refresh",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add completed graph revision state/publication header, retain immutable assets only, and serve via supported server.setup post callback after configured CORS/headers. Baseline has newer manual applyDevServerHeaders; replace only with tested equivalent supported ordering.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "921792828811fdd58199b15769d2c204607dcca1",
+        "preservedBlob": "1b12708d9ff79cdea74dc1dad42585815a9b9c6c",
+        "mergedBaselineBlob": "4a9d733b3dfa115bbf41f3b3457f8c291d8e38a6",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -26,0 +27 @@ import {",
+        "@@ -27,0 +29 @@ import {",
+        "@@ -104,0 +107 @@ export class NativeDevelopment {",
+        "@@ -154 +157 @@ export class NativeDevelopment {",
+        "@@ -156,13 +159,18 @@ export class NativeDevelopment {",
+        "@@ -170 +178 @@ export class NativeDevelopment {",
+        "@@ -172,8 +180,18 @@ export class NativeDevelopment {",
+        "@@ -181,4 +199,3 @@ export class NativeDevelopment {",
+        "@@ -189,0 +207 @@ export class NativeDevelopment {",
+        "@@ -253,0 +272 @@ export class NativeDevelopment {",
+        "@@ -324,0 +344 @@ export class NativeDevelopment {",
+        "@@ -349,0 +370 @@ export class NativeDevelopment {",
+        "@@ -451 +472,7 @@ export class NativeDevelopment {",
+        "@@ -460,0 +488 @@ export class NativeDevelopment {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-entry.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Generate Worker-specific handlers/registry, native context startup, Worker transport and dispatcher without Node federation binding. Reconcile current native entry APIs.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "bea6baca3a96091b736622408669f165b68f7700",
+        "preservedBlob": "9de50e264502bca4aac9659bb102941b8c030a13",
+        "mergedBaselineBlob": "b3ea8fb61e576fcc0d1346b1419f986ee1afe19b",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -15,0 +16,5 @@ import {",
+        "@@ -125,0 +131,25 @@ export function createNativeEntryStubGenerator(",
+        "@@ -132 +162 @@ export function createNativeEntryStubGenerator(",
+        "@@ -138,0 +169,3 @@ export function createNativeEntryStubGenerator(",
+        "@@ -142 +175 @@ export function createNativeEntryStubGenerator(",
+        "@@ -150,5 +183,6 @@ ${Object.entries(fields)",
+        "@@ -156,8 +190 @@ ${Object.entries(fields)",
+        "@@ -165 +192,9 @@ export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({",
+        "@@ -167 +202,10 @@ export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({",
+        "@@ -171,0 +216,17 @@ export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({",
+        "@@ -212,0 +274,21 @@ export function createNativeEntryGenerator("
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-federation-dev-assets.ts",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "dev-refresh",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add deterministic SHA256 graph revision over sorted URL/asset bytes and revision header constant.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "2f5baafb912daf35249aec6d508ddc241e07b57d",
+        "preservedBlob": "78f817224079c32dd378fa53b30d3cd54961dea0",
+        "mergedBaselineBlob": "2f5baafb912daf35249aec6d508ddc241e07b57d",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -9,0 +11,17 @@ export interface NativeDevelopmentAsset {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-infrastructure.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Wire Worker build profiles, source preflight, final compiler identities, plan/services, client publication plugin, separate worker generator and finalized manifest resources.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "910f1c386caddd23e16d38b1033cc15b820f8e6a",
+        "preservedBlob": "9201a60bf949b9eebde0a1ae09eb46e01cca94b2",
+        "mergedBaselineBlob": "c70cba8daf7880b022889ee7a51c38872049f833",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -9,0 +10 @@ import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';",
+        "@@ -27,0 +29 @@ import { isEntryMetadataRead } from './config-read-context';",
+        "@@ -38,0 +41 @@ import {",
+        "@@ -43,0 +47 @@ import {",
+        "@@ -49,0 +54,14 @@ import {",
+        "@@ -71,0 +90,6 @@ export interface NativeEntryGeneration {",
+        "@@ -78,0 +103 @@ export interface NativeEntryGenerator {",
+        "@@ -125,0 +151,2 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -138,0 +166,9 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -273,0 +310,17 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -288,0 +342,7 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -347,0 +408,66 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -365,0 +492 @@ export function nativeRendererInfrastructurePlugin(",
+        "@@ -443 +570,5 @@ export default nativeRequestHandler;",
+        "@@ -797,0 +929,14 @@ export default nativeRequestHandler;",
+        "@@ -805,0 +951,10 @@ export default nativeRequestHandler;"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-module-federation.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Split hunk authors: Worker static service-binding graph returns before Enhanced Node transport; dev-refresh adds native-dev-refresh plugin options/shared providers/revision timeout. Integrator serializes file.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "de57bd8ff8eebac7d87ef0da12e02cee183d8d39",
+        "preservedBlob": "f611ba51313ca39cd23b086f55a02b7142358c28",
+        "mergedBaselineBlob": "bf5eb84a26ea2eb664dde041b387f64b5d482cca",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -6,0 +7 @@ import type { AppTools, CliPlugin } from '@modern-js/app-tools';",
+        "@@ -13 +14,4 @@ import { NATIVE_MODULE_FEDERATION_PLUGIN } from './module-federation-renderer-pl",
+        "@@ -15,0 +20 @@ import { findNativeFederationConfig } from './native-federation-files';",
+        "@@ -598 +603,4 @@ export function createNativeServerFederationOptions(",
+        "@@ -920 +928,5 @@ export function nativeModuleFederationPlugin(",
+        "@@ -953,0 +966,20 @@ export function nativeModuleFederationPlugin(",
+        "@@ -999,14 +1031,34 @@ export function nativeModuleFederationPlugin("
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker-context-profiles.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New bounded literal-module admission: extensions/path/array descriptors, realpath confinement, physical duplicates and wait-for-all source stats without executing source.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "bb626a322333c1e46b6755a373545f09221e7a5f",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,119 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker-federation-config.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New topology-owned expose/service coordinates, exact authored alias/container, per-remote i18n/base-path policies, endpoint collision checks and one native compiler entry.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "930357f1750d0ab9a125b26654240e386c32b919",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,343 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker-federation-policy.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New canonical remote workspace owner admission and public config/entry-hook loading for resolved i18n/public-prefix policies.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "f8fc22b01575370522c726dfd6ff3dfed6d26b00",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,108 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker-federation.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New deterministic local-expose plan, native CLIENT hydration authority finalization, immutable literal registry imports and native router/i18n/profile startup.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "ed8c0739cdd2b10b0c819e4db81f99c2b99b8ffe",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,401 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker-publication.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New Rspack REPORT+2 publication from validated native client artifacts; exact renderer metadata, actual completed publicPath/asset URL and duplicate publication rejection.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "146537f4303432825ab01163bca5a0ce1e6506e9",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,148 @@"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/native-worker.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add native Worker federation request dispatcher and resources with exact validated native client hashes, pinned manifest URL/services. Keep baseline native stream and cancellation semantics.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "35a56c73ad9b04bb6f485eb3413e7140a62fd992",
+        "preservedBlob": "71f79e475954d692fc74c1a563c74b32a1c45bf9",
+        "mergedBaselineBlob": "a294efe2b6c6f6bf57effef3ce32f8d00fc089bd",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -9,0 +10 @@ import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-outp",
+        "@@ -21,0 +23,3 @@ import type { EnvironmentConfig, ModifyBundlerChainFn } from '@rsbuild/core';",
+        "@@ -39,2 +43,28 @@ export const isNativeWorkerBuild = (config: NativeWorkerConfig): boolean =>",
+        "@@ -134,0 +165,6 @@ export async function writeNativeWorkerResources(options: {",
+        "@@ -135,0 +172,7 @@ export async function writeNativeWorkerResources(options: {",
+        "@@ -143,0 +187,4 @@ export async function writeNativeWorkerResources(options: {",
+        "@@ -165 +212,6 @@ export async function writeNativeWorkerResources(options: {",
+        "@@ -170,0 +223 @@ export async function writeNativeWorkerResources(options: {",
+        "@@ -188,0 +242,15 @@ export async function writeNativeWorkerResources(options: {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/src/native-composition/workspace-preset.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Project native Worker service bindings including ./Route, omit React-only Zephyr/public-locales/alias/entry defaults for native apps.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "b7bca1ba63b8d542858ea6c29612175c02de327c",
+        "preservedBlob": "fc5c221c25f4d4f2225027cda119a2f7be292f07",
+        "mergedBaselineBlob": "4df1ea56561c1dda38d9d29538352ef30c6ad62c",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -101,0 +102,3 @@ const serviceBinding = (",
+        "@@ -103 +106,3 @@ const serviceBinding = (",
+        "@@ -358,0 +364,3 @@ const resolveWorkspaceConfig = (",
+        "@@ -533 +541 @@ const resolveWorkspaceConfig = (",
+        "@@ -537 +545,4 @@ const resolveWorkspaceConfig = (",
+        "@@ -539,4 +550,9 @@ const resolveWorkspaceConfig = (",
+        "@@ -544 +559,0 @@ const resolveWorkspaceConfig = ("
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-development.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "dev-refresh",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Test configured base/CORS/headers/retained immutable assets, stable browser file refresh and graph revision; reconcile baseline current compiler fixtures.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "cee11fb20be821178414fc936308722713ee674a",
+        "preservedBlob": "561a746b344b908f87612442df24bc12a0c470d9",
+        "mergedBaselineBlob": "9790f544243214bb53eee4ae3e98f5463b7f7836",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -14,0 +15 @@ import {",
+        "@@ -31 +32,4 @@ import { createNativeEntryGenerator } from '../../src/native-composition/native-",
+        "@@ -314 +318,7 @@ async function nativeApp(renderer: 'solid' | 'octane', module: boolean) {",
+        "@@ -444 +454,3 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -450 +462,4 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -460 +474,0 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -461,0 +476,4 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -512,0 +531,8 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -544 +570 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -546 +572 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -556 +582,10 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -563,0 +599,6 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -581,0 +623,6 @@ ${federation ? 'export const privateLazy = () => import(\"./private-lazy.js\");' :",
+        "@@ -612,0 +660,140 @@ describe('native development', () => {",
+        "@@ -615,0 +803,6 @@ describe('native development', () => {",
+        "@@ -616,0 +810,2 @@ describe('native development', () => {",
+        "@@ -629,0 +825 @@ describe('native development', () => {",
+        "@@ -632,0 +829,5 @@ describe('native development', () => {",
+        "@@ -633,0 +835,12 @@ describe('native development', () => {",
+        "@@ -636,0 +850,17 @@ describe('native development', () => {",
+        "@@ -637,0 +868 @@ describe('native development', () => {",
+        "@@ -689,3 +920,6 @@ describe('native development', () => {"
+      ],
+      "addedTestEvidence": [
+        "asset => asset.kind === 'script' && /\\/main\\./u.test(asset.href),",
+        "it('publishes native and retained assets beneath the configured server base', async () => {",
+        "asset => asset.kind === 'script' && /\\/main\\./u.test(asset.href),",
+        "it('refreshes stable browser federation files and publishes the completed server graph revision', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-federation-dev-assets.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "dev-refresh",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Test graph hash deterministic across insertion order and sensitive to every graph asset.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "180a654d6d2351fef53fde3d7a712d56bb537e2e",
+        "preservedBlob": "83bdccbe038278d01ae2e7e5497b296657d22ab6",
+        "mergedBaselineBlob": "180a654d6d2351fef53fde3d7a712d56bb537e2e",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -3,0 +4 @@ import {",
+        "@@ -16,0 +18,24 @@ const assets = new Map(["
+      ],
+      "addedTestEvidence": [
+        "describe('native federation completed graph revision', () => {",
+        "it('is deterministic across graph iteration order and changes with any graph asset', () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-module-federation.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Worker hunk proves no Enhanced/Node runtime in Worker graph; dev-refresh hunk asserts plugin shared runtime bindings and revision options.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "1093785eff54f76afeca8d7fd1c9c1fa67d48b77",
+        "preservedBlob": "1b6ceeb706ee24035de1a3190dce4aa0a97e0b4d",
+        "mergedBaselineBlob": "f64f4d9c615a93e57086525ee7b7a1cb136025c6",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -2,0 +3 @@ import { createServer } from 'node:http';",
+        "@@ -5,0 +7 @@ import { pathToFileURL } from 'node:url';",
+        "@@ -330 +332 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,",
+        "@@ -369,2 +371,5 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,",
+        "@@ -372 +377,4 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,",
+        "@@ -862,0 +871,73 @@ describe('native Module Federation plugin', () => {",
+        "@@ -884,0 +966,65 @@ describe('native Module Federation plugin', () => {"
+      ],
+      "addedTestEvidence": [
+        "it('pins the actual Octane Worker graph without an Enhanced or Node container runtime', async () => {",
+        "/node:(?:fs|vm)|module-federation[/](?:node|sdk)/u.test(module),"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker-context-profiles.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 487-line admission suite tests source order/extension, canonical aliases, escapes, descriptors, duplicates, module/path limits and settled batch errors.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "9b7a18f39aa4ac69357d484dcef71e64877d0768",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,487 @@"
+      ],
+      "addedTestEvidence": [
+        "it('accepts every supported source extension in declared order without evaluating code', async () => {",
+        "it('canonicalizes an application-directory symlink and an internal source-file alias', async () => {",
+        "it('rejects duplicate lexical paths before filesystem work', async () => {",
+        "it('validates indexed entries even when an array iterator hides traversal', async () => {",
+        "it('uses the bounded array length without invoking a replacement iterator', async () => {",
+        "it('rejects inherited sparse entries and accessor slots without executing them', async () => {",
+        "it('rejects source-looking directories and aliases to non-source files', async () => {",
+        "it('rejects a missing later source module without evaluating an earlier profile', async () => {",
+        "it('requires an application directory when profiles are configured', async () => {",
+        "it('accepts 32 modules and rejects 33 or an overlong path before filesystem work', async () => {",
+        "it('waits for every source stat before returning any imports', async () => {",
+        "it('finishes other metadata work before rejecting a batch with an invalid later owner', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker-federation-config.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 446-line topology/locale/entry/alias/binding/endpoint admission suite.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "67772cb83bb919740d14c44e07d7d6311fd7f88b",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,446 @@"
+      ],
+      "addedTestEvidence": [
+        "describe('native Worker federation resolved configuration', () => {",
+        "it('removes the existing canonical locale segment for an unlocalized endpoint', () => {",
+        "it('uses native URL mappings with the entry base path outside the locale segment', () => {",
+        "it('rejects unsafe resolved native URL mappings and base paths', () => {",
+        "it('selects the actual topology remote rather than the generic renderer app id', () => {",
+        "it('uses the finalized canonical app id only when reference topology is absent', () => {",
+        "it('fails on existing topology disagreement instead of selecting a fallback owner', () => {",
+        "it('requires one compiler-owned entry and ignores authored entry assignments', () => {",
+        "it('retains authored alias and binding while selecting the remote locale policy', () => {",
+        "it('requires a remote policy and accepts explicit unlocalized remote configuration', () => {",
+        "it('requires exactly one authored remote container for every Worker fragment', () => {",
+        "it('rejects relative or credentialed Worker manifest authority', () => {",
+        "it('rejects conflicting bindings, remote owners, exposes and paths', () => {",
+        "it('omits self publication for a host and ignores API-only service bindings', () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker-federation-policy.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 400-line public config loader suite checks actual per-remote locale/base-prefix hooks, repeated owner evaluation, no-work empty services and unsafe/symlink preflight.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "8b66011515d8a76fc5a2f9764626145d197b4592",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,400 @@"
+      ],
+      "addedTestEvidence": [
+        "describe('native Worker remote URL policy through public configuration', () => {",
+        "it('keeps React metadata discovery independent of native route-prefix analysis', async () => {",
+        "it('uses the remote locales, URL mapping, and analyzed consumer prefix independently of the host', async () => {",
+        "it('publishes an explicit unlocalized policy and evaluates a repeated remote once', async () => {",
+        "it('rejects multiple analyzed public prefixes instead of choosing an authored base URL', async () => {",
+        "it('does no filesystem or configuration work for services without fragments', async () => {",
+        "it('preflights every remote owner before evaluating the first valid config', async () => {",
+        "it('rejects a declared remote directory symlink that escapes the workspace before source evaluation', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker-federation.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 759-line expose plan/client-artifact authority suite, deterministic source and compiled literal profile registration with lazy exposes; update stale runtime/router fixture identities.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "c471eb1b302a72f3d20166f7570108d6c60636a1",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,759 @@"
+      ],
+      "addedTestEvidence": [
+        "describe('native Worker federation build plan', () => {",
+        "it('normalizes one local module per component in deterministic order', () => {",
+        "it('plans exact topology coordinates without claiming a native publisher hash', () => {",
+        "it('finalizes immutable publication from validated CLIENT artifacts rather than source identity hashes', () => {",
+        "it('requires validated native hydration ownership without source-hash fallback', () => {",
+        "it('requires compiler ownership for the full expose set and exact finalized entries', () => {",
+        "it('uses only the compiler map when a publication has multiple entries', () => {",
+        "it('delegates renderer identity admission to the canonical reader', () => {",
+        "it('rejects missing, duplicate and conflicting service coordinates', () => {",
+        "it('admits an explicit default endpoint when localization is disabled', () => {",
+        "it('uses the portable publication reader for unique locale endpoint admission', () => {",
+        "it('admits the portable locale syntax without a second locale validator', () => {",
+        "it('generates identical source regardless of authored expose and fragment order', () => {",
+        "it('starts admitted profile modules before admission and keeps the compiled exposes lazy', async () => {",
+        "/node:|federation.*(?:node|runtime)/u.test(module),"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker-publication.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 396-line actual Rspack completed CLIENT manifest emission and final publication URL tests; update fixture pins to current baseline.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "52ff8ea4f61b4d5c04cdac824e55bb428c7b5ad9",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,396 @@"
+      ],
+      "addedTestEvidence": [
+        "describe('native Worker client publication emission', () => {",
+        "it('binds the validated native CLIENT hash after artifacts finish, independent of renderer source identity', async () => {",
+        "it('accepts equivalent canonical renderer metadata with reordered object fields', async () => {",
+        "it('derives deployment authority from the completed emitted MF public path and actual asset name', async () => {",
+        "describe('native Worker finalized manifest URL', () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add exact completed publication bound to validated native client hash, not source hash.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "d77b9920b6075a728adae91b294792643c6afeed",
+        "preservedBlob": "d722b03b730d357bf39419d39016eba4ef553579",
+        "mergedBaselineBlob": "8a640f4b49252b125350bb9df4bd5d7f0a654115",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -5,0 +6 @@ import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';",
+        "@@ -11,0 +13 @@ import {",
+        "@@ -167,0 +170,81 @@ export { dispatchNativeWorkerRequest } from '@modern-js/renderer-core/server';"
+      ],
+      "addedTestEvidence": [
+        "it('binds completed Worker publication to the validated native client hash', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/renderer-entry.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add native Worker generated entry/registered router contexts without Node federation binding.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "0dbe0bf6c9722dcd0a63deafeab7c317b1460afa",
+        "preservedBlob": "b114ce34529d40e140b234306cae7a455156895d",
+        "mergedBaselineBlob": "07cc62f408aa91409d184482caedd3fa6bc8df41",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -5,0 +6 @@ import { rspack } from '@rsbuild/core';",
+        "@@ -111,0 +113,86 @@ describe('native owning entry generation', () => {"
+      ],
+      "addedTestEvidence": [
+        "it('emits a native Worker entry without the Node federation binding', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/renderer-infrastructure.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add source-profile preflight-before-config/identity compilation checks.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "683e1d298c0c9b68c37a90af1297209bf7eac48a",
+        "preservedBlob": "00200a1534c6eced58a569952aca9a4cfdf9bb89",
+        "mergedBaselineBlob": "b1efe7ab21d6adbe7415ba2046212f133b13cec3",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -873,0 +874,109 @@ describe('native infrastructure in the owning CLI hooks', () => {"
+      ],
+      "addedTestEvidence": [
+        "it('preflights every profile path before federation config execution or identity compilation', async () => {"
+      ]
+    },
+    {
+      "path": "packages/solutions/ultramodern-app-tools/tests/native-composition/workspace-preset.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add native renderer topology service bindings without React policy and actual async Octane exposes/services through public config.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "890e37756a545f922f14dda72e84ee402487b1b2",
+        "preservedBlob": "71e013919d716c824630b616a01a0db2eeea2131",
+        "mergedBaselineBlob": "b33a958a44d225719a38c89d139cf908dd3a2663",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -9,0 +10 @@ import {",
+        "@@ -10,0 +12 @@ import {",
+        "@@ -14 +16 @@ import {",
+        "@@ -20,0 +23 @@ const fixture = () => {",
+        "@@ -101,0 +105,126 @@ describe('native workspace build policy', () => {"
+      ],
+      "addedTestEvidence": [
+        "it(`projects ${renderer} worker bindings without imposing React entry, translation or upload policy`, () => {",
+        "it('loads current async Octane exposes and preserves authored services through the native config lifecycle', async () => {"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/add-shell.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Pass existingVerticals into generated native Cloudflare contract so referenced remote proof routes are correct.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "e3f6c5e9cae308cecc5d48223f310354381817d8",
+        "preservedBlob": "f5ae63f803677cf3268e6280c9b9a147e9ca630f",
+        "mergedBaselineBlob": "e3f6c5e9cae308cecc5d48223f310354381817d8",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -380 +380,5 @@ async function executeAddUltramodernShell("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/add-vertical/execute.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Canonical formatter seeding/reuse already carried; WIP differs only in older full-mesh API comment.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "493a6d17d0c937a0b1ba76dec66c7cf54afc61f1",
+        "preservedBlob": "34db128ffa2d335388f2f5d2f8b66c79d527e164",
+        "mergedBaselineBlob": "c722ae58db7f6751c8762ba07b31f0f0067a9762",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -51,0 +52 @@ import {",
+        "@@ -68,0 +70 @@ import {",
+        "@@ -149,3 +151,3 @@ export async function executeAddUltramodernVertical(",
+        "@@ -168,0 +171,38 @@ export async function executeAddUltramodernVertical(",
+        "@@ -355,0 +396 @@ export async function executeAddUltramodernVertical("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/add-vertical/shell-files.ts",
+      "disposition": "superseded",
+      "authorLane": "none",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Historical WIP re-adds createShellApiClient/appHasApi and vertical-clients.ts. Merged 51a6829e8d intentionally removes the Shell API client barrel while updating generation and fail-closed Shell API boundaries together. Preserve merged owner contract; formatter injection is already carried. No missing tooling extraction here.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "cfb88e3179bc58319ccbd3a8c4fe9c4fdeba808d",
+        "preservedBlob": "607285c3a0534217340737ac282329ed1388e51a",
+        "mergedBaselineBlob": "a6a97cec0e9b3b49b655e522aee34730f84ebd46",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -41 +41,4 @@ import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from '../types';",
+        "@@ -97 +100 @@ export function updateRootWorkspaceScripts(",
+        "@@ -234,0 +238,3 @@ export function rewriteShellAppFiles(",
+        "@@ -252,4 +258,5 @@ export function rewriteShellAppFiles("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/add-vertical/topology.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Pass remotes into native generated Cloudflare contract.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "8367d593415300ff4b294bd90e69a191d3c1867e",
+        "preservedBlob": "dc7b120cb6b3d705f57a66f0bc08302f17c2d4a2",
+        "mergedBaselineBlob": "8367d593415300ff4b294bd90e69a191d3c1867e",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -87 +87 @@ export function verticalTopologyEntry("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/contracts.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Pass remotes for shell/vertical generated native Cloudflare deploy proof routes.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "a5fd02634bb76680d9383298fbf07b20b463b8ef",
+        "preservedBlob": "78f773542072b6cabb620a3a1ebff85833721cbd",
+        "mergedBaselineBlob": "a5fd02634bb76680d9383298fbf07b20b463b8ef",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -111 +111,7 @@ export function createTopology(",
+        "@@ -167 +173,7 @@ export function createTopology("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/fs-io.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact baseline blob carries --threads=1 for both candidate and generated workspace Oxfmt runs.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "ac6caea25eb5e0859e0582341648e5848c8c53ef",
+        "preservedBlob": "a556b0de7d773fabc4a64de7dca72bd4edd62256",
+        "mergedBaselineBlob": "a556b0de7d773fabc4a64de7dca72bd4edd62256",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -182,0 +183 @@ export function formatGeneratedSourceCandidates(",
+        "@@ -251,0 +253,3 @@ export function formatGeneratedWorkspaceFiles("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/module-federation/config.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Use presetUltramodernWorkspace for Worker-capable native apps and let topology own port/services while retaining native ssr/main entry.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "7fec9c6bfb063040c0ca92926b2a6f099021b81f",
+        "preservedBlob": "0bc04a978f8732ad0b8909185e78ad6941d31c6c",
+        "mergedBaselineBlob": "22857950a5912090adb5a3bb96b559dd9563801d",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -33,0 +34 @@ export function createAppModernConfig(",
+        "@@ -35 +36 @@ export function createAppModernConfig(",
+        "@@ -53 +54 @@ const assetPrefix = new URL('.', remoteAddress.replace(/^[^@]+@(?=https?:\\\\/\\\\/)",
+        "@@ -57 +58 @@ ${exposes ? '  output: { assetPrefix },\\n' : ''}",
+        "@@ -71 +72 @@ ${resolveApiProtocol(app) === 'rest' ? \"        openapi: { path: '/openapi.json'"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/package-json.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Retain wrangler/miniflare only for native Worker capability and emit root Cloudflare build/deploy/verify scripts. Preserve current pins.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "527b0324f7db5ac45de43a127cbefa92d8a8e78b",
+        "preservedBlob": "1409fef2627d8597a23312351134cdd162b2b227",
+        "mergedBaselineBlob": "9c9d2b30182f7a4e14e07ac587fc447b47b28d9d",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -149 +149 @@ function appDevDependencies(",
+        "@@ -186,0 +187,2 @@ export function createRootPackageJson(",
+        "@@ -194 +196 @@ export function createRootPackageJson(",
+        "@@ -196 +198 @@ export function createRootPackageJson(",
+        "@@ -224,0 +227,19 @@ export function createRootPackageJson("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP records .15/.34 native mask recipes with exact patch hashes. Reconcile current all-.34 native baseline; no obsolete .15 consumer/version resurrection.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "104803eb93c09cb12d4dc960e5dfe5173437e4d6",
+        "preservedBlob": "bbfb435fc0f487a7cdd420a691d3ba89c6420b49",
+        "mergedBaselineBlob": "2c9d41cace7f9353d95202b257c794495d74f973",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -1,0 +2,20 @@ export default ["
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/policy.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Generate native unlocalized proof routes and referenced distributed SSR proof paths; use canonical required Cloudflare flags.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "4d9b9b5e0ff3ccd75632947167c77a5e358340cf",
+        "preservedBlob": "6b48cdf75f9c78b509b908470f727ad2b3f7860c",
+        "mergedBaselineBlob": "57047241d3b59f7a73f94edfce086350da8daae7",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1 @@",
+        "@@ -10,0 +12 @@ import {",
+        "@@ -11,0 +14 @@ import {",
+        "@@ -13 +16 @@ import { createLocalisedUrlsMap } from './routes';",
+        "@@ -23,0 +27,2 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {",
+        "@@ -26 +31 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {",
+        "@@ -28 +33,3 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {",
+        "@@ -42 +49 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {",
+        "@@ -44 +51,3 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {",
+        "@@ -187 +196,5 @@ export function createCloudflareDeployContract(",
+        "@@ -193,9 +206 @@ export function createCloudflareDeployContract(",
+        "@@ -203,0 +209,12 @@ export function createCloudflareDeployContract("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/renderer-config-evaluation.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact baseline blob carries bounded pairs of fresh isolated config processes, preserving app order and draining both results.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "0a37cdaa5df2104e4934d7ca8c5372475a6a838b",
+        "preservedBlob": "049787449b652e2ac3bb6fe8685508e2a81bf001",
+        "mergedBaselineBlob": "049787449b652e2ac3bb6fe8685508e2a81bf001",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -21,23 +21,42 @@ export async function captureWorkspaceRendererEvaluations(",
+        "@@ -45,6 +63,0 @@ export async function captureWorkspaceRendererEvaluations("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/validation/renderer.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Allow Cloudflare scripts only when worker capability is selected. Preserve baseline app-selected compiler dependency validation absent from old WIP.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "06a94ca002f8c2be75fe474ebfe5380511fb62a4",
+        "preservedBlob": "069ea8589c252a06d2a8309e3e60abe0bef84453",
+        "mergedBaselineBlob": "940a846224fe062b93a3b9690632885657fbf1f6",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -637 +637,3 @@ export function assertNativeRendererSourceSurface("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/validation/workspace.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Require native Worker Cloudflare contracts and native UI SSR route. Preserve baseline producer alias/override/catalog validation; old WIP whole-file restore would remove it.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "93515e487fa43bcaed44e079d45f95a13dc562d5",
+        "preservedBlob": "b0ab07a541fbf421eb94a70a153d475137de6c3a",
+        "mergedBaselineBlob": "f6c03b7a6961a40eae97f486e385031868b0d512",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -343 +343 @@ export function validateWorkspace(",
+        "@@ -356 +356 @@ export function validateWorkspace("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/workspace-artifact-ownership.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact baseline blob carries canonical formatter batching, current-byte checks, authored source/symlink protection.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "ec9b4d787a6648b303eb078b548d0ce554748deb",
+        "preservedBlob": "6f8c51335dc228ea42f89b8c4b371dd8088a76f3",
+        "mergedBaselineBlob": "6f8c51335dc228ea42f89b8c4b371dd8088a76f3",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -100,0 +101,96 @@ function withoutGeneratedData(source: string, binding?: string) {",
+        "@@ -104,0 +201 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -109 +206,2 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -111 +209 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -113 +211 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -120,0 +219,6 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -139,2 +243,6 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -146,5 +254,2 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -155,0 +261,22 @@ export function preserveConsumerWorkspaceArtifacts(",
+        "@@ -196,5 +323,4 @@ export function preserveConsumerWorkspaceArtifacts("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/src/ultramodern-workspace/workspace-script-plan.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Generate native Worker build/deploy/preview scripts using existing deploy and cloudflare-output verifier.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "fe672b345e55616886ff4224616a4057fbaf9a75",
+        "preservedBlob": "63a2135d747c9d94a720d79371c0742a87a79415",
+        "mergedBaselineBlob": "fe672b345e55616886ff4224616a4057fbaf9a75",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -200,0 +201,6 @@ export function createWorkspaceAppPackageScripts(",
+        "@@ -206 +212 @@ export function createWorkspaceAppPackageScripts(",
+        "@@ -207,0 +214,8 @@ export function createWorkspaceAppPackageScripts("
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/generated-workspace-lint.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "WIP paired setup draining and dependency installation concurrency already carried; baseline differs only by absent old 30s setup timeout. Preserve canonical timeout policy; no reason to reinstate historical timeout.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "ac9d7e700b42130a024d4e2c204de57cf54731e8",
+        "preservedBlob": "5aea596463b04b5d2c7190b2b71b2e4f2c6dc63b",
+        "mergedBaselineBlob": "ee26b86024894ae30fad850ba2172e3d187039ef",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -197,0 +198 @@ describe.each([",
+        "@@ -199,12 +200,15 @@ describe.each([",
+        "@@ -213 +217,3 @@ describe.each(["
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/native-worker-generation.test.ts",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New 69-line generated native host/remote proof coordinates plus React locale JSON control.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "c94e4f13bcf3b13a9510aa22ec00355f7d1f69b9",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,69 @@"
+      ],
+      "addedTestEvidence": [
+        "test(`${renderer} Worker proof coordinates match the generated native routes and referenced exposes`, () => {",
+        "test('React Worker proof keeps its localized route and locale JSON contract', () => {"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/renderer-identity.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact baseline blob carries bounded actual metadata-process pairs and original input-order regressions.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "4ac25d76536093f5fbc8927a64a7dd1b3ca16d01",
+        "preservedBlob": "2701a183e7609532e3190057b742d371c685cef4",
+        "mergedBaselineBlob": "2701a183e7609532e3190057b742d371c685cef4",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -23,0 +24,23 @@ import type {",
+        "@@ -103,0 +127,32 @@ function fixture() {",
+        "@@ -109,0 +165,3 @@ function fixture() {",
+        "@@ -170,0 +229,155 @@ test('owning config loader resolves object/sync/async selection; headless has no",
+        "@@ -512 +725,2 @@ export default defineConfig(async ({env,command}) => {",
+        "@@ -514 +727,0 @@ export default defineConfig(async ({env,command}) => {",
+        "@@ -515,0 +729 @@ export default defineConfig(async ({env,command}) => {",
+        "@@ -556 +770,7 @@ test('checked metadata reconciles per-entry partitions without replaying authore"
+      ],
+      "addedTestEvidence": [
+        "test('metadata overlaps isolated app processes, bounds active pairs and preserves input order', async () => {"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/ultramodern-fs-io.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Worker bound/format byte tests carried; baseline updates stdin Markdown expectations for current Oxfmt (0 external workers), WIP stale assertion expects1.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "23f04091703dc8d72bf3d48d94e84405081208a7",
+        "preservedBlob": "4d2342d79dfa5c1abf952515d729d2ded730bf67",
+        "mergedBaselineBlob": "15af3970cd1f1e01e46552d5b68086731d6eab87",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -1,0 +2 @@ import assert from 'node:assert/strict';",
+        "@@ -2,0 +4 @@ import fs from 'node:fs';",
+        "@@ -4,0 +7 @@ import path from 'node:path';",
+        "@@ -7,0 +11,140 @@ import { writeFile } from '../src/ultramodern-workspace/fs-io';"
+      ],
+      "addedTestEvidence": [
+        "test(`${mode} formatting bounds native external workers and preserves formatted bytes`, () => {"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/workspace-artifact-ownership.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact baseline blob carries all seeded/current-source/duplicate/symlink/malformed-neighbor ownership regressions.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "630a5cb9b0db00416a642fd84d84b2bf915c8445",
+        "preservedBlob": "19d3f360db73da8bb2fc6acb50d17815295c1a54",
+        "mergedBaselineBlob": "19d3f360db73da8bb2fc6acb50d17815295c1a54",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -8,0 +9 @@ import {",
+        "@@ -10,0 +12 @@ import {",
+        "@@ -49,0 +52,172 @@ test('workspace ownership excludes application configs from every topology proje",
+        "@@ -129,0 +304,212 @@ test('generated contract data can refresh without treating authored behavior as"
+      ],
+      "addedTestEvidence": [
+        "test('an operation seed reuses generated evidence but never admits future candidates or stale consumer bytes', () => {",
+        "test('a seeded generated-data comparison still writes complete changed source bytes', () => {",
+        "test('seeded comparisons retain duplicate-path recognition and malformed-neighbor fallback', () => {",
+        "test('unused invalid seed sources defer failure until the source is actually requested', () => {",
+        "test('ownership batches duplicate candidates and reuses exact sources while checking current bytes', () => {",
+        "test('duplicate paths still format and preserve authored source when no candidate matches', () => {",
+        "test('a matching duplicate never hides a malformed canonical candidate', () => {",
+        "test('a formatter failure protects only invalid authored sources in its batch', () => {",
+        "test('ownership rejects external symlinks before comparing or refreshing their source', () => {",
+        "test('ownership keeps consumer filename rules separate from canonical comparisons', () => {"
+      ]
+    },
+    {
+      "path": "packages/toolkit/ultramodern-create/tests/workspace-determinism.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Real formatter/config-worker instrumentation already carried; baseline correctly recognizes current config-metadata-worker.mjs, WIP stale .js would miss workers.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "afa4cfb9739d949b1c44148c0c84b4c45ee2cf09",
+        "preservedBlob": "b5fed1e9dbb845da746c57801883b98062e19ae5",
+        "mergedBaselineBlob": "708be5ef232b37ff8ca9863c85e7e30f7c9fad1a",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -6,0 +7 @@ import { performance } from 'node:perf_hooks';",
+        "@@ -15,0 +17,8 @@ type FileTreeSnapshot = Map<string, Buffer>;",
+        "@@ -140,0 +150,50 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp",
+        "@@ -142,0 +202,17 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp",
+        "@@ -155,0 +232,21 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp",
+        "@@ -156,0 +254,10 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "patches/@tanstack__router-core@1.171.15.patch",
+      "disposition": "superseded",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Historical .15 recipe source retained at WIP commit for comparison only. Final native release uses router-core .34; do not install/revive .15. Port only behavior missing from .34 after authenticated negative control.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "c100d66a6e67aa018e6839fb100360649a9ce693",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,638 @@"
+      ]
+    },
+    {
+      "path": "patches/@tanstack__router-core@1.171.34.patch",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Preserve source and ESM/CJS/declaration/source-map mask/search/document-blocker recipe; prove actual .34 baseline still fails before applying.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "ad190b7b53fabf71076d8459effe9366e6b2b88b",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,584 @@"
+      ]
+    },
+    {
+      "path": "patches/README.md",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Document only actually retained reviewed router patch recipe; retain newer baseline unrelated patch inventory.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "ed9d73b4068ad0440a812f8454ac0d730c145e25",
+        "preservedBlob": "8d5007526af6d0a3799b4f76c4fa9a5dd2bf2c35",
+        "mergedBaselineBlob": "8fdfce9e74b10d141e60d74de27e06a76ccbd9f8",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -7,0 +8,2 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent"
+      ]
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "disposition": "superseded",
+      "authorLane": "integrator",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Integrator regenerates from accepted source pins/current .34 patch or signed sidecar; never restore old WIP lock (old native artifacts/history).",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "52be8221c181d29da186a7c6e84fe559639036b4",
+        "preservedBlob": "0ca604c3282e174c76305980de01ea06a10dfa0d",
+        "mergedBaselineBlob": "64cd821f60c31fa50ffb3779a5a80137a3834e59",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -165,0 +166 @@ overrides:",
+        "@@ -211,0 +213,2 @@ patchedDependencies:",
+        "@@ -1720 +1723 @@ importers:",
+        "@@ -1722 +1725 @@ importers:",
+        "@@ -2206 +2209 @@ importers:",
+        "@@ -2427,0 +2431,3 @@ importers:",
+        "@@ -2454 +2460 @@ importers:",
+        "@@ -3185,0 +3192,3 @@ importers:",
+        "@@ -3191,0 +3201,3 @@ importers:",
+        "@@ -24406 +24418 @@ snapshots:",
+        "@@ -26951 +26963 @@ snapshots:",
+        "@@ -26963 +26975 @@ snapshots:",
+        "@@ -26965 +26977 @@ snapshots:",
+        "@@ -26970 +26982 @@ snapshots:"
+      ]
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "disposition": "required_extraction",
+      "authorLane": "integrator",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Integrator authors only proved current router patched dependency/necessary scoped override; preserve current pin catalog and1440min age. Historical .15 history override is obsolete unless independent actual consumer proven.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "089686cb04c842a21dd8f2f3caad58fb2d032e45",
+        "preservedBlob": "248103ee6e343ce706973a5929b8b65baf094aca",
+        "mergedBaselineBlob": "135fb202391e9e8f4c6d9ea5412456ea13a4cd07",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -58,0 +59,2 @@ patchedDependencies:",
+        "@@ -68,0 +71,2 @@ overrides:"
+      ]
+    },
+    {
+      "path": "scripts/__tests__/overrides.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Keep parent-scoped override semantic regression tests: matching-parent major validation, generic consumer check and URL-dependent handling; version fixture may stay synthetic.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "2cb3bfc47e0b1a58e3d6afa72b5b0c1e17f0de58",
+        "preservedBlob": "45701fb2b4d84a996fc733ef2d8cdd236ce84625",
+        "mergedBaselineBlob": "2cb3bfc47e0b1a58e3d6afa72b5b0c1e17f0de58",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -135,0 +136,86 @@ test('a dependent that is not installed fails unless it is optional', () => {"
+      ],
+      "addedTestEvidence": [
+        "test('parent-scoped major checks read only matching parent snapshots', () => {",
+        "test('a matching parent override still rejects forced major changes', () => {",
+        "test('a generic same-child override still checks unrelated URL consumers and importers', () => {"
+      ]
+    },
+    {
+      "path": "scripts/__tests__/sidecar-source-identity.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Exact recipe-by-declared-version selection and resolved identity regressions; adjust synthetic dual-version assumptions to final actual recipe set.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "343023f2cf139beec6ed05c1feab8d0d3b5a9fd6",
+        "preservedBlob": "f0117df755017a20b5242e472da9e5b4fda7dd5f",
+        "mergedBaselineBlob": "6b5ae5ba373a457938f9c33f546a1d6447c997a4",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -9 +9,4 @@ import { parsePnpmLockfile as parse } from '../lib/parse-pnpm-lockfile.mjs';",
+        "@@ -26,3 +29 @@ function upstreamRecipeEdges(lockfileText) {",
+        "@@ -35,3 +36,9 @@ function upstreamRecipeEdges(lockfileText) {",
+        "@@ -60,0 +68,33 @@ test('no framework runtime edge resolves an upstream package that has a recipe',"
+      ],
+      "addedTestEvidence": [
+        "test('dual router recipes check the declared version against the resolved version', () => {"
+      ]
+    },
+    {
+      "path": "scripts/check-overrides.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Preserve parent-scoped target filtering against only matching parent snapshots, without accidentally restricting generic overrides.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "207f94b052d45da2a89fd90a8c1f5e3b7261acc9",
+        "preservedBlob": "6908d79fdb6eae46f42e566c16f487576165ee0b",
+        "mergedBaselineBlob": "207f94b052d45da2a89fd90a8c1f5e3b7261acc9",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -359,4 +359,3 @@ export function findForcedMajors(lockfileText, readManifest) {",
+        "@@ -363,0 +363 @@ export function findForcedMajors(lockfileText, readManifest) {",
+        "@@ -388 +388 @@ export function findForcedMajors(lockfileText, readManifest) {",
+        "@@ -396,0 +397 @@ export function findForcedMajors(lockfileText, readManifest) {",
+        "@@ -401 +402,10 @@ export function findForcedMajors(lockfileText, readManifest) {",
+        "@@ -403 +412,0 @@ export function findForcedMajors(lockfileText, readManifest) {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-production-readiness/react-rsc-worker-proof/lifecycle.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add deadline-bounded retry of exact disk-guardian maintenance lock failure only, retaining remaining operation budget and original failures; shared by dev/Worker proofs.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "1692543b149d219532ad26e1a9fa8f671cfe903f",
+        "preservedBlob": "ba0058d0a27cdd54ef1885a034d2670f07a82e08",
+        "mergedBaselineBlob": "1692543b149d219532ad26e1a9fa8f671cfe903f",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -4,0 +5 @@ import path from 'node:path';",
+        "@@ -26,0 +28,34 @@ export function maintenanceLockFailure(error) {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-production-readiness/react-rsc-worker-proof/lifecycle.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Add exact async lock, real exec error arguments, deadline and immediate non-lock rejection tests.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "c586278ca5db363bdd7ab3e348488b9d68b2d5b2",
+        "preservedBlob": "a06261d52648cb3289a852d78826457c6c0b8860",
+        "mergedBaselineBlob": "c586278ca5db363bdd7ab3e348488b9d68b2d5b2",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -2 +2 @@ import assert from 'node:assert/strict';",
+        "@@ -6 +6,2 @@ import test from 'node:test';",
+        "@@ -71,0 +73,132 @@ function failedRegistration(error) {"
+      ],
+      "addedTestEvidence": [
+        "test('maintenance retry accepts only the exact async guardian lock failure', async () => {",
+        "test('maintenance retry handles real async command errors and retains exact arguments', async () => {",
+        "test('maintenance retry keeps the original lock error when its total deadline expires', async () => {",
+        "test('maintenance retry includes command execution in its total deadline', async () => {",
+        "test('maintenance retry immediately preserves every nonexact failure', async () => {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-production-readiness/react-rsc-worker-proof/runtime.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Allow explicit compiled origin port in real HTTP bridge with range validation instead of forcing ephemeral port.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "e2a09435d8b5c0a8d3edf98d17bec37cbbbfc118",
+        "preservedBlob": "a1844abb4f923ff11a69d27c3448155f324f0080",
+        "mergedBaselineBlob": "e2a09435d8b5c0a8d3edf98d17bec37cbbbfc118",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -173 +173,2 @@ export async function retireOwnedProcessGroup(",
+        "@@ -226 +227 @@ export async function startBridge(runtime, workerName) {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-production-readiness/react-rsc-worker-proof/runtime.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Test exact compiled origin/native bytes and port release/reuse; occupied port rejects without interfering with owner.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "28b17a217d3ecba5ff0caed008eac87ae9900a00",
+        "preservedBlob": "cf4b1647d45d4a218bc4c094e19e8b42f6eb8724",
+        "mergedBaselineBlob": "28b17a217d3ecba5ff0caed008eac87ae9900a00",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -7,0 +8 @@ import { setTimeout as delay } from 'node:timers/promises';",
+        "@@ -949,0 +951,93 @@ async function openResponse(t, url, { body, ...options } = {}) {"
+      ],
+      "addedTestEvidence": [
+        "test('HTTP bridge uses the compiled origin port and releases it after native forwarding', {",
+        "test('HTTP bridge refuses an occupied compiled port without dispatching', {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-publish/__tests__/sidecar-publish.test.js",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Await async recipe consumer proof and assert.rejects rather than sync throws; derive final actual recipe count instead of stale17.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "4fd5c6287f4088fe9459c291fcebb9541ece74ca",
+        "preservedBlob": "14ae049b75a46b7aac45c9f6fd937a8103a0b328",
+        "mergedBaselineBlob": "2325ce74039b5a9c3aeca473063b8540b0ec73df",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -189 +189 @@ test('recipe-only sidecar closure records exact publication identities and alias",
+        "@@ -325 +325 @@ test('every repository recipe has a runtime consumer in the published cohort', a",
+        "@@ -328 +328 @@ test('every repository recipe has a runtime consumer in the published cohort', a"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/workflow.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Await asset-backed assertRepositoryRecipeConsumers before publication; preserve all current release acceptance and staging governance.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "1f7e688b3bf4dd44aba53c7898434f92c98ab640",
+        "preservedBlob": "70d950f049e62f4c376b43537e1a0e3f2c8b1345",
+        "mergedBaselineBlob": "ddc38a82bcf9ffd51fb77d816310bc9bd524d9dd",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -156 +156 @@ async function prepareBleedingdevPackages(options) {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-renderers/native-federation-workers.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New production proof entrypoint binds command to exact installed/public generator, invokes Worker transport proof and propagates failures.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "8bd50f6032c8e204998ffdbc5aae36cec30075cb",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,332 @@"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/asset-consumers.json",
+      "disposition": "superseded",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Historical row pins obsolete Octane router0.1.60/.15 artifact; replace with accepted current release0.2.10/.34 metadata if asset-proof reachability remains needed, never restore stale URL/integrity.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "e46596960f48654344f862dbb02f83afa811b933",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,23 @@"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/asset-consumers.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Preserve authenticated release tarball+source peer/URL/exact dependency proof and opaque proof ownership for recipe reachability; adapt current metadata.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "c56dfa9b07256fe47f7bcdffa33c1c02856333ff",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,129 @@"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/asset-consumers.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Preserve byte/package/dependency/source-peer drift rejection but update old router asset fixture to current accepted identity.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "5dd6d577318adfb89cf212195a4f398d582d050f",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,174 @@"
+      ],
+      "addedTestEvidence": [
+        "test('actual authenticated Octane asset and source peer prove only its exact current core dependency', async () => {",
+        "test('asset evidence rejects byte, package, dependency key and exact specifier drift', async () => {",
+        "test('source pins and published asset URL must retain the authenticated current release', async () => {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/router-core-mask.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Preserve real registry baseline/patched CJS+ESM/declaration/source-map negative and green controls for inherited masks/search/document blockers, including .15 as historical fixture only if useful; final decision on .34.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "b54b1df74d4a8a6ae9367daa965ed84ed70fd2d5",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,808 @@"
+      ],
+      "addedTestEvidence": [
+        "test(`${label}: shipped source maps embed the current TypeScript source`, () => {",
+        "test(`${label}: the official baseline lacks inherited-search support`, () => {",
+        "test(`${label}: the official baseline identifies native masked reload behavior`, async () => {",
+        "test(`${label}: explicit masks reuse resolved main search and skip mask processing`, context => {",
+        "test(`${label}: automatic route masks reuse resolved main search`, () => {",
+        "test(`${label}: inherited masks preserve native search=true and updater reads`, () => {",
+        "test(`${label}: render-phase masks preserve native validation timing`, () => {",
+        "test(`${label}: independent masks retain their own search middleware and validators`, () => {",
+        "test(`${label}: explicit and automatic masks reject inheritSearch with search`, () => {",
+        "test(`${label}: installed declarations accept native masks and reject ambiguous search`, () => {",
+        "test(`${label}: native document reload uses the masked public URL for push and replace`, async () => {",
+        "test(`${label}: native reload still blocks dangerous protocols and preserves explicit href`, async () => {",
+        "test(`${label}: the official baseline identifies native document blocker behavior`, async () => {",
+        "test(`${label}: native browser history skips one before-unload prompt after an accepted document reload`, async () => {",
+        "test(`${label}: native reload honors async blockers, ignoreBlocker, and unregistering`, async () => {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/sidecars.json",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Define only necessary proved native .34 source correction recipe; current baseline native router no longer consumes .15. Preserve all newer baseline sidecar versions.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "1250cc260d97060b6482e5bf0cfe58a80d23e0c3",
+        "preservedBlob": "52c3613775cdcfd5387f28fa5b753497ab486789",
+        "mergedBaselineBlob": "68dc525302e83d5cd675468943a2f1a720ff4ce1",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -1,0 +2,48 @@"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/verify-sidecars.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Exact recipe selection plus authenticated release-asset reachability and awaited repository consumer proof; reconcile current released SDK and remove obsolete unpublished exemptions only with evidence.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "6a334642e4776aa631d0a5ee7d9c3e3b352fb6b2",
+        "preservedBlob": "aaaedc9f9ddf24bbbdbbdaf7ad66222358eae4dd",
+        "mergedBaselineBlob": "2fc845f32128bf3361bc6e83883a18841afa210c",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -10,0 +11,4 @@ import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-cre",
+        "@@ -40,0 +45,15 @@ export const unpublishedForkEdges = [",
+        "@@ -103,0 +123,2 @@ export const isUnpublishedForkEdge = (",
+        "@@ -106,0 +128,26 @@ export const isUnpublishedForkEdge = (",
+        "@@ -117 +164 @@ export function assertRecipeConsumers(",
+        "@@ -141,3 +188 @@ export function assertRecipeConsumers(",
+        "@@ -147,3 +192,8 @@ export function assertRecipeConsumers(",
+        "@@ -154 +204 @@ export function assertRecipeConsumers(",
+        "@@ -162,0 +213,6 @@ export function assertRecipeConsumers(",
+        "@@ -174 +230 @@ export function assertRecipeConsumers(",
+        "@@ -182,0 +239 @@ export function assertRepositoryRecipeConsumers(publishedManifests) {"
+      ]
+    },
+    {
+      "path": "scripts/ultramodern-supply/verify-sidecars.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "router-sidecars",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "Keep exact identity/alias/ambiguous recipe and diagnostic-string rejection tests; revise stale two-real-recipe expectations to synthetic fixtures/current actual closure.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "be6a764e3f9a7d448b15accad2059c129e1897dd",
+        "preservedBlob": "50efc48bee907667a182889d3c3be1d676a824a8",
+        "mergedBaselineBlob": "0ded1e15b4c07e3283a7ae82daacfe35690154bc",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -13,0 +14 @@ import {",
+        "@@ -16,0 +18,111 @@ import {"
+      ],
+      "addedTestEvidence": [
+        "test('router recipes select exact versions and identities independently of recipe order', () => {",
+        "test('Solid and React source consumers cannot consume the Octane recipe by version accident', () => {",
+        "test('a diagnostic list of exact aliases is never admitted as a source specifier', () => {"
+      ]
+    },
+    {
+      "path": "tests/integration/alias-set/tests/index.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "tooling",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Exact WIP blob already in baseline: retained actual build/restart diagnostics; no extraction needed.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "2cb690ac6a00356f11096bc114276314d375b6f5",
+        "preservedBlob": "16e8577fd9a43fa8f6eab32d90f060c562fdfc94",
+        "mergedBaselineBlob": "16e8577fd9a43fa8f6eab32d90f060c562fdfc94",
+        "relation": "exact_wip_blob_in_baseline"
+      },
+      "sourceHunks": [
+        "@@ -3 +3 @@ import path from 'path';",
+        "@@ -30,10 +30,23 @@ describe('alias set dev', () => {",
+        "@@ -41,6 +54,65 @@ describe('alias set dev', () => {",
+        "@@ -48,7 +120,48 @@ describe('alias set dev', () => {"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "tests/ultramodern-renderers/octane-federation-workers/contract.test.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New873-line actual Worker plan/binding/runtime/bridge lifecycle, packed reader/generator/provider source-authentication and native fault/cancellation tests.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "46d0331186ebc5cc9fe9357f9cdb315bff48de5e",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,873 @@"
+      ],
+      "addedTestEvidence": [
+        "test('emitted names, resources, variables and two service bindings stay intact', t => {",
+        "test('an undeployed remote, duplicate binding or duplicate Worker name fails closed', t => {",
+        "test('every emitted binding name is retained, including __proto__, with duplicates rejected', t => {",
+        "test('ordinary fixtures retain public generator identity and share one native signal source', () => {",
+        "test('a named fault Worker forwards through a real target binding without editing deployment files', t => {",
+        "test('the fault Worker pass mode preserves the native Request and Response objects', async () => {",
+        "test('a snapshot 503 keeps manifest forwarding healthy and recovers in the same fault Worker', async () => {",
+        "test('header and full-body hangs release their request lease once on cancellation', async () => {",
+        "test('foreign request admission changes only the test authority and retains opaque native bytes', async () => {",
+        "test('native identity faults preserve unrelated request fields', async () => {",
+        "test('packed public reader resolution authenticates the actual transitive owner before execution', t => {",
+        "test('missing output modules and output paths outside the deployment fail before execution', t => {",
+        "test('failure immediately after runtime creation disposes it and preserves the failure', async t => {",
+        "test('an interrupted pending startup disposes its runtime without opening bridges', async t => {",
+        "test('the proof plan preserves per-route owners and confines all compiled outputs to its owner', t => {",
+        "test('runtime cleanup is idempotent and preserves startup plus cleanup failures', async t => {",
+        "test('later Worker lookup failure retires earlier bridges and the runtime', async t => {",
+        "test('Worker bridges use the reserved compiled origins and forward native bytes unchanged', async t => {",
+        "test('duplicate compiled origins fail before starting workerd', async t => {",
+        "test('packed execution cannot silently fall back to a source generator', async t => {",
+        "test('provider resolution rejects a changed Miniflare dependency pin before importing it', async t => {"
+      ]
+    },
+    {
+      "path": "tests/ultramodern-renderers/octane-federation-workers/fixtures.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New428-line same-renderer host/remote/nested exposes, router/i18n signal contexts and fault Worker generated fixtures; update current released APIs.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "e03f307520e7a68281dfd409aa093c35500cab3d",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,428 @@"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "tests/ultramodern-renderers/octane-federation-workers/proof.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "worker",
+      "commitOwner": "worker",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "New1407-line real isolated workerd bindings, native opaque snapshots/HTTP bridge, installed provider resolution and browser interaction/fault/recovery/lifecycle proof; add separately public-generated consumer per plan.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": null,
+        "preservedBlob": "7ac22adf0cbb662ca1c44b0676dd00729e4b80f9",
+        "mergedBaselineBlob": null,
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -0,0 +1,1407 @@"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "tests/ultramodern-renderers/octane-federation/dev.mjs",
+      "disposition": "required_extraction",
+      "authorLane": "dev-refresh",
+      "commitOwner": "dev-refresh",
+      "sharedIntegratorCommitRequired": false,
+      "evidence": "Add exact native Node publication HEAD/revision, real source-edit/fresh SSR/CSS/no-reload retained state and diagnostics, guardian lock retry/cancellation. Preserve failing verdict even when collecting direct-host diagnostic control.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "5e198eb385a2dbd1e96377c3939602d344e00e5c",
+        "preservedBlob": "f0d30490034a1505f38e02dec1f2c1dc2e1fe37f",
+        "mergedBaselineBlob": "5e198eb385a2dbd1e96377c3939602d344e00e5c",
+        "relation": "baseline_equals_preservation_parent"
+      },
+      "sourceHunks": [
+        "@@ -9,0 +10 @@ import { promisify } from 'node:util';",
+        "@@ -28,0 +30,3 @@ let proxy;",
+        "@@ -34,0 +39 @@ async function registerArtifact(directory, kind) {",
+        "@@ -36,12 +41,15 @@ async function registerArtifact(directory, kind) {",
+        "@@ -48,0 +57 @@ async function registerArtifact(directory, kind) {",
+        "@@ -50,0 +60,10 @@ async function registerArtifact(directory, kind) {",
+        "@@ -170 +189 @@ async function waitFor(check, label, timeout = 30_000) {",
+        "@@ -171,0 +191 @@ const request = (url, timeout = 2000) =>",
+        "@@ -177,0 +198,100 @@ const request = (url, timeout = 2000) =>",
+        "@@ -248,0 +369 @@ try {",
+        "@@ -257,0 +379 @@ try {",
+        "@@ -277,0 +400,8 @@ try {",
+        "@@ -279 +409 @@ try {",
+        "@@ -309,0 +440,14 @@ try {",
+        "@@ -312,0 +457 @@ try {",
+        "@@ -355,0 +501,3 @@ try {",
+        "@@ -396,0 +545,8 @@ try {",
+        "@@ -420,11 +576 @@ try {",
+        "@@ -436,47 +582 @@ try {",
+        "@@ -609,0 +710,20 @@ try {",
+        "@@ -612,0 +733,98 @@ try {",
+        "@@ -639,6 +857,3 @@ try {"
+      ],
+      "addedTestEvidence": [
+        "/data-testid=\"remote-version\">Remote native v2</u.test(markup)",
+        "currentRemote: /data-testid=\"remote-version\">Remote native v2</u.test("
+      ]
+    },
+    {
+      "path": "tests/utils/modernTestPrerequisites.test.ts",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP startup failStartup drain and real child/grandchild/sibling regressions already carried. Baseline newer Linux captured descendant-exit wait and Windows EPERM port-lock retry must remain.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "eab8d226a00ff41ac070309d871c154a9e14714c",
+        "preservedBlob": "592f6720a0ff7519f3f9a4e1b02c070dce4e46c6",
+        "mergedBaselineBlob": "475ddb806bf90c7d1b2abedac21523b4702883ff",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -2 +2 @@ import { execFile } from 'node:child_process';",
+        "@@ -8,0 +9,23 @@ const fixtures: string[] = [];",
+        "@@ -35,0 +59 @@ test('parallel commands consume prerequisites without blocking on a running serv",
+        "@@ -65 +89 @@ test('startup timeout rejects with output and terminates the unreturned child',",
+        "@@ -72,0 +97,98 @@ test('startup timeout rejects with output and terminates the unreturned child',"
+      ],
+      "addedTestEvidence": []
+    },
+    {
+      "path": "tests/utils/modernTestUtils.js",
+      "disposition": "already_carried",
+      "authorLane": "tooling",
+      "commitOwner": "integrator",
+      "sharedIntegratorCommitRequired": true,
+      "evidence": "WIP startup failStartup drain and real child/grandchild/sibling regressions already carried. Baseline newer Linux captured descendant-exit wait and Windows EPERM port-lock retry must remain.",
+      "preserveBaseline": "Start from merged baseline; port only the audited semantic delta, never restore this old whole file.",
+      "gitEvidence": {
+        "sourceParentBlob": "ac515840ab44c38c2f1c2f2a1d95b926ac753a3e",
+        "preservedBlob": "8f4897acd6d78b624a6ce1e6cbb691a6e981f3b7",
+        "mergedBaselineBlob": "60315014e200bed02e2382cfbcdb5f4ccd8d78bb",
+        "relation": "baseline_independently_changed"
+      },
+      "sourceHunks": [
+        "@@ -422,0 +423,33 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -434,4 +467 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -440,0 +471 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -449,4 +480 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -464,6 +492 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -493,7 +516 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -519 +535,0 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -529,19 +545 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -553,4 +551 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -559,0 +555 @@ function runModernCommandDev(argv, stdOut, options = {}) {",
+        "@@ -572,4 +568 @@ function runModernCommandDev(argv, stdOut, options = {}) {"
+      ],
+      "addedTestEvidence": []
+    }
+  ]
+}

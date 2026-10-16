@@ -1,0 +1,97 @@
+{
+  "workflow": "https://github.com/ultramodernjs/ultramodern.js/actions/runs/38978677451",
+  "source": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+  "status": "success",
+  "registryArchives": [
+    {
+      "name": "@bleedingdev/rsbuild-plugin-source-build",
+      "version": "1.0.7",
+      "acceptedArchive": "bleedingdev-rsbuild-plugin-source-build-1.0.7.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-AHSwXHaB7EeOjqEiNjtgiGWd7GEacbFZ+AmzhBCaJe26e4KqyTVg55Q7pYgo6NVdU41IxBL9h5mJ8w6E6zL6Aw==",
+      "publishedAt": "2026-10-12T20:06:07.466Z",
+      "matureAt": "2026-10-13T20:06:07.466000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2frsbuild-plugin-source-build@1.0.7",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    },
+    {
+      "name": "@bleedingdev/find-workspaces",
+      "version": "0.3.1",
+      "acceptedArchive": "bleedingdev-find-workspaces-0.3.1.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-Gg8WQ4nSegGPj1lWy5SlGSIB3oeyRWBz9o7fNY30j9b6j8wI+VEF3XqxsB28q2laBTlGudtTxO0QKZXjappkDQ==",
+      "publishedAt": "2026-10-12T20:05:09.986Z",
+      "matureAt": "2026-10-13T20:05:09.986000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2ffind-workspaces@0.3.1",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    },
+    {
+      "name": "@bleedingdev/braces",
+      "version": "3.0.4",
+      "acceptedArchive": "bleedingdev-braces-3.0.4.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-8AGgFo6h8cq+4I+Ai/tT6QIURpbhD+A3CTwUX5mcF5lPanJvb3NNmXD+Eg3w5bD29kBOydrQLCML7KYvdm389Q==",
+      "publishedAt": "2026-10-12T20:04:54.049Z",
+      "matureAt": "2026-10-13T20:04:54.049000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2fbraces@3.0.4",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    },
+    {
+      "name": "@bleedingdev/micromatch",
+      "version": "4.0.8",
+      "acceptedArchive": "bleedingdev-micromatch-4.0.8.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-F+/NLlzBVZXetp8pemEJuoO9odU/9CAHqXvGVq5twyVp56noRaKXfot4d5OMO1KlSn8y+7UjscKEHmjkTmuo/w==",
+      "publishedAt": "2026-10-12T20:04:41.827Z",
+      "matureAt": "2026-10-13T20:04:41.827000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2fmicromatch@4.0.8",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    },
+    {
+      "name": "@bleedingdev/ultracite",
+      "version": "8.0.1",
+      "acceptedArchive": "bleedingdev-ultracite-8.0.1.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-cI92SBo0v8/ZSXr+kLQgdW0Rxa/OKbSFSjtnFEFvPeB1kUmePqUcUBuWlE3Q0HebUfyDtIHpKqb0x23RyGkzlQ==",
+      "publishedAt": "2026-10-16T22:59:50.232Z",
+      "matureAt": "2026-10-17T22:59:50.232000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2fultracite@8.0.1",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    },
+    {
+      "name": "@bleedingdev/fast-glob",
+      "version": "3.3.3",
+      "acceptedArchive": "bleedingdev-fast-glob-3.3.3.tgz",
+      "registryEqualsAcceptedBytes": true,
+      "integrity": "sha512-hZA6LPBIRV2X3SYb7RnUluT7q9xlIwRuDS5YfSCXMwWVOQ0A6kiK9JjTIyiJHBgXLLzMx2TMWvd2bU9El5twUQ==",
+      "publishedAt": "2026-10-12T20:05:06.437Z",
+      "matureAt": "2026-10-13T20:05:06.437000+00:00",
+      "attestations": {
+        "url": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2ffast-glob@3.3.3",
+        "provenance": {
+          "predicateType": "https://slsa.dev/provenance/v1"
+        }
+      }
+    }
+  ]
+}

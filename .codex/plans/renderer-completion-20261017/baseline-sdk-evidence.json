@@ -1,0 +1,51 @@
+{
+  "name": "@bleedingdev/mf-sdk",
+  "version": "2.9.2",
+  "integrity": "sha512-khjTU7/OxdbGztjF0opTvJMmk8AXEL0Is49EbhqWZcUO//kkrHQsMSUPS597XqOyuh7U60L47cL/gUF+cqRDkw==",
+  "registrySignatureVerified": true,
+  "provenance": {
+    "attestationsUrl": "https://registry.npmjs.org/-/npm/v1/attestations/@bleedingdev%2fmf-sdk@2.9.2",
+    "certificateIdentity": "https://github.com/ultramodernjs/ultramodern.js/.github/workflows/publish-bleedingdev.yml@refs/heads/main-ultramodern",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "predicateType": "https://slsa.dev/provenance/v1",
+    "sourceCommit": "3b2a57685e340c45108598cb127034fa738312e6",
+    "subject": "pkg:npm/%40bleedingdev/mf-sdk@2.9.2",
+    "subjectSha512": "9218d353bfcec5d6c6ced8c5d28a53bc932693c01710bd08b38f446e1a9665c50efff924ac742c31250f4b9f7b5ea3b2ba1ed4eb42f8edc2ff81417e72a44393",
+    "verifierVersion": "4.1.1"
+  },
+  "consumer": [
+    {
+      "probe": "mf-sdk-node-loader",
+      "format": "CJS",
+      "checks": [
+        "declared-fetch-tuple-and-returned-response",
+        "declined-fetch-hook-fallback",
+        "supplied-signal-headers-hang-abort-and-retry",
+        "supplied-signal-body-hang-abort-and-retry",
+        "fetch-hook-http-status-and-retry",
+        "esm-import-headers-hang-retry",
+        "esm-import-body-hang-retry",
+        "esm-import-syntax-error-retry",
+        "esm-import-evaluation-error-retry",
+        "failed-esm-graph-preserves-healthy-module-cache"
+      ]
+    },
+    {
+      "probe": "mf-sdk-node-loader",
+      "format": "ESM",
+      "checks": [
+        "declared-fetch-tuple-and-returned-response",
+        "declined-fetch-hook-fallback",
+        "supplied-signal-headers-hang-abort-and-retry",
+        "supplied-signal-body-hang-abort-and-retry",
+        "fetch-hook-http-status-and-retry",
+        "esm-import-headers-hang-retry",
+        "esm-import-body-hang-retry",
+        "esm-import-syntax-error-retry",
+        "esm-import-evaluation-error-retry",
+        "failed-esm-graph-preserves-healthy-module-cache"
+      ]
+    }
+  ],
+  "sourceAlias": "missing: federation-runtime/package.json requests upstream 2.9.2 and local pnpm patch; integrator must adopt signed alias and regenerate pnpm lock"
+}

@@ -1,0 +1,28 @@
+{
+  "phase": "baseline",
+  "status": "in_progress",
+  "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+  "snapshot": "ca61247ac2c09bc9bd1982556f15ee01b6f0e81b",
+  "pathPartition": "161/161 exact WIP paths accounted; older-history audit completing before phase completion.",
+  "outputs": [
+    "baseline-ownership.json",
+    "baseline-paths.json",
+    "baseline-runtime-audit.json",
+    "baseline-support-audit.json",
+    "baseline-history-audit.json",
+    "baseline-sdk-evidence.json"
+  ],
+  "semanticFindings": [
+    "Do not restore obsolete SSR injector, process-global Solid caches, Shell API registry or old i18n lifecycle.",
+    "Required Worker/dev/native/navigation deltas are selective ports only.",
+    "All source-only lane worktrees start from merged e617 or accepted native d598.",
+    "SDK published bytes qualified; source alias still a bounded explicit integrator prerequisite."
+  ],
+  "review": {
+    "requestedModel": "Opus5.5",
+    "requiredAfterPhase": true,
+    "status": "running",
+    "taskId": "node:delegated-task:command%3Amcp%3Ae948866c-7cdc-405f-801b-0797f16b9464%3Adelegate-task%3Arenderer-baseline-20261017-opus-r1"
+  },
+  "next": "Finish historical content dispositions then fresh Opus5.5 review; address findings before native snapshot implementation."
+}
