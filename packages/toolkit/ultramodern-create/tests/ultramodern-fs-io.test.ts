@@ -108,7 +108,10 @@ if (${JSON.stringify(mode)} === 'stdin') {
         { cwd: root, encoding: 'utf-8', env },
       );
       assert.equal(generated.status, 0, generated.stderr);
-      const formatter = assertWorkers(readAudit(), 1);
+      const formatter = assertWorkers(
+        readAudit(),
+        mode === 'workspace' ? 1 : 0,
+      );
       const formattedMarkdown = fs.readFileSync(markdownPath, 'utf-8');
       const formattedSource = fs.readFileSync(sourcePath, 'utf-8');
       assert.notEqual(formattedMarkdown, markdown);
@@ -133,8 +136,8 @@ if (${JSON.stringify(mode)} === 'stdin') {
         ...(mode === 'stdin' ? { input: markdown } : {}),
       });
       assert.equal(control.status, 0, control.stderr);
-      // Oxfmt's stdin mode already limits its native external pool to one.
-      assertWorkers(readAudit(), mode === 'workspace' ? 2 : 1);
+      // Oxfmt formats Markdown from stdin without an external worker.
+      assertWorkers(readAudit(), mode === 'workspace' ? 2 : 0);
       assert.equal(
         mode === 'stdin'
           ? control.stdout

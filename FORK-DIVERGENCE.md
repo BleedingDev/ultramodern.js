@@ -1018,6 +1018,8 @@ five previously invalid advisory rows remain non-authorizing historical prose.
 {
   "schemaVersion": 1,
   "entries": [
+    {"path":"packages/cli/builder/src/plugins/environmentDefaults.ts","owner":"bleedingdev","reason":"Preserve fully bundled web-worker outputs with Rsbuild 2.2.13, whose native externals plugin now applies browser externals to workers; clear browser globals in the existing environment-defaults adapter.","dispositions":["inline-patch"]},
+    {"path":"packages/cli/builder/tests/default.test.ts","owner":"bleedingdev","reason":"Verify native worker compilation ignores browser-only React globals after the Rstack upgrade, including the actual bundler externals configuration.","dispositions":["inline-patch"]},
     {"path":"packages/server/create-request/tests/browser.test.ts","owner":"bleedingdev","reason":"Use a local HTTP server for browser request tests because Nock 15 and Happy DOM 21 response interception yields an object string instead of the JSON response; preserve real fetch, response identity and request configuration coverage.","dispositions":["inline-patch"]},
     {"path":"packages/solutions/app-tools/src/plugins/analyze/getServerRoutes.ts","owner":"bleedingdev","reason":"Normalize generated route paths after url-join 5.1.1 preserves multiple leading slashes; keep framework route URLs relative to the application root.","dispositions":["inline-patch"]},
     {"path":"packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap","owner":"bleedingdev","reason":"Refresh CSS loader and cssnano snapshots for the current Rstack and cssnano dependency cohort.","dispositions":["inline-patch"]},
@@ -2399,6 +2401,8 @@ five previously invalid advisory rows remain non-authorizing historical prose.
 <!-- fork-evidence:table -->
 | Upstream-owned path | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
+| `packages/cli/builder/src/plugins/environmentDefaults.ts` | bleedingdev | Preserve fully bundled web-worker outputs with Rsbuild 2.2.13, whose native externals plugin now applies browser externals to workers; clear browser globals in the existing environment-defaults adapter. | `inline-patch` |
+| `packages/cli/builder/tests/default.test.ts` | bleedingdev | Verify native worker compilation ignores browser-only React globals after the Rstack upgrade, including the actual bundler externals configuration. | `inline-patch` |
 | `packages/server/create-request/tests/browser.test.ts` | bleedingdev | Use a local HTTP server for browser request tests because Nock 15 and Happy DOM 21 response interception yields an object string instead of the JSON response; preserve real fetch, response identity and request configuration coverage. | `inline-patch` |
 | `packages/solutions/app-tools/src/plugins/analyze/getServerRoutes.ts` | bleedingdev | Normalize generated route paths after url-join 5.1.1 preserves multiple leading slashes; keep framework route URLs relative to the application root. | `inline-patch` |
 | `packages/cli/builder/tests/__snapshots__/postcssLegacy.test.ts.snap` | bleedingdev | Refresh CSS loader and cssnano snapshots for the current Rstack and cssnano dependency cohort. | `inline-patch` |

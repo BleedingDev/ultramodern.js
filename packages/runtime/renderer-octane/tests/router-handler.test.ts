@@ -97,12 +97,9 @@ test('native matching and document callback follow guarded serialization', async
         'a=1; Path=/',
         'b=2; Path=/',
       ]);
-      expect(
-        router.serverSsr
-          ?.takeInitialHydrationScriptTags()
-          ?.before.map(tag => tag.children ?? '')
-          .join(''),
-      ).toContain('ultramodern.octane-public-snapshot.v1');
+      expect(router.serverSsr?.takeBufferedScripts()?.children).toContain(
+        'ultramodern.octane-public-snapshot.v1',
+      );
       return new Response('native document');
     },
   );

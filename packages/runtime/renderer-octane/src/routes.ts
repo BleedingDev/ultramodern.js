@@ -59,7 +59,7 @@ export function resolveRouteData(
 }
 
 interface ReactiveNativeMatch {
-  get(): AnyRouteMatch | undefined;
+  get(): AnyRouteMatch;
   subscribe(callback: () => void): { unsubscribe(): void };
 }
 
@@ -75,18 +75,24 @@ function isReactiveNativeMatch(value: unknown): value is ReactiveNativeMatch {
 /** A transport failure belongs to the native generation that fetched it. */
 function observeRouteCompletion(
   router: AnyRouter,
-  routeId: string,
   controller: AbortController,
   signal: AbortSignal,
   completion: Promise<void>,
 ) {
   void completion.catch(error => {
     if (signal.aborted) return;
-    const route = Object.values(router.routesById).find(
-      candidate => candidate.options.staticData?.ultramodernRouteId === routeId,
-    );
-    if (!route) return;
-    const store = router.stores.getMatchStore(route.id);
+    const match = [
+      ...router.stores.pendingMatches.get(),
+      ...router.stores.matches.get(),
+      ...router.stores.cachedMatches.get(),
+    ].find(candidate => candidate.abortController === controller);
+    if (!match) return;
+    const store = [
+      router.stores.pendingMatchStores.get(match.id),
+      router.stores.matchStores.get(match.id),
+      router.stores.cachedMatchStores.get(match.id),
+    ].find(candidate => candidate?.get().abortController === controller);
+    if (!store) return;
     let subscription: { unsubscribe(): void } | undefined;
     let settled = false;
     const cleanup = () => {
@@ -97,10 +103,9 @@ function observeRouteCompletion(
       settled = true;
       cleanup();
     };
-    const publish = async () => {
+    const publish = () => {
       if (settled) return;
       const current = store.get();
-      if (!current) return;
       if (
         current.abortController !== controller ||
         signal.aborted ||
@@ -116,29 +121,23 @@ function observeRouteCompletion(
       const route = router.routesById[current.routeId];
       let failure = error;
       try {
-        await route?.options.errorComponent?.preload?.();
-        if (signal.aborted || store.get()?.abortController !== controller)
-          return;
         route?.options.onError?.(failure);
       } catch (onErrorFailure) {
         failure = onErrorFailure;
       }
-      // The error component is ready before publishing a late transport failure.
+      // Native successful loads have already preloaded their route components.
       if (signal.aborted) return;
-      router.stores.setMatches(
-        router.stores.matches.get().map(previous =>
-          previous.routeId === route.id &&
-          previous.abortController === controller &&
-          previous.status === 'success' &&
-          !previous.isFetching
-            ? {
-                ...previous,
-                error: failure,
-                status: 'error',
-                isFetching: false,
-              }
-            : previous,
-        ),
+      router.updateMatch(match.id, previous =>
+        previous.abortController === controller &&
+        previous.status === 'success' &&
+        !previous.isFetching
+          ? {
+              ...previous,
+              error: failure,
+              status: 'error',
+              isFetching: false,
+            }
+          : previous,
       );
     };
     signal.addEventListener('abort', onAbort, { once: true });
@@ -204,7 +203,6 @@ export function createFileSystemRouteTree<Context = unknown>(
                 if (failed) throw failure;
                 observeRouteCompletion(
                   router,
-                  route.id,
                   match.abortController,
                   signal,
                   outcome.completion,

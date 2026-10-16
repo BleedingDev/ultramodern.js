@@ -158,7 +158,7 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       const installed = versions(renderer);
       const runtime = renderer === 'solid' ? 'solid-js' : 'octane';
       expect(installed[runtime]).toBe(
-        renderer === 'solid' ? '2.0.0-rc.15' : '0.13.8',
+        renderer === 'solid' ? '2.0.0-rc.15' : '0.7.1+ultramodern.1331985ea3b0',
       );
       expect(installed['@modern-js/renderer-core/']).toMatch(/^\d+\.\d+\.\d+/u);
       expect(() => resolveNativeSharedVersions(renderer, os.tmpdir())).toThrow(
@@ -230,7 +230,7 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
         eager: false,
       });
     }
-    expect(installed['@tanstack/router-core']).toBe('1.171.34');
+    expect(installed['@tanstack/router-core']).toBe('1.171.15');
     expect(installed['@tanstack/history']).toBe('1.162.0');
     // Localization is optional; its context belongs to the shared SDK prefix.
     expect(shared.i18next).toBeUndefined();
@@ -295,8 +295,8 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       path.join(root, 'node_modules/@modern-js/renderer-octane'),
     );
     const installed = resolveNativeSharedVersions('octane', root);
-    expect(installed.octane).toBe('0.13.8');
-    expect(installed['@tanstack/router-core']).toBe('1.171.34');
+    expect(installed.octane).toBe('0.7.1+ultramodern.1331985ea3b0');
+    expect(installed['@tanstack/router-core']).toBe('1.171.15');
     expect(installed['@tanstack/history']).toBe('1.162.0');
     expect(installed.seroval).toBe('1.6.9');
     const bindings = resolveNativeSharedBindings('octane', root, 'server');

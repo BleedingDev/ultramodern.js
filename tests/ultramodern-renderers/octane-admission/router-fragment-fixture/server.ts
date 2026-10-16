@@ -1,6 +1,7 @@
 import { createRouter } from '@octanejs/tanstack-router';
 import {
   createOctaneRequestHandler,
+  createOctaneRouterInjection,
   createRequestSession,
   createSsrStreamResponse,
   OctaneRouterServer,
@@ -33,7 +34,7 @@ export async function renderDocument(nativeHydrationBuildId: string) {
       session,
       App: OctaneRouterServer,
       props: { router },
-      router,
+      injection: createOctaneRouterInjection(router, session),
       document: {
         documentId: 'native-public-fragment-document',
         nativeHydrationBuildId,

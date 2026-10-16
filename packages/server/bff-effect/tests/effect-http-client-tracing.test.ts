@@ -78,9 +78,7 @@ describe('makeEffectHttpApiClient tracing', () => {
 
       await expect(Effect.runPromise(program)).resolves.toEqual({ ok: true });
 
-      const clientSpan = finishedSpans.find(
-        span => span.name === 'http.client GET',
-      );
+      const clientSpan = finishedSpans.find(span => span.name === 'GET');
       const parentSpan = finishedSpans.find(
         span => span.name === 'bff-effect.trace.parent',
       );

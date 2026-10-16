@@ -7,10 +7,7 @@ import {
   createRootRoute,
   createRouter,
 } from '@octanejs/tanstack-router';
-import {
-  attachRouterServerSsrUtils,
-  transformReadableStreamWithRouter,
-} from '@octanejs/tanstack-router/ssr/server';
+import { attachRouterServerSsrUtils } from '@octanejs/tanstack-router/ssr/server';
 import { rs } from '@rstest/core';
 import { prepareOctaneRouterSerialization } from '../src/router-server-snapshot';
 import { octaneRouterSnapshotAdapter } from '../src/router-snapshot';
@@ -80,49 +77,10 @@ async function nativeFixture(
   });
   await router.load();
   guard.assertMatches();
-  let output = '';
-  let reading: Promise<void> | undefined;
-  const startCapture = () => {
-    if (reading || !router.serverSsr || owner.signal.aborted) return;
-    const tags = nativeSsr.takeInitialHydrationScriptTags();
-    const html =
-      '<html><head></head><body>' +
-      [...(tags?.before ?? []), ...(tags ? [tags.boundary] : [])]
-        .map(tag => '<script>' + (tag.children ?? '') + '</script>')
-        .join('') +
-      '</body></html>';
-    const stream = transformReadableStreamWithRouter(
-      router,
-      new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(html));
-          controller.close();
-        },
-      }),
-      { signal: owner.signal },
-    );
-    reading = (async () => {
-      const reader = stream.getReader();
-      const decoder = new TextDecoder();
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (next.done) break;
-          output += decoder.decode(next.value, { stream: true });
-        }
-        output += decoder.decode();
-      } finally {
-        reader.releaseLock();
-      }
-    })();
-    void reading.catch(() => {});
-  };
-  const scripts = async () => {
-    startCapture();
-    await new Promise<void>(resolve => setImmediate(resolve));
-    return [...output.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gu)]
-      .map(match => match[1])
-      .join('\n');
+  let bufferedScripts = '';
+  const scripts = () => {
+    bufferedScripts += nativeSsr.takeBufferedScripts()?.children ?? '';
+    return bufferedScripts;
   };
   return {
     router,
@@ -133,22 +91,14 @@ async function nativeFixture(
       await nativeSsr.dehydrate();
       guard.assertActive();
     },
-    async snapshot() {
-      return replayNativeScripts(await scripts()) as {
+    snapshot() {
+      return replayNativeScripts(scripts()) as {
         manifest: unknown;
         matches: Array<Record<string, any>>;
         dehydratedData?: unknown;
       };
     },
     scripts,
-    async output() {
-      await scripts();
-      return output;
-    },
-    async finished() {
-      startCapture();
-      await reading;
-    },
   };
 }
 
@@ -156,10 +106,7 @@ async function nativeFixture(
 // closures in this realm, with the same decoder Map installed by native hydrate.
 function replayNativeScripts(script: string) {
   const scope: Record<string, any> = {};
-  const document = {
-    currentScript: { remove() {} },
-    querySelectorAll: () => [],
-  };
+  const document = { currentScript: { remove() {} } };
   new Function('self', 'document', `with(self) { ${script} }`)(scope, document);
   scope.$_TSR.t = new Map([
     [
@@ -202,7 +149,7 @@ describe('native Octane public router snapshots', () => {
       dehydrate: () => ({ extra: shared }),
     });
     await fixture.dehydrate();
-    const snapshot = await fixture.snapshot();
+    const snapshot = fixture.snapshot();
     const projected = snapshot.matches[0]!.l;
     expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
     expect(projected).not.toBe(data);
@@ -217,7 +164,7 @@ describe('native Octane public router snapshots', () => {
       projected.shared,
     );
     expect(snapshot.matches[0]!.b).toEqual({ tenant: 'public' });
-    const scripts = await fixture.scripts();
+    const scripts = fixture.scripts();
     expect(scripts).toContain('$_TSR.p');
     expect(scripts).toContain(octaneRouterSnapshotAdapter.key);
     const decoded = replayNativeScripts(scripts).matches[0]!.l;
@@ -283,7 +230,9 @@ describe('native Octane public router snapshots', () => {
       ).toBe(original);
       expect(fixture.owner.signal.aborted).toBe(true);
       expect((await fixture.owner.completion).cacheEligible).toBe(false);
-      expect(await fixture.output()).not.toContain('PRIVATE_CONSTRUCTOR');
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_CONSTRUCTOR',
+      );
     },
   );
 
@@ -329,18 +278,20 @@ describe('native Octane public router snapshots', () => {
       };
       const fixture = await nativeFixture({ data });
       await fixture.dehydrate();
-      const projected = (await fixture.snapshot()).matches[0]!.l;
+      const projected = fixture.snapshot().matches[0]!.l;
       expect(projected.first).toBe(projected.alias);
       expect(projected.first).not.toBe(late.promise);
       expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
-      expect(await fixture.scripts()).toContain('visible');
+      expect(fixture.scripts()).toContain('visible');
       late.resolve(value);
       await flush();
       expect(getters).toBe(0);
       expect(fixture.owner.signal.aborted).toBe(true);
       expect((await fixture.owner.completion).state).toBe('failed');
       expect((await fixture.owner.completion).cacheEligible).toBe(false);
-      expect(await fixture.output()).not.toContain('PRIVATE_SETTLEMENT');
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_SETTLEMENT',
+      );
     },
   );
 
@@ -410,8 +361,8 @@ describe('native Octane public router snapshots', () => {
     fixture.guard.assertActive();
     expect(stackReads).toBe(0);
     expect(fixture.owner.signal.aborted).toBe(false);
-    await fixture.finished();
-    const decoded = replayNativeScripts(await fixture.scripts()).matches[0]!.l;
+    expect(fixture.nativeSsr.isSerializationFinished()).toBe(true);
+    const decoded = replayNativeScripts(fixture.scripts()).matches[0]!.l;
     expect(decoded.success).toBe(decoded.alias);
     await expect(decoded.success).resolves.toEqual({ visible: 'settled' });
     const received = await decoded.rejected.catch((error: unknown) => error);
@@ -440,7 +391,7 @@ describe('native Octane public router snapshots', () => {
     await fixture.dehydrate();
     expect(stackReads).toBe(0);
     expect(fixture.router.stores.matches.get()[0]!.error).toBe(error);
-    const decoded = replayNativeScripts(await fixture.scripts()).matches[0]!.e;
+    const decoded = replayNativeScripts(fixture.scripts()).matches[0]!.e;
     expect(decoded).toBeInstanceOf(RouteDataError);
     expect(decoded.routeId).toBe('item');
     expect(decoded.status).toBe(422);
@@ -478,7 +429,9 @@ describe('native Octane public router snapshots', () => {
       await expect(fixture.dehydrate()).rejects.toThrow(
         'Request-private context',
       );
-      expect(await fixture.output()).not.toContain('PRIVATE_CONTEXT');
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_CONTEXT',
+      );
     }
   });
 
@@ -512,7 +465,9 @@ describe('native Octane public router snapshots', () => {
       expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
       expect(fixture.owner.signal.aborted).toBe(true);
       expect((await fixture.owner.completion).cacheEligible).toBe(false);
-      expect(await fixture.output()).not.toContain('PRIVATE_DESCENDANT');
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_DESCENDANT',
+      );
     },
   );
 
@@ -531,7 +486,9 @@ describe('native Octane public router snapshots', () => {
       'Request-private context',
     );
     expect(bindings.locals).toBeUndefined();
-    expect(await fixture.output()).not.toContain('REMOVED_PRIVATE_ALIAS');
+    expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+      'REMOVED_PRIVATE_ALIAS',
+    );
   });
 
   it('refreshes private descendants at deferred settlement without evaluating context getters', async () => {
@@ -547,7 +504,7 @@ describe('native Octane public router snapshots', () => {
     const data = { critical: 'visible', late: late.promise };
     const fixture = await nativeFixture({ owner: session(bindings), data });
     await fixture.dehydrate();
-    const initialScripts = await fixture.scripts();
+    const initialScripts = fixture.scripts();
     const privateDescendant = { token: 'NEW_PRIVATE_DESCENDANT' };
     bindings.locals = { entries: new Set([privateDescendant]) };
     late.resolve({ privateDescendant });
@@ -558,9 +515,9 @@ describe('native Octane public router snapshots', () => {
     expect((await fixture.owner.completion).state).toBe('failed');
     expect((await fixture.owner.completion).cacheEligible).toBe(false);
     expect(initialScripts).toContain('visible');
-    expect(initialScripts + (await fixture.output())).not.toContain(
-      'NEW_PRIVATE_DESCENDANT',
-    );
+    expect(
+      initialScripts + (fixture.nativeSsr.takeBufferedHtml() ?? ''),
+    ).not.toContain('NEW_PRIVATE_DESCENDANT');
   });
 
   it.each(['resolve', 'reject'] as const)(
@@ -597,16 +554,16 @@ describe('native Octane public router snapshots', () => {
       data: { late: late.promise },
     });
     await fixture.dehydrate();
-    const initialScripts = await fixture.scripts();
+    const initialScripts = fixture.scripts();
     const failure = new TypeError('PRIVATE_REJECTION');
     bindings.failure = failure;
     late.reject(failure);
     await flush();
     expect(fixture.owner.signal.aborted).toBe(true);
     expect((await fixture.owner.completion).cacheEligible).toBe(false);
-    expect(initialScripts + (await fixture.output())).not.toContain(
-      'PRIVATE_REJECTION',
-    );
+    expect(
+      initialScripts + (fixture.nativeSsr.takeBufferedHtml() ?? ''),
+    ).not.toContain('PRIVATE_REJECTION');
   });
 
   it('revalidates cached RouteDataError data when it becomes private between deferred rejections', async () => {
@@ -652,7 +609,7 @@ describe('native Octane public router snapshots', () => {
       data,
     });
     await fixture.dehydrate();
-    const received = (await fixture.snapshot()).matches[0]!.l;
+    const received = fixture.snapshot().matches[0]!.l;
     expect(received.value).toEqual(publicValue);
     expect(received.value).toBe(received.alias);
     expect(received.map.get(received.value)).toBeInstanceOf(Date);
@@ -778,7 +735,7 @@ describe('native Octane public router snapshots', () => {
     );
     await flush();
     fixture.guard.assertActive();
-    const scripts = await fixture.scripts();
+    const scripts = fixture.scripts();
     expect(scripts).not.toContain('PRIVATE_DATABASE_SECRET');
     expect(scripts).not.toContain('PRIVATE_CAUSE_SECRET');
     const received = await replayNativeScripts(
@@ -799,8 +756,8 @@ describe('native Octane public router snapshots', () => {
       production: true,
     });
     await publicFixture.dehydrate();
-    const publicError = replayNativeScripts(await publicFixture.scripts())
-      .matches[0]!.e;
+    const publicError = replayNativeScripts(publicFixture.scripts()).matches[0]!
+      .e;
     expect(publicError).toBeInstanceOf(RouteDataError);
     expect(publicError.message).toBe('Public validation failure');
     expect(publicError.status).toBe(422);
@@ -824,6 +781,8 @@ describe('native Octane public router snapshots', () => {
     await flush();
     expect(getters).toBe(0);
     expect((await fixture.owner.completion).state).toBe('aborted');
-    expect(await fixture.output()).not.toContain('PRIVATE_AFTER_ABORT');
+    expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+      'PRIVATE_AFTER_ABORT',
+    );
   });
 });

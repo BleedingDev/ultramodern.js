@@ -13,7 +13,7 @@ export const reactProfile: RendererBuildProfile<'react'> = {
     cleanup: 'exactly-once',
   },
   compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
-  hydration: { name: 'react-dom', version: '19.3.0' },
+  hydration: { name: 'react-dom', version: '19.3.1' },
   router: {
     name: 'react-router',
     version: '7.18.4',
@@ -23,8 +23,8 @@ export const reactProfile: RendererBuildProfile<'react'> = {
   sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
   jsxImportSource: 'react',
   dependencies: {
-    react: '19.3.0',
-    'react-dom': '19.3.0',
+    react: '19.3.1',
+    'react-dom': '19.3.1',
     '@modern-js/runtime': '3.9.0',
     '@modern-js/i18n-integration': '3.8.3',
     '@modern-js/runtime-renderer-extensions': '3.8.3',

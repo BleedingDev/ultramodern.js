@@ -36,7 +36,7 @@ function routerWithMatches(
       this.options = options;
     },
     stores: {
-      ids: {
+      matchesId: {
         get: () => ids,
         subscribe(listener: () => void) {
           subscriptions++;

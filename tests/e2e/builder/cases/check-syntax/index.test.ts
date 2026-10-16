@@ -24,7 +24,8 @@ test('should throw error when exist syntax errors', async () => {
           checkSyntax: true,
         },
         output: {
-          overrideBrowserslist: ['> 0.01%', 'not dead', 'not op_mini all'],
+          overrideBrowserslist: ['chrome 40'],
+          minify: false,
         },
       },
     }),

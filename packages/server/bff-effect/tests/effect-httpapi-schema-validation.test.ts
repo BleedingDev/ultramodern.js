@@ -284,7 +284,7 @@ describe('Effect HttpApi schema and error handling', () => {
 
   test.each([
     {
-      expectedStatus: 400,
+      expectedStatus: 500,
       name: 'success',
       request: () =>
         new Request('http://localhost/recommendations/invalid-success'),

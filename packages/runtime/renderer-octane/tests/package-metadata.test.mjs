@@ -9,7 +9,7 @@ const manifest = JSON.parse(
   fs.readFileSync(new URL('package.json', packageRoot), 'utf8'),
 );
 const nativeArtifactPeers = ['octane', '@octanejs/tanstack-router'];
-const compilerPeers = ['@octanejs/rspack-plugin', '@rsbuild/core', '@tsrx/oxc'];
+const compilerPeers = ['@octanejs/rspack-plugin', '@rsbuild/core'];
 const frameworkPeer = '@modern-js/i18n-runtime-extensions';
 const supportedPeers = [
   ...nativeArtifactPeers,

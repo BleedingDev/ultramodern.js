@@ -196,14 +196,11 @@
     "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/runtime-renderer-extensions": "workspace:*",
     "@solidjs/compiler": "2.0.0-rc.15",
-    "@octanejs/rspack-plugin": "0.2.4",
-    "octane": "0.13.8",
+    "@octanejs/rspack-plugin": "0.1.55",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
     "@modern-js/renderer-solid": "workspace:*",
     "@modern-js/renderer-octane": "workspace:*",
-    "@rsbuild/plugin-svgr": "2.0.5",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
-    "@tsrx/oxc": "0.21.0"
+    "@rsbuild/plugin-svgr": "2.0.5"
   },
   "sideEffects": false,
   "publishConfig": {

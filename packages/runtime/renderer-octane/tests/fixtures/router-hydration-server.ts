@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import { createRouter } from '@octanejs/tanstack-router';
+import { createOctaneRouterInjection } from '../../src/router-injection';
 import {
   createOctaneRequestHandler,
   createSsrStreamResponse,
@@ -41,7 +42,7 @@ export async function renderRouterHydrationDocument(
       session,
       App: OctaneRouterServer,
       props: { router },
-      router,
+      injection: createOctaneRouterInjection(router, session),
       document: {
         documentId: 'native-router-hydration-document',
         nativeHydrationBuildId,

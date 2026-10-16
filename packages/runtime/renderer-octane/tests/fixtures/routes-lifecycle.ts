@@ -20,7 +20,6 @@ import {
   attachRouterServerSsrUtils,
   createRequestHandler,
   createSsrStreamResponse,
-  getSsrStatus,
   RouterServer,
 } from '@octanejs/tanstack-router/ssr/server';
 import { rs } from '@rstest/core';
@@ -28,6 +27,7 @@ import { createElement, flushSync } from 'octane';
 import { ssrHtml } from 'octane/server';
 import { mountOctaneApplication } from '../../src/client';
 import { createOctaneRouteAction } from '../../src/router';
+import { createOctaneRouterInjection } from '../../src/router-injection';
 import {
   createFileSystemRouteTree,
   matchApplicationRoutes,
@@ -141,10 +141,10 @@ export async function nativeRouterPreloadAndInvalidationCounts() {
       assert.deepEqual(loads, ['home']);
     });
 
-    const preloadedMatches = await router.preloadRoute({ to: '/item/7' });
+    await router.preloadRoute({ to: '/item/7' });
     assert.deepEqual(loads, ['home', 'item']);
     assert.equal(router.stores.location.get().pathname, '/');
-    const preloaded = preloadedMatches!.at(-1)!;
+    const preloaded = router.stores.cachedMatches.get().at(-1)!;
     assert.deepEqual(preloaded.loaderData, {
       routeId: 'item',
       invocation: 2,
@@ -412,7 +412,10 @@ export async function nativeRouterReversedPendingNavigation() {
         calls.map(call => call.id),
         ['first'],
       );
-      assert.equal(calls[0]!.request.signal.aborted, false);
+      assert.equal(
+        router.stores.pendingMatches.get().at(-1)?.status,
+        'pending',
+      );
     });
     const second = router.navigate({ to: '/item/second' });
     await waitForNativeRouter(() => {
@@ -519,10 +522,8 @@ export async function nativeRouterRouteChainHydration() {
   );
   assert.deepEqual(serverLoads, ['application', 'product']);
   await serverRouter.serverSsr!.dehydrate();
-  const serialized = serverRouter
-    .serverSsr!.takeInitialHydrationScriptTags()!
-    .before.map(tag => tag.children ?? '')
-    .join('');
+  assert.equal(serverRouter.serverSsr!.isSerializationFinished(), true);
+  const serialized = serverRouter.serverSsr!.takeBufferedScripts()!.children;
   assert.match(serialized, /\$_TSR\.router=/);
   serverRouter.serverSsr!.cleanup();
 
@@ -680,6 +681,11 @@ async function checkNativeDataCompletionFailure(
     ]);
     terminal.reject(failure);
     for (let turn = 0; turn < 5; turn++) await Promise.resolve();
+    const pending = router.stores.pendingMatches.get().at(-1)!;
+    assert.equal(pending.status, 'pending');
+    assert.equal(pending.loaderData.critical, 'early value');
+    assert.equal(pending.loaderData.late, late.promise);
+    assert.deepEqual(hooks, ['preload']);
     preload.resolve();
   }
   await loading;
@@ -687,27 +693,26 @@ async function checkNativeDataCompletionFailure(
   if (timing === 'early' || timing === 'commit') {
     assert.equal(match.status, 'error');
     assert.equal(match.error, failure);
-    assert.deepEqual(hooks.toSorted(), ['onError', 'preload']);
+    assert.deepEqual(hooks, ['preload', 'onError']);
     return;
   }
   assert.equal(match.status, 'success');
   assert.equal(match.loaderData.critical, 'early value');
   assert.equal(match.loaderData.late, late.promise);
-  assert.deepEqual(hooks, []);
+  assert.deepEqual(hooks, ['preload']);
   late.resolve('resolved before missing terminal frame');
   await late.promise;
-  if (timing === 'cancelled') match.abortController.abort();
+  if (timing === 'cancelled') router.cancelMatch(match.id);
   terminal.reject(failure);
   for (let attempt = 0; attempt < 100; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 1));
-    if (router.stores.getMatchStore(match.routeId).get()?.status === 'error')
-      break;
+    if (router.getMatch(match.id)?.status === 'error') break;
     if (timing === 'cancelled' && attempt > 2) break;
   }
-  const completed = router.stores.getMatchStore(match.routeId).get()!;
+  const completed = router.getMatch(match.id)!;
   if (timing === 'cancelled') {
     assert.equal(completed.status, 'success');
-    assert.deepEqual(hooks, []);
+    assert.deepEqual(hooks, ['preload']);
   } else {
     assert.equal(completed.status, 'error');
     assert.equal(completed.error, failure);
@@ -990,8 +995,7 @@ export async function nativeLoaderCancellation() {
       isServer: true,
       history: createMemoryHistory({ initialEntries: ['/item/7'] }),
     });
-    const nativeController = new AbortController();
-    const loading = router.load({ _signal: nativeController.signal });
+    const loading = router.load();
     for (let attempts = 0; !loaderRequest && attempts < 1000; attempts++) {
       await new Promise(resolve => setTimeout(resolve, 1));
     }
@@ -1002,18 +1006,13 @@ export async function nativeLoaderCancellation() {
     if (source === 'request') {
       controller.abort(new DOMException('Connection closed', 'AbortError'));
     } else {
-      nativeController.abort(
-        new DOMException('Native load cancelled', 'AbortError'),
-      );
+      const match = router.stores.pendingMatches.get().at(-1);
+      assert.ok(match);
+      router.cancelMatch(match.id);
     }
     assert.equal(loaderRequest.signal.aborted, true);
     pending.resolve(success('too late'));
-    if (source === 'native-router')
-      await assert.rejects(
-        loading,
-        error => error === nativeController.signal.reason,
-      );
-    else await loading;
+    await loading;
     assert.equal(observed, 0);
     assert.notEqual(router.stores.matches.get().at(-1)?.loaderData, 'too late');
   }
@@ -1098,94 +1097,105 @@ async function serializingRouter(late: Promise<unknown>) {
   return { router, session: requestSession(request) };
 }
 
-async function renderSerializingRouter(
-  router: Parameters<typeof renderOctaneApplication>[0]['router'],
-  session: ReturnType<typeof requestSession>,
-  timeoutMs?: number,
-) {
-  return renderOctaneApplication({
-    session,
-    router,
-    routerSerializationTimeoutMs: timeoutMs,
-    App: RouterServer,
-    props: { router },
-    document: {
-      documentId: 'native-router-stream',
-      nativeHydrationBuildId: 'native-router-fixture-client',
-    },
-  });
-}
-
-export async function nativeRouterStreamCompletion() {
+export async function nativeRouterInjectionCompletion() {
   const late = deferred<string>();
   const { router, session } = await serializingRouter(late.promise);
   let cleanup = 0;
   router.serverSsr!.onCleanup(() => {
     cleanup++;
   });
-  const response = await renderSerializingRouter(router, session);
-  const html = response.text();
+  const injection = createOctaneRouterInjection(router, session);
+  let notifications = 0;
+  const stop = injection.subscribe(() => {
+    notifications++;
+  });
+  let html = injection.take();
+  injection.renderComplete?.();
   late.resolve('late native value');
-  assert.match(await html, /late native value/);
+  await injection.done;
+  assert.ok(notifications > 0);
+  html += injection.take();
+  assert.match(html, /\$_TSR\.router=/);
+  assert.match(html, /late native value/);
+  stop();
+  session.resolveResponse({
+    kind: 'document',
+    status: 200,
+    headers: [],
+    cache: { mode: 'no-store' },
+  });
+  session.respond(null);
   await session.completion;
   assert.equal(cleanup, 1);
   assert.equal(router.serverSsr, undefined);
+  assert.equal(injection.take(), '');
 }
 
-export async function nativeRouterStreamPublishesDeferredData() {
+export async function nativeRouterInjectionStreamsBeforeRenderComplete() {
   const late = deferred<string>();
   const { router, session } = await serializingRouter(late.promise);
-  const response = await renderSerializingRouter(router, session);
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let html = '';
-  while (!html.includes('$_TSR')) {
-    const next = await reader.read();
-    assert.equal(next.done, false);
-    html += decoder.decode(next.value, { stream: true });
-  }
-  assert.ok(!html.includes('streamed after shell'));
-  late.resolve('streamed after shell');
-  for (;;) {
-    const next = await reader.read();
-    if (next.done) break;
-    html += decoder.decode(next.value, { stream: true });
-  }
-  html += decoder.decode();
-  assert.match(html, /streamed after shell/);
-  await session.completion;
+  const injection = createOctaneRouterInjection(router, session);
+  const notified = deferred<void>();
+  const stop = injection.subscribe(() => notified.resolve());
+  // Octane's first take follows the shell that carries the barrier anchor.
+  let html = injection.take();
+  late.resolve('streamed before document end');
+  await notified.promise;
+  html += injection.take();
+  // Deferred data must reach the document while the app is still rendering,
+  // not be held until renderComplete lifts the barrier at document end.
+  assert.match(html, /\$_TSR\.router=/);
+  assert.match(html, /streamed before document end/);
+  stop();
+  injection.renderComplete?.();
+  await injection.done;
+  await session.abort('test complete');
 }
 
-export async function nativeRouterStreamKeepsBootstrapForScripts() {
+export async function nativeRouterInjectionKeepsBootstrapForScripts() {
   const late = deferred<string>();
   const { router, session } = await serializingRouter(late.promise);
-  const response = await renderSerializingRouter(router, session);
+  const injection = createOctaneRouterInjection(router, session);
+  // Octane's streamed-signal injection subscribes before the app renders.
+  const stop = injection.subscribe(() => {});
+  await Promise.resolve();
+  // The router's Scripts still takes the bootstrap into its barrier script.
+  assert.match(
+    router.serverSsr!.takeBufferedScripts()?.children ?? '',
+    /\$_TSR\.router=/,
+  );
+  assert.equal(injection.take(), '');
+  stop();
   late.resolve('settled');
-  const html = await response.text();
-  assert.match(html, /\$_TSR/);
-  assert.match(html, /settled/);
-  await session.completion;
+  injection.renderComplete?.();
+  await injection.done;
+  await session.abort('test complete');
 }
 
-export async function nativeRouterStreamTimeoutAndAbort() {
+export async function nativeRouterInjectionTimeoutAndAbort() {
   for (const disposition of ['timeout', 'abort'] as const) {
     const { router, session } = await serializingRouter(new Promise(() => {}));
     let cleanup = 0;
     router.serverSsr!.onCleanup(() => {
       cleanup++;
     });
-    const response = await renderSerializingRouter(router, session, 15);
-    const completion = response.text().then(
+    const injection = createOctaneRouterInjection(router, session, {
+      serializationTimeoutMs: 15,
+    });
+    injection.subscribe(() => {});
+    const completion = injection.done.then(
       () => assert.fail('Pending serialization completed'),
       error => error,
     );
-    if (disposition === 'abort')
+    if (disposition === 'timeout') injection.renderComplete?.();
+    else
       await session.abort(
         new DOMException('Client disconnected', 'AbortError'),
       );
+    const error = await completion;
     assert.match(
-      String(await completion),
-      disposition === 'timeout' ? /timeout/i : /Client disconnected/,
+      String(error),
+      disposition === 'timeout' ? /timed out/ : /Client disconnected/,
     );
     assert.equal(
       (await session.completion).state,
@@ -1195,6 +1205,12 @@ export async function nativeRouterStreamTimeoutAndAbort() {
     assert.equal(cleanup, 1);
     assert.equal(router.serverSsr, undefined);
   }
+  const tree = createFileSystemRouteTree([], {});
+  const router = createRouter({ routeTree: tree, isServer: true });
+  assert.throws(
+    () => createOctaneRouterInjection(router, requestSession()),
+    /serverSsr is required/,
+  );
 }
 
 export async function nativeRouterDocumentStream() {
@@ -1220,11 +1236,12 @@ export async function nativeRouterDocumentStream() {
     router.serverSsr!.onCleanup(() => {
       cleanup++;
     });
+    const injection = createOctaneRouterInjection(router, session);
     const response = await renderOctaneApplication({
       session,
       App: RouterServer,
       props: { router },
-      router,
+      injection,
       document: {
         documentId: 'router-document',
         nativeHydrationBuildId: 'native-router-fixture-client',
@@ -1243,7 +1260,7 @@ export async function nativeRouterDocumentStream() {
   // hydrates in place.
   assert.match(
     html,
-    /<script\b[^>]*data-tsr-stream-part[^>]*>[^<]*\$_TSR\.router=/,
+    /<script\b[^>]*id=["']\$tsr-stream-barrier["'][^>]*>[^<]*\$_TSR\.router=/,
   );
   assert.equal(html.match(/<!doctype html>/gi)?.length, 1);
   assert.equal(html.match(/<html[\s>]/gi)?.length, 1);
@@ -1302,14 +1319,14 @@ async function renderRouteErrorDocument(
     request: session.request,
     createRouter: () => router,
   })(async ({ router }) => {
-    statusCode = getSsrStatus(router);
+    statusCode = router.state.statusCode;
     return createSsrStreamResponse(
       router,
       await renderOctaneApplication({
         session,
         App: RouterServer,
         props: { router },
-        router,
+        injection: createOctaneRouterInjection(router, session),
         document: {
           documentId: 'route-error-document',
           nativeHydrationBuildId: 'native-router-fixture-client',
@@ -1423,10 +1440,8 @@ export async function nativeRouteActionContracts() {
     location: '/complete',
     response: metadata(303),
   };
-  const navigate = rs.spyOn(router, 'navigate').mockResolvedValue(undefined);
   assert.equal((await action(undefined, form)).kind, 'redirect');
-  assert.equal(navigate.mock.calls[0]?.[0].href, '/complete');
-  navigate.mockRestore();
+  assert.equal(router.latestLocation.pathname, '/complete');
 }
 
 export async function nativeRouterDocumentCancellation() {
@@ -1466,11 +1481,12 @@ export async function nativeRouterDocumentCancellation() {
     router.serverSsr!.onCleanup(() => {
       cleanup++;
     });
+    const injection = createOctaneRouterInjection(router, session);
     const response = await renderOctaneApplication({
       session,
       App: RouterServer,
       props: { router },
-      router,
+      injection,
       document: {
         documentId: 'cancelled-router-document',
         nativeHydrationBuildId: 'native-router-fixture-client',

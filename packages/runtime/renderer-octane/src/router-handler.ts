@@ -91,9 +91,8 @@ function requestHeaders(router: AnyRouter): Headers {
       );
     appendHeaders(headers, field?.value);
   }
-  const result = router._serverResult;
-  if (result?.type === 'redirect')
-    appendHeaders(headers, result.redirect.headers);
+  const redirect = router.stores.redirect.get();
+  if (redirect) appendHeaders(headers, redirect.headers);
   return headers;
 }
 
@@ -118,6 +117,7 @@ export function createOctaneRequestHandler<TRouter extends AnyRouter>({
         ...serialization,
         forbiddenValues: [request, ...(serialization?.forbiddenValues ?? [])],
       });
+      session.registerCleanup(() => router.cancelMatches());
 
       const { url } = getNormalizedURL(request.url, 'http://localhost');
       const href = url.href.replace(url.origin, '');
@@ -126,14 +126,14 @@ export function createOctaneRequestHandler<TRouter extends AnyRouter>({
         history: createMemoryHistory({ initialEntries: [href] }),
         origin: router.options.origin ?? getOrigin(request),
       });
-      await withAbort(router.load({ _signal: session.signal }), session.signal);
+      await withAbort(router.load(), session.signal);
       guard.assertActive();
 
       // A native redirect is a terminal HTTP Response. It must never enter
       // the public serializer as a match error or document payload.
-      const loadResult = router._serverResult;
-      if (loadResult?.type === 'redirect') {
-        const resolved = loadResult.redirect;
+      const redirect = router.stores.redirect.get();
+      if (redirect) {
+        const resolved = router.resolveRedirect(redirect);
         const headers = requestHeaders(router);
         return new Response(null, {
           status: resolved.status,
@@ -146,10 +146,7 @@ export function createOctaneRequestHandler<TRouter extends AnyRouter>({
       const serverSsr = router.serverSsr;
       if (!serverSsr)
         throw new Error('Native Octane router SSR state is required');
-      await withAbort(
-        serverSsr.dehydrate({ signal: session.signal }),
-        session.signal,
-      );
+      await withAbort(serverSsr.dehydrate(), session.signal);
       guard.assertActive();
       const responseHeaders = requestHeaders(router);
       // A callback that ignores cancellation must not hold the router SSR

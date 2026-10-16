@@ -978,24 +978,24 @@ test('React apps declare router and runtime installs within the framework compat
     assertAuthoredRendererDependencyPins(generated, generation),
   );
   // A downstream app that pins an earlier patch of the same router line and
-  // an earlier React within the framework peer range keeps validating.
+  // a React patch within the framework peer range keeps validating.
   const downstream = {
     name: '@fixture/react-downstream',
     dependencies: {
       ...generation.dependencies,
       '@tanstack/react-router': '1.170.39',
-      react: '19.2.8',
+      react: '19.3.1',
       'react-dom': 'catalog:react',
     },
     devDependencies: {
-      '@types/react': '^19.2.18',
-      '@types/react-dom': '^19.2.7',
+      '@types/react': '^19.3.0',
+      '@types/react-dom': '^19.3.0',
     },
   };
   assert.notEqual(router, '1.170.39');
   assert.doesNotThrow(() =>
     assertAuthoredRendererDependencyPins(downstream, generation, {
-      catalogs: { react: { 'react-dom': '19.2.8' } },
+      catalogs: { react: { 'react-dom': '19.3.1' } },
     }),
   );
   for (const [name, request, message] of [
@@ -1017,7 +1017,7 @@ test('React apps declare router and runtime installs within the framework compat
             dependencies: { ...downstream.dependencies, [name]: request },
           },
           generation,
-          { catalogs: { react: { 'react-dom': '19.2.8' } } },
+          { catalogs: { react: { 'react-dom': '19.3.1' } } },
         ),
       message,
     );
