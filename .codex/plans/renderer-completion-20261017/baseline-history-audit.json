@@ -12,18 +12,19 @@
     "Git whole-blob common-ancestor comparison identifies baseline-only evolution.",
     "Specific source/test diffs inspected for named semantic groups.",
     "Version-only grouping requires entire normalized file equality, not patch IDs.",
-    "Every remaining insufficiently inspected path is explicitly unresolved."
+    "Every remaining insufficiently inspected path is explicitly unresolved.",
+    "Use direction-independent git diff --no-renames inventory; record both old and current destination of relocated acceptance test."
   ],
   "coverage": {
-    "oldParentVsBaselineChangedPaths": 980,
+    "oldParentVsBaselineChangedPaths": 981,
     "originalWipPaths": 161,
-    "outsideWipChangedPaths": 905,
+    "outsideWipChangedPaths": 906,
     "olderBranchChangedOutsideWip": 352,
     "groupCounts": {
       "baseline_only_evolution": 553,
       "tracking_release_documentation": 5,
       "current_version_identity": 157,
-      "unresolved_content": 39,
+      "current_manifest_and_toolchain_contract": 11,
       "current_compiler_and_composition": 36,
       "header_language_current_hardening": 2,
       "data_protocol_current_hardening": 4,
@@ -39,9 +40,22 @@
       "current_generator_architecture": 2,
       "effect_diagnostics_consolidated": 3,
       "shell_api_clients": 1,
-      "current_acceptance_install_policy": 2
+      "mf_server_split_chunks_current_fix": 1,
+      "retired_rsbuild_dev_prepare_fork": 1,
+      "critical_effect_policy_consolidation": 1,
+      "current_measured_divergence_receipt": 1,
+      "current_acceptance_authority": 17,
+      "current_acceptance_install_policy": 2,
+      "current_publication_guarding": 6,
+      "renderer_binding_test_relocated": 2
     },
-    "complete": false
+    "complete": true,
+    "dispositionCounts": {
+      "superseded": 901,
+      "already_carried": 5
+    },
+    "unassignedPaths": 0,
+    "runtimeQualificationClaimed": "Only original native copy-context consumer; all other historical dispositions are source comparisons, not new runtime qualification."
   },
   "groups": {
     "baseline_only_evolution": {
@@ -603,7 +617,8 @@
         "tests/utils/browserErrors.test.ts",
         "tests/utils/generatedWorkspaceDependencies.ts",
         "tests/utils/packedCohort.test.ts"
-      ]
+      ],
+      "auditedHistoricalSourceCommits": []
     },
     "current_version_identity": {
       "disposition": "superseded",
@@ -773,6 +788,36 @@
         "tests/ultramodern-renderers/solid-admission/profile.json",
         "tests/ultramodern-renderers/solid-admission/run.mjs",
         "tests/ultramodern-renderers/solid-federation/proof.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "10132b543b85315eda220c343a847ed058cb358a",
+        "14af377e94b1cbc856efb642dbf83a7e2a87c928",
+        "24eaf67bff1bb5621cb1644c874969c186089e72",
+        "3ff7b73bb5d2750c13212f97fb9b886e1ec507f7",
+        "401b23f7c58eb5502b8e05fa16be3f1d5223e709",
+        "44de83e2c7e0ea4c58f727951d2f76629017f3b7",
+        "4b96a924bd11142aea7b3e9ebfdf920a16e874ff",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "5b004158e688ba54107bcb3710ea176f846169ca",
+        "6c638fd53c5e5c740cdb13a3b08943eb69f7fe8d",
+        "6d20cc8b0902e8dbfab3170ae0d3497f85243ea2",
+        "6e31db25c823af05a34ea832a17921b958dd94a2",
+        "704fed5eb1668d572f58a1b67c7d37e25092bdce",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "77f91453603a05eda2951cc0ce6ee19111251b12",
+        "7947ead3154016c7f745b5bc8701bffc83a14c39",
+        "7c4696da591351bf1d061f56ea5e5c94e22444c6",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "94ec786dc51ea6ceb08cde40667cd17b73d40f54",
+        "9a20d9740631c4e10437aac9cff357d8f234dad7",
+        "9a600121dad09c930d0b8d8759121bc8a0dcf950",
+        "9d74f260f9846c3c3e0673e7bfe30d2c249c38d1",
+        "ab1827d609cc941a080ed5b5add5ec094cbaf5c1",
+        "b3e162f1db060628a1639522589d0a7bb1470624",
+        "e0c156bd97653e0a64963c5976672ebca1092850",
+        "e0c71f3f64b81af7b92c23d13fa9a95e3fd2f1ef",
+        "e238f0a59dfab580fe37295e47b1545104955b3a",
+        "ff97bd6ead95d640248614ea25da639b2f991677"
       ]
     },
     "tracking_release_documentation": {
@@ -786,6 +831,13 @@
         "docs/ultramodern-renderers.md",
         "packages/solutions/ultramodern-app-tools/README.md",
         "packages/toolkit/ultramodern-create/README.md"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "5bb142d658c0a88ac6e9f13328b9ee8f7c7a6b3a",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "9718eac6163f9985742045b0ee2928d55709cff0",
+        "b3aa5ac4a46da5be6f63422ac3e46419fc2570f6"
       ]
     },
     "native_stream_injector": {
@@ -799,6 +851,9 @@
       "uncertainty": null,
       "paths": [
         "packages/runtime/renderer-octane/src/router-injection.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "db78313b20e837487d2ffbe89d70ffea6bd28794"
       ]
     },
     "native_i18n_composition": {
@@ -808,7 +863,8 @@
         "efe46b959d"
       ],
       "uncertainty": null,
-      "paths": []
+      "paths": [],
+      "auditedHistoricalSourceCommits": []
     },
     "effect_diagnostics_consolidated": {
       "disposition": "already_carried",
@@ -824,6 +880,9 @@
         "packages/toolkit/ultramodern-create/src/ultramodern-workspace/effect-diagnostics.ts",
         "packages/toolkit/ultramodern-create/src/ultramodern-workspace/tsconfigs.ts",
         "packages/toolkit/ultramodern-create/tests/effect-diagnostics.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "22c6e1481ef1a006c5d7d432e363cb16e22c10db"
       ]
     },
     "stable_cli_lifecycle": {
@@ -835,7 +894,8 @@
         "6a5015349b"
       ],
       "uncertainty": null,
-      "paths": []
+      "paths": [],
+      "auditedHistoricalSourceCommits": []
     },
     "solid_request_scoped_federation": {
       "disposition": "superseded",
@@ -848,6 +908,10 @@
       "paths": [
         "packages/runtime/renderer-solid/src/federation-ssr.ts",
         "packages/runtime/renderer-solid/src/server.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "70007497c49c47df26c05097dde8f0b14f97243f",
+        "8fbe6c5980ea4c664a6877e7a8b8814dac5b2485"
       ]
     },
     "shell_api_clients": {
@@ -859,20 +923,36 @@
       "uncertainty": null,
       "paths": [
         "packages/toolkit/ultramodern-create/src/ultramodern-workspace/write-app.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226"
       ]
     },
     "copy_context_hypothesis": {
-      "disposition": "independent_followup",
-      "evidence": "Old MissingCopyContextPlugin was removed in dependency refresh a3ed132f7d. Current missingCopyContext.test.ts exercises native CopyRspackPlugin without shim; exact current native behavior must be tied to accepted CI or focused proof before closing followup.",
+      "disposition": "superseded",
+      "evidence": "Historical MissingCopyContextPlugin removed by a3ed132f7d. Original unmodified missingCopyContext.test.ts passes against exact current installed Rsbuild/Rspack on Node26.12.0: one initial build when directory absent; creating directory/file triggers rebuild with upload/a.txt. Native consumer now supplies old workaround behavior; retain current source.",
       "sourceCommits": [
         "f369698fb0",
         "a3ed132f7d"
       ],
-      "uncertainty": "No new local runtime execution performed. Root must assign named followup issue; do not claim runtime-qualified from source inspection alone.",
+      "uncertainty": null,
       "paths": [
         "packages/solutions/app-tools/src/builder/generator/adapterCopy.ts",
         "packages/solutions/app-tools/tests/builder/missingCopyContext.test.ts"
-      ]
+      ],
+      "auditedHistoricalSourceCommits": [
+        "f369698fb050417fdc3cdcdefe3e193bd8b5ce9f"
+      ],
+      "runtimeQualification": {
+        "command": "pnpm exec rstest run packages/solutions/app-tools/tests/builder/missingCopyContext.test.ts",
+        "cwd": "modernjs-deps-20261016",
+        "node": "26.12.0",
+        "sourceHead": "f1c7209ae393669994c8336ed9478f93d750d62b",
+        "testSourceEqualsMergedBaseline": true,
+        "result": "1testPASS,0skip",
+        "durationMs": 1796,
+        "checkedAtCEST": "2026-10-17T01:50:15+02:00"
+      }
     },
     "data_protocol_current_hardening": {
       "disposition": "superseded",
@@ -887,6 +967,12 @@
         "packages/runtime/renderer-core/src/data/codec.ts",
         "packages/runtime/renderer-core/src/data/server.ts",
         "packages/runtime/renderer-core/src/data/static.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "92dc2465945e4c89609d5fc93132fc76b514f5af",
+        "c0e99d1183137e8138c060f1c19b662ca9bd5468",
+        "c4641716473f393ff84ec27293a8c29959afefb3"
       ]
     },
     "header_language_current_hardening": {
@@ -899,6 +985,9 @@
       "paths": [
         "packages/runtime/i18n-extensions/src/requestLanguage.ts",
         "packages/runtime/i18n-extensions/tests/requestLanguage.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "f6fb2ac7be15c9218a7d63ff1f4ee12da4356bf8"
       ]
     },
     "current_build_metadata": {
@@ -912,6 +1001,13 @@
         "packages/solutions/app-tools-extensions/src/release-envelope/framework-output.ts",
         "packages/solutions/app-tools-extensions/src/release-identity.ts",
         "packages/solutions/app-tools-extensions/src/renderer-build-identity.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "6c638fd53c5e5c740cdb13a3b08943eb69f7fe8d",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "b5f989241f12b922ef770485d4b5108f1cdbb917",
+        "f411db54d9e8b117e0f1f4d4729c338f62e8e4dd",
+        "fdf6af779fa5e8d5db3f7042dd814a4a29cc3f58"
       ]
     },
     "current_prerender": {
@@ -921,6 +1017,9 @@
       "uncertainty": null,
       "paths": [
         "packages/solutions/ultramodern-app-tools/src/native-composition/native-prerender.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "24eaf67bff1bb5621cb1644c874969c186089e72"
       ]
     },
     "current_generator_architecture": {
@@ -931,6 +1030,10 @@
       "paths": [
         "packages/toolkit/ultramodern-create/src/ultramodern-workspace/delivery-unit-sync.ts",
         "packages/toolkit/ultramodern-create/src/ultramodern-workspace/validation/architecture.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "5910600893ef40b14d9fc3451e507ce0a4c7526d",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226"
       ]
     },
     "current_acceptance_install_policy": {
@@ -941,6 +1044,10 @@
       "paths": [
         "scripts/ultramodern-production-readiness/renderer-mf-lifecycle-proof/index.mjs",
         "scripts/ultramodern-production-readiness/renderer-worker-lifecycle-proof/probe.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "9ce4fc88554f378326a120e6c256d6a49d06a361",
+        "af2eaecf47cc1d6d314e015b52efdc98e7095ea2"
       ]
     },
     "unresolved_content": {
@@ -948,47 +1055,8 @@
       "evidence": "Not inspected sufficiently to classify semantic carry/supersession. Assigned to baseline coordinator for explicit review; do not treat these paths as already carried.",
       "sourceCommits": [],
       "uncertainty": "Baseline must reconcile these entries with other lane audit evidence or inspect them before declaring historical inventory complete.",
-      "paths": [
-        "package.json",
-        "packages/cli/builder/package.json",
-        "packages/cli/plugin-bff-extensions/package.json",
-        "packages/cli/plugin-ssg/package.json",
-        "packages/runtime/i18n-integration/package.json",
-        "packages/runtime/plugin-runtime/package.json",
-        "packages/solutions/app-tools/package.json",
-        "packages/solutions/ultramodern-app-tools/package.json",
-        "packages/toolkit/ultramodern-create/package.json",
-        "patches/@module-federation__modern-js-v3@2.9.2.patch",
-        "patches/@rsbuild__core@2.2.11.patch",
-        "scripts/typescript-critical.mjs",
-        "scripts/ultramodern-boundary-check/divergence-allowlist.json",
-        "scripts/ultramodern-production-readiness/__tests__/acceptance-continuation.test.js",
-        "scripts/ultramodern-production-readiness/__tests__/acceptance-contract.test.js",
-        "scripts/ultramodern-production-readiness/__tests__/acceptance-receipt.test.js",
-        "scripts/ultramodern-production-readiness/__tests__/built-framework/browser-smoke.test.js",
-        "scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js",
-        "scripts/ultramodern-production-readiness/__tests__/support/acceptance-continuation-fixture.js",
-        "scripts/ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture.js",
-        "scripts/ultramodern-production-readiness/__tests__/tractor-downstream.test.js",
-        "scripts/ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/process.mjs",
-        "scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs",
-        "scripts/ultramodern-production-readiness/run-browser-smoke.mjs",
-        "scripts/ultramodern-production-readiness/tractor-downstream/main.mjs",
-        "scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js",
-        "scripts/ultramodern-publish/__tests__/renderer-release-binding.test.mjs",
-        "scripts/ultramodern-publish/__tests__/source-qualification.test.js",
-        "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecar-publication.mjs",
-        "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs",
-        "scripts/ultramodern-publish/lib/renderer-release-binding.mjs",
-        "scripts/ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs",
-        "tests/integration/renderer-octane/package.json",
-        "tests/ultramodern-renderers/octane-admission/package.json"
-      ]
+      "paths": [],
+      "auditedHistoricalSourceCommits": []
     },
     "current_core_guards": {
       "disposition": "superseded",
@@ -1015,6 +1083,20 @@
         "packages/runtime/renderer-core/tests/router/router.test.ts",
         "packages/runtime/renderer-core/tests/server/dispatch.test.ts",
         "packages/runtime/renderer-core/tests/session/request.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "329eac54ddbba61e1360715784e67d6615dd0748",
+        "4a4112f0dfb741173a8e9be75049a32b0e26190e",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "629b9e7b0c9e25ae039820af9080f3575e45b92a",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "8fbe6c5980ea4c664a6877e7a8b8814dac5b2485",
+        "92dc2465945e4c89609d5fc93132fc76b514f5af",
+        "c06ae0b3908934faee98b7dea55d51f243966647",
+        "c0e99d1183137e8138c060f1c19b662ca9bd5468",
+        "c34eda63fd412cc0615710c34ccc6c9afd50315a",
+        "c4641716473f393ff84ec27293a8c29959afefb3",
+        "ec1fcbcb07705ee1fde280ec4f85ba6497ef4880"
       ]
     },
     "current_octane_adapter": {
@@ -1043,6 +1125,19 @@
         "packages/runtime/renderer-octane/tests/router-server-snapshot.test.ts",
         "packages/runtime/renderer-octane/tests/routes.test.ts",
         "packages/runtime/renderer-octane/tests/server.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "051cfadb355490377838c6eaef769058b3706073",
+        "24eaf67bff1bb5621cb1644c874969c186089e72",
+        "4a4112f0dfb741173a8e9be75049a32b0e26190e",
+        "4fcf99ada7bb662e76a0726df0634d23e6ae97fb",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "8fbe6c5980ea4c664a6877e7a8b8814dac5b2485",
+        "91a48006b6570c73ebb7a1f3f5b0fe1b38ebd4e4",
+        "ec1fcbcb07705ee1fde280ec4f85ba6497ef4880",
+        "ff97bd6ead95d640248614ea25da639b2f991677"
       ]
     },
     "current_solid_adapter": {
@@ -1066,6 +1161,16 @@
         "packages/runtime/renderer-solid/tests/server/request-event.test.ts",
         "packages/runtime/renderer-solid/tests/server/response-metadata.test.ts",
         "packages/runtime/renderer-solid/tests/server/router.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "3edaaa2fcec460e9eb9cbbe0a1b72662e13bcee2",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "5eb38d8235dcb2a83e34df9221c289835a61b1b0",
+        "6269c04801db19dbe9a29490dd8d664b306cea5e",
+        "70007497c49c47df26c05097dde8f0b14f97243f",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "ec1fcbcb07705ee1fde280ec4f85ba6497ef4880"
       ]
     },
     "current_compiler_and_composition": {
@@ -1114,6 +1219,29 @@
         "packages/solutions/ultramodern-app-tools/tests/native-composition/renderer-neutral-types.test.ts",
         "packages/solutions/ultramodern-app-tools/tests/native-composition/serverRuntimeComposition.test.ts",
         "packages/solutions/ultramodern-app-tools/tests/native-composition/ultramodern-release-envelope-integration.test.ts"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "1d4950c8e984b66778e180e2ebed06616c6b85e1",
+        "24eaf67bff1bb5621cb1644c874969c186089e72",
+        "401b23f7c58eb5502b8e05fa16be3f1d5223e709",
+        "415354d6827dda2549520baed958bf2492523d4a",
+        "4ca90984e035c6f218501f9115975b4d258be4e2",
+        "5107dea1fa9ebc45bf15d066e3a4196e49838f2d",
+        "56a24b2161378738d208e1c667f40f07760a52f5",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "5b004158e688ba54107bcb3710ea176f846169ca",
+        "6c638fd53c5e5c740cdb13a3b08943eb69f7fe8d",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "7947ead3154016c7f745b5bc8701bffc83a14c39",
+        "7c4696da591351bf1d061f56ea5e5c94e22444c6",
+        "826f4c75dc3a53c6456a874d81286a47804ab893",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "9d74f260f9846c3c3e0673e7bfe30d2c249c38d1",
+        "a3d35267a6d9be68fb55a7689784f1dc20892d3c",
+        "e1e083143bb77040476c16a64a4ec9c3f187cb80",
+        "ed1d94e267d6956a498fef67e204734783caf1b4",
+        "f411db54d9e8b117e0f1f4d4729c338f62e8e4dd",
+        "fdf6af779fa5e8d5db3f7042dd814a4a29cc3f58"
       ]
     },
     "current_generated_consumer_contract": {
@@ -1158,6 +1286,176 @@
         "tests/ultramodern-renderers/octane-admission/router-fragment-fixture/server.ts",
         "tests/ultramodern-renderers/octane-admission/router-fragment.mjs",
         "tests/ultramodern-renderers/octane-federation/fixtures.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "0eb2f9844fbeb6b90f83df12db250087459581a5",
+        "1581420ef6f7612bab5d9d38a4ee8ba8c38fd24a",
+        "24eaf67bff1bb5621cb1644c874969c186089e72",
+        "36711cd6c11aa5d851545c9651fbf51b1d294602",
+        "37fb3c1ee61a3d5ac494a9455a03279807c6f60e",
+        "3d59f370777fb241d987933c4ee02121c7e38011",
+        "51a81703780a4945989b6fc82e948b32a3123705",
+        "5910600893ef40b14d9fc3451e507ce0a4c7526d",
+        "5a3994f76c5fd863f5bcf8900ec2cf51bc986dcc",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "92bf1456b3a9b16df62265924408bee8da00abbd",
+        "9aa5c63e894db4c663ac8693ffb2766267ca95bc",
+        "a3d35267a6d9be68fb55a7689784f1dc20892d3c",
+        "a7e03b15c2782160ffe763161437522fa413e16d",
+        "ab07be12255f52a3d9ac6753b2af14df588e484f",
+        "c4641716473f393ff84ec27293a8c29959afefb3",
+        "e0c156bd97653e0a64963c5976672ebca1092850",
+        "f00be5194737cd91b7df91a49d635cc931c316fe"
+      ]
+    },
+    "current_manifest_and_toolchain_contract": {
+      "disposition": "superseded",
+      "evidence": "Compared all changed JSON keys, including dependencies, exports, scripts and peers. Baseline selects native Octane d5988dd93614 runtime0.13.8/router0.2.10/compiler0.2.4 instead of obsolete0.7.1/0.1.60/0.1.55, current Solid compiler and public tsconfig export. Builder types and BFF server-global-vars exports are baseline additions. Old i18n server export belongs to deliberately removed wrapper efe46b959d. Baseline retains YAML runtime dependency, after-build test routing, SVGR optional peer and supported Babel integration. No unmatched older behavior.",
+      "sourceCommits": [],
+      "uncertainty": null,
+      "paths": [
+        "package.json",
+        "packages/cli/builder/package.json",
+        "packages/cli/plugin-bff-extensions/package.json",
+        "packages/cli/plugin-ssg/package.json",
+        "packages/runtime/i18n-integration/package.json",
+        "packages/runtime/plugin-runtime/package.json",
+        "packages/solutions/app-tools/package.json",
+        "packages/solutions/ultramodern-app-tools/package.json",
+        "packages/toolkit/ultramodern-create/package.json",
+        "tests/integration/renderer-octane/package.json",
+        "tests/ultramodern-renderers/octane-admission/package.json"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "4b96a924bd11142aea7b3e9ebfdf920a16e874ff",
+        "5bb142d658c0a88ac6e9f13328b9ee8f7c7a6b3a",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "e0c156bd97653e0a64963c5976672ebca1092850",
+        "e0c71f3f64b81af7b92c23d13fa9a95e3fd2f1ef"
+      ]
+    },
+    "current_acceptance_authority": {
+      "disposition": "superseded",
+      "evidence": "Inspected complete historical added lines and changed hunk contexts; verified authority implementations. Old receipt/continuation filters SDK MF packages and restores stored exceptions; baseline authenticates runtime-sidecar identity separately, independently checks installed MF manifest producer, supports native Shell without false backend producer and removes inherited age/trust exceptions from ordinary commands. Baseline binds persisted cohort plus verified sidecars, refuses transient command approvals overriding ordinary policy. Current Tractor adopts selected cohort/toolchain/native policy; old code cleans lockfile and forwards transient exclusions. Baseline tests add receipt/producer/policy-isolation regressions; old fixtures target earlier schemas. These are superseded acceptance choices.",
+      "sourceCommits": [],
+      "uncertainty": null,
+      "paths": [
+        "scripts/ultramodern-production-readiness/__tests__/acceptance-continuation.test.js",
+        "scripts/ultramodern-production-readiness/__tests__/acceptance-contract.test.js",
+        "scripts/ultramodern-production-readiness/__tests__/acceptance-receipt.test.js",
+        "scripts/ultramodern-production-readiness/__tests__/built-framework/browser-smoke.test.js",
+        "scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js",
+        "scripts/ultramodern-production-readiness/__tests__/support/acceptance-continuation-fixture.js",
+        "scripts/ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture.js",
+        "scripts/ultramodern-production-readiness/__tests__/tractor-downstream.test.js",
+        "scripts/ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/process.mjs",
+        "scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs",
+        "scripts/ultramodern-production-readiness/run-browser-smoke.mjs",
+        "scripts/ultramodern-production-readiness/tractor-downstream/main.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "0a356555b0e4b0491c7f3c92299fc6c2c32dcfb9",
+        "0e3af4855bd2794856f274109f8a7abe495cfb58",
+        "3094721571117ca175d06a62c4d6bbe1ae4dcd26",
+        "5bb142d658c0a88ac6e9f13328b9ee8f7c7a6b3a",
+        "8dae6efab25818d74f5c82ebe85e444fe91a7226",
+        "b941c3f19c3ac19749be67f89c0a7c1c16c6176b",
+        "e238f0a59dfab580fe37295e47b1545104955b3a",
+        "ff97bd6ead95d640248614ea25da639b2f991677"
+      ]
+    },
+    "current_publication_guarding": {
+      "disposition": "superseded",
+      "evidence": "Inspected implementation diffs and historical added test lines. Current binding accepts native Shell kind and forbids Shell backend producers; old accepts only vertical envelopes. Current registry seeds exact accepted cohort bytes before restoring proxy history, aborts readiness and clears stop timer; old lacks protections. Current alias walker supports direct and npm aliases; old drops direct dependencies. Rsbuild bin retired with unused fork283e9b0407. Current sidecar resolution attests typings and trusted repository context. Old qualification/preparation tests omit newer guarded scenarios.",
+      "sourceCommits": [],
+      "uncertainty": null,
+      "paths": [
+        "scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js",
+        "scripts/ultramodern-publish/__tests__/source-qualification.test.js",
+        "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecar-publication.mjs",
+        "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs",
+        "scripts/ultramodern-publish/lib/renderer-release-binding.mjs",
+        "scripts/ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "0a356555b0e4b0491c7f3c92299fc6c2c32dcfb9",
+        "56da82b4eb24192d0abc8506f518bcb59dc32e34",
+        "71d2320eceb3eee363e0348040b3816b572e184c",
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7",
+        "d82e050211312d93419a9cdb8686ff512c66add2"
+      ]
+    },
+    "renderer_binding_test_relocated": {
+      "disposition": "already_carried",
+      "evidence": "Compared all historical903lines with baseline built-framework/renderer-release-binding.test.mjs. Old behavioral tests remain after relative imports/version changes; baseline adds native Shell producer/schema tests and installed MF producer fixture. Intentional after-build routing283e9b0407.",
+      "sourceCommits": [
+        "283e9b040787f14ac76579f4c4b4e201f9e64557"
+      ],
+      "uncertainty": null,
+      "paths": [
+        "scripts/ultramodern-publish/__tests__/renderer-release-binding.test.mjs",
+        "scripts/ultramodern-publish/__tests__/built-framework/renderer-release-binding.test.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "b775bfde1ddfb592e9acdc71c9bcb052e1762eb7"
+      ]
+    },
+    "retired_rsbuild_dev_prepare_fork": {
+      "disposition": "superseded",
+      "evidence": "Old308line patch adds deferred hooks/onAfterPrepareDevCompiler. Baseline283e9b0407 explicitly retires complete patch, supply recipe, patchedDependencies entry, bin identity and unused probe dependency; current native lifecycle does not consume hook and uses Rsbuild2.2.13. Do not restore retired unused fork.",
+      "sourceCommits": [
+        "283e9b040787f14ac76579f4c4b4e201f9e64557"
+      ],
+      "uncertainty": null,
+      "paths": [
+        "patches/@rsbuild__core@2.2.11.patch"
+      ],
+      "auditedHistoricalSourceCommits": []
+    },
+    "mf_server_split_chunks_current_fix": {
+      "disposition": "superseded",
+      "evidence": "Old disables server splitChunks in3bindings. Baseline4d6c9a7664 restores splitting after MF Node startup repair;40128e23da retains async SSR chunks with cold-start coverage. Baseline1d604f1baf adds UTF-8 Buffer.byteLength Content-Length in3middleware outputs, absent old patch. No older feature should replace these fixes.",
+      "sourceCommits": [
+        "4d6c9a766437c2194eb835689e808a786b0dad36",
+        "40128e23da",
+        "1d604f1baf"
+      ],
+      "uncertainty": null,
+      "paths": [
+        "patches/@module-federation__modern-js-v3@2.9.2.patch"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "e9f8dbb2fd61db9ea193a0d78b3ec08a112ff4f8"
+      ]
+    },
+    "critical_effect_policy_consolidation": {
+      "disposition": "superseded",
+      "evidence": "Current reads public template compiler plugin policy and copies diagnostics, retaining framework asyncFunction adjustment. Old imports removed effect-diagnostics.ts and duplicates options. Policy consolidated in templates/tsconfig.base.json.",
+      "sourceCommits": [],
+      "uncertainty": null,
+      "paths": [
+        "scripts/typescript-critical.mjs"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "76998648ecc5d32612b9dfa8b95be04a2dea4ff7"
+      ]
+    },
+    "current_measured_divergence_receipt": {
+      "disposition": "superseded",
+      "evidence": "Compared fixed base metadata/per-file measurements. Receipt records newer baseline builder options, stream coordinator, server lifecycle and dependency refresh; older smaller receipt is not feature code. Regenerate canonical gate after extraction rather than restore.",
+      "sourceCommits": [],
+      "uncertainty": null,
+      "paths": [
+        "scripts/ultramodern-boundary-check/divergence-allowlist.json"
+      ],
+      "auditedHistoricalSourceCommits": [
+        "1023c8af831f44c9e39e1e86021b7991acf4d710"
       ]
     }
   },
@@ -3250,9 +3548,9 @@
     },
     {
       "path": "package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "478d5895d4c9d2869f927c1994a4bf87b01ddf17",
       "oldParentBlob": "fcd6328bf32014ee7899ad01ac222e843c8c084c",
@@ -3288,9 +3586,9 @@
     },
     {
       "path": "packages/cli/builder/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "58f988ec5c533f9eec786d1366abf17cecd47ef6",
       "oldParentBlob": "b5131a0d6e76d4d0a7ec18064bf3480ad18594ab",
@@ -3518,9 +3816,9 @@
     },
     {
       "path": "packages/cli/plugin-bff-extensions/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "5f8d45a30df8d14f658e568cd4aa1965cb599b2c",
       "oldParentBlob": "92a43d252291a146f503adaa11f186cc5f719e31",
@@ -3690,9 +3988,9 @@
     },
     {
       "path": "packages/cli/plugin-ssg/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "4dcd326a01cb8b3ac56cfa02b217b5ff8a78c966",
       "oldParentBlob": "b87603a6a443cae656f9ff4c8249fe0415fc6b1a",
@@ -3978,9 +4276,9 @@
     },
     {
       "path": "packages/runtime/i18n-integration/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "b91fb7d13b68f73d895ebb198938b4693f0f60e0",
       "oldParentBlob": "cff8e5f8a6a16af5bf37ce6b89d5768b0cabc3f0",
@@ -4170,9 +4468,9 @@
     },
     {
       "path": "packages/runtime/plugin-runtime/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "040f5009ecc2c21a710f9fd3111959f8b612c3fc",
       "oldParentBlob": "9d203cf88f5245e28ffe1983df21fd5b7021fe0e",
@@ -6168,9 +6466,9 @@
     },
     {
       "path": "packages/solutions/app-tools/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "2c0600c7df0528f4fbcadf9b1a9e1fa80241d136",
       "oldParentBlob": "c426cc23153245ee1d0faf93239b4bc762b1f39d",
@@ -6183,8 +6481,8 @@
     {
       "path": "packages/solutions/app-tools/src/builder/generator/adapterCopy.ts",
       "group": "copy_context_hypothesis",
-      "disposition": "independent_followup",
-      "owner": "baseline coordinator: assign named copy-context followup",
+      "disposition": "superseded",
+      "owner": "retain merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "58678e4bfc5867fe1f04910867bb99d22279ddea",
       "oldParentBlob": "90231646793401d09a78685b5e0236f68a72af0c",
@@ -6355,8 +6653,8 @@
     {
       "path": "packages/solutions/app-tools/tests/builder/missingCopyContext.test.ts",
       "group": "copy_context_hypothesis",
-      "disposition": "independent_followup",
-      "owner": "baseline coordinator: assign named copy-context followup",
+      "disposition": "superseded",
+      "owner": "retain merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "f7401e8c95f8c59a98b6714f30bf30702c573e8b",
@@ -6490,9 +6788,9 @@
     },
     {
       "path": "packages/solutions/ultramodern-app-tools/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "6a1393092a16e805f5c33da5703ec048b3d35759",
       "oldParentBlob": "dd1fbd85a414a4962fc751a5186ff17f8cc7aa7f",
@@ -7334,9 +7632,9 @@
     },
     {
       "path": "packages/toolkit/ultramodern-create/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "bb5ed863a0bacc71418f90a023369e93219539d5",
       "oldParentBlob": "6532a813118458a0c8f4136cf4e6599abdeada8c",
@@ -8024,9 +8322,9 @@
     },
     {
       "path": "patches/@module-federation__modern-js-v3@2.9.2.patch",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "mf_server_split_chunks_current_fix",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "03778ce012be46faa72f33281b9095b49f80f2c2",
       "oldParentBlob": "156c0c31fd9dd0734d19c2ed8fd79db6edd3058f",
@@ -8048,9 +8346,9 @@
     },
     {
       "path": "patches/@rsbuild__core@2.2.11.patch",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "retired_rsbuild_dev_prepare_fork",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "ec9021a1f83e5827bdb6bb47b6e8e80eb6355a4d",
@@ -8543,9 +8841,9 @@
     },
     {
       "path": "scripts/typescript-critical.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "critical_effect_policy_consolidation",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "c625b83385eb4e24dfa4a7a8aa4efea39f8131ab",
@@ -8567,9 +8865,9 @@
     },
     {
       "path": "scripts/ultramodern-boundary-check/divergence-allowlist.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_measured_divergence_receipt",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "163c0e3dff16bfd8c6a69bb34250e46afb4f8032",
       "oldParentBlob": "d53233e752974deb68b89d91810af49d16d9b18d",
@@ -8591,9 +8889,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/acceptance-continuation.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "ec5f4a8cf6f1c29f59a1baca3416233c9ee784a9",
@@ -8605,9 +8903,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/acceptance-contract.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "82d8d4968b49769074a4777e02790f4257a60cae",
       "oldParentBlob": "02e91cf87ae817843a3c31736d0a36cd6c56212e",
@@ -8619,9 +8917,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/acceptance-receipt.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "fceec650c6c6f1a544b267bf82d3b71ad809ab60",
       "oldParentBlob": "3cc2f8f2237a44311754248171c6574b287fd307",
@@ -8633,9 +8931,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/built-framework/browser-smoke.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "095e8bf14a1ec5f406e2258a8c7282b68eb8f555",
@@ -8661,9 +8959,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/published-create-proof.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "447193f092c0b3e7da64c6f627effceadaa0db18",
       "oldParentBlob": "afb302bae2d2912b0621a6800161cd0e2bc8567b",
@@ -8685,9 +8983,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/support/acceptance-continuation-fixture.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "484b377d6a3e46b5e2d7b93ce04187b32e45569f",
@@ -8699,9 +8997,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "532797d488bb1e92367ba1af1f8d36758fac1c78",
       "oldParentBlob": "1d1582ca22e4aa41196b712d0a173ad5b574d000",
@@ -8723,9 +9021,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/__tests__/tractor-downstream.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "9bcd71c2893e2eaab6353834b8b36af165ba2c74",
       "oldParentBlob": "2930a1b47d8aa84965fc9243de3066ac11fead45",
@@ -8747,9 +9045,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "da979482245bd66dc96098fa08c47be7b39d7456",
       "oldParentBlob": "3674c97bed3c255d1fb59b20eddb9dc7b494394b",
@@ -8761,9 +9059,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "85c0772f08d85cba52efff6247d889b939467065",
@@ -8775,9 +9073,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "d737730f1baf558aa462e44fe5407e0275f620fe",
       "oldParentBlob": "a176bd96d9ddda53ca0f3fbef990cd1e4a95d8fa",
@@ -8789,9 +9087,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "56c5ac82b210b4b7e3fc203530225f70b1067145",
       "oldParentBlob": "93edcfe9430e326ec3da16eedfa7520dfb944755",
@@ -8803,9 +9101,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/acceptance-receipt.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "06170518bf71bdc453bf28bbd6f6889726db2fe0",
       "oldParentBlob": "84f9fa0c67d4381ea59380d6d59a73add55e7219",
@@ -8817,9 +9115,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/process.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "60bb128b6a8d608ce7e8b705d4e1eea40ece2e6f",
       "oldParentBlob": "ef8354df3e7c37d81fe73797b7497f9ab4a16e44",
@@ -8831,9 +9129,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "9ceebc87a0bc07d156a5f9054b0115af3dd27bb7",
       "oldParentBlob": "61bb4a76a1274a6df346352fa82ab13624187297",
@@ -8901,9 +9199,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/run-browser-smoke.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "251cf67911bea6beccab4fa4a3dc6d47c8e7ed8a",
       "oldParentBlob": "b4ad00cdb20a46947bedcb4883c137227a4aa407",
@@ -8925,9 +9223,9 @@
     },
     {
       "path": "scripts/ultramodern-production-readiness/tractor-downstream/main.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_acceptance_authority",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "36d4d208a63b073fa3050b05dda203873b276b38",
       "oldParentBlob": "adaba495984e95fec33444134cb751005cd05480",
@@ -8949,9 +9247,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/__tests__/prepare-bleedingdev-packages.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "50be55e8752dbc8bb58d79c11ffc05c1e0cad8b8",
       "oldParentBlob": "d2855a718565c832f89ce852e76c76304b54d934",
@@ -8973,9 +9271,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/__tests__/renderer-release-binding.test.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "renderer_binding_test_relocated",
+      "disposition": "already_carried",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "8de504f5dcec321d3deaebef0dd99bfc782c902c",
@@ -9037,9 +9335,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/__tests__/source-qualification.test.js",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "4cbdc9366980d37ff99fc43bb5b79849fb9da531",
       "oldParentBlob": "0cd73f51a9721cfab14ddd3eb7d280fe92153895",
@@ -9111,9 +9409,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecar-publication.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "03b127c80ffb9b4ccd95b730c1075fca39db908c",
       "oldParentBlob": "ae028d014a604167a11726049f68bf6ed131f9ec",
@@ -9125,9 +9423,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "33b88bb2c91204adf56bb17d07432b616c68e756",
       "oldParentBlob": "2ae900b28ea0665dbc2302658e0924fcee41467b",
@@ -9139,9 +9437,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/lib/renderer-release-binding.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "51fcb8a3a1d6489f1c1764b42787450796c18651",
@@ -9153,9 +9451,9 @@
     },
     {
       "path": "scripts/ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_publication_guarding",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": "ede2eab566e9e0ec9162479f5a1f1c788fc197a4",
       "oldParentBlob": "627307bb4f5df8e6c87eb796699c829a801a67ce",
@@ -10171,9 +10469,9 @@
     },
     {
       "path": "tests/integration/renderer-octane/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "48a60ddc6d06be61b76a849fd4f3678b32e81f22",
@@ -11435,9 +11733,9 @@
     },
     {
       "path": "tests/ultramodern-renderers/octane-admission/package.json",
-      "group": "unresolved_content",
-      "disposition": "unresolved",
-      "owner": "baseline coordinator",
+      "group": "current_manifest_and_toolchain_contract",
+      "disposition": "superseded",
+      "owner": "current merged baseline",
       "historicalBranchChanged": true,
       "commonAncestorBlob": null,
       "oldParentBlob": "b776fca61d29dc1889038feca0e293ade8fa7ed1",
@@ -11616,6 +11914,16 @@
       "commonAncestorBlob": "251bd5f73d509ede8e0bd5841daf729a8369b801",
       "oldParentBlob": "251bd5f73d509ede8e0bd5841daf729a8369b801",
       "mergedBaselineBlob": "311cafbad6df8e5202495cd1515a53a9dc2edf90"
+    },
+    {
+      "path": "scripts/ultramodern-publish/__tests__/built-framework/renderer-release-binding.test.mjs",
+      "group": "renderer_binding_test_relocated",
+      "disposition": "already_carried",
+      "owner": "retain merged baseline",
+      "historicalBranchChanged": false,
+      "commonAncestorBlob": null,
+      "oldParentBlob": null,
+      "mergedBaselineBlob": "b4a1a3fa7eb8955364e66a1017ab93f67b2cc1bd"
     }
   ],
   "exactContentWitnesses": [
@@ -11711,8 +12019,7 @@
     }
   ],
   "uncertainties": [
-    "No runtime validation executed by this read-only audit.",
-    "Copy-context removal needs named followup tied to accepted current native behavior.",
-    "Unresolved entries require coordinator review or explicit reconciliation with other audits; this report alone cannot close baseline."
+    "Historical source audit does not claim full runtime acceptance of missing feature ports.",
+    "Original native copy-context consumer passes current installed cohort; no remaining historical followup required."
   ]
 }

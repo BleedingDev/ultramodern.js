@@ -3,7 +3,7 @@
   "status": "in_progress",
   "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
   "snapshot": "ca61247ac2c09bc9bd1982556f15ee01b6f0e81b",
-  "pathPartition": "161/161 exact WIP paths accounted; older-history audit completing before phase completion.",
+  "pathPartition": "161/161 WIP paths and906/906 older-history raw changed paths assigned with evidence; no unassigned historical behavior.",
   "outputs": [
     "baseline-ownership.json",
     "baseline-paths.json",
@@ -24,5 +24,5 @@
     "status": "running",
     "taskId": "node:delegated-task:command%3Amcp%3Ae948866c-7cdc-405f-801b-0797f16b9464%3Adelegate-task%3Arenderer-baseline-20261017-opus-r1"
   },
-  "next": "Finish historical content dispositions then fresh Opus5.5 review; address findings before native snapshot implementation."
+  "next": "Address fresh Opus5.5 baseline review, then begin native snapshots and independent navigation/tooling source implementation."
 }
