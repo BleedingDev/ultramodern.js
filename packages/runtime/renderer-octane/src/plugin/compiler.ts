@@ -41,10 +41,15 @@ export function createOctaneCompilerPlugin(
       } = require('./compiler-manifest.cjs');
       // The application installs the Octane compiler; resolve it lazily so
       // descriptor readers never load it.
+      const appRequire = createRequire(
+        path.join(api.context.rootPath, 'package.json'),
+      );
       const {
         inferRspackEnvironment,
         OctaneRspackPlugin,
-      }: typeof import('@octanejs/rspack-plugin') = require('@octanejs/rspack-plugin');
+      }: typeof import('@octanejs/rspack-plugin') = appRequire(
+        '@octanejs/rspack-plugin',
+      );
       api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) =>
         mergeRsbuildConfig(config, {
           source: {
@@ -60,19 +65,6 @@ export function createOctaneCompilerPlugin(
           rsbuildEnvironment.name === options.workerEnvironmentName
             ? 'server'
             : inferRspackEnvironment(config.target);
-        // Octane prepends '.tsrx' only when it is absent. Keep TypeScript
-        // modules first so an extensionless './link' cannot select a
-        // case-colliding Link.tsrx on case-insensitive file systems.
-        config.resolve ??= {};
-        const extensions = (config.resolve.extensions ?? []).filter(
-          extension => extension !== '.tsrx',
-        );
-        extensions.splice(
-          Math.max(extensions.indexOf('.ts'), extensions.indexOf('.tsx')) + 1,
-          0,
-          '.tsrx',
-        );
-        config.resolve.extensions = extensions;
         config.plugins ??= [];
         config.plugins.push(
           new OctaneRspackPlugin({

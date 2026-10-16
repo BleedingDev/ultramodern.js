@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -138,7 +140,7 @@ test('the factory binds canonical versions only to its owning manifest plugin', 
   });
   let config;
   compiler.setup({
-    context: { rootPath: workspace },
+    context: { rootPath: adapter },
     modifyRsbuildConfig() {},
     modifyRspackConfig(callback) {
       config = { target: 'web' };
@@ -152,4 +154,37 @@ test('the factory binds canonical versions only to its owning manifest plugin', 
   assert.equal(Object.hasOwn(native.options, 'compilerVersion'), false);
   assert.equal(manifest.options.runtimeVersion, OCTANE_RUNTIME_VERSION);
   assert.equal(manifest.options.compilerVersion, OCTANE_COMPILER_VERSION);
+});
+
+test('the factory uses the application compiler rather than the SDK compiler', async t => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), 'octane-app-compiler-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'package.json'), '{"private":true}');
+  const compiler = path.join(root, 'node_modules/@octanejs/rspack-plugin');
+  fs.mkdirSync(compiler, { recursive: true });
+  fs.writeFileSync(
+    path.join(compiler, 'index.js'),
+    `exports.inferRspackEnvironment = () => 'client';
+exports.OctaneRspackPlugin = class ApplicationCompiler {
+  constructor(options) { this.options = options; }
+};`,
+  );
+  const rsbuild = path.dirname(require.resolve('@rsbuild/core/package.json'));
+  const { createJiti } = await import(
+    pathToFileURL(path.join(rsbuild, 'compiled/jiti/lib/jiti.mjs'))
+  );
+  const { createOctaneCompilerPlugin } = await createJiti(import.meta.url, {
+    tryNative: false,
+  }).import(path.join(directory, 'compiler.ts'));
+  let config;
+  createOctaneCompilerPlugin({ rendererIdentities: () => ({}) }).setup({
+    context: { rootPath: root },
+    modifyRsbuildConfig() {},
+    modifyRspackConfig(callback) {
+      config = { target: 'web' };
+      callback(config, { environment: { name: 'client' } });
+    },
+  });
+  assert.equal(config.plugins[0].constructor.name, 'ApplicationCompiler');
+  assert.equal(config.plugins[0].options.root, root);
 });
