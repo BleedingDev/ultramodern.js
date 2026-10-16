@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { RENDERER_BOOTSTRAP_ID } from '@modern-js/renderer-core/document';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import { createWorkerFederationTransport } from '@modern-js/renderer-core/worker-federation';
 import { flushSync } from 'octane';
 import {
   createElement,
@@ -32,6 +33,49 @@ const identity: RendererIdentity = {
 const nativeHydrationBuildId = 'octane-client-compiler-hash';
 
 const flush = () => flushSync(() => {});
+
+export async function assertWorkerDocumentIdentityBeforeImport() {
+  const element = container();
+  let imports = 0;
+  let handle: OctaneApplicationHandle | undefined;
+  try {
+    const transport = createWorkerFederationTransport({
+      services: [],
+      admitRendererContract() {
+        throw new Error('Document rejection must precede remote admission');
+      },
+    });
+    await assert.rejects(
+      mountOctaneApplication({
+        container: element,
+        identity,
+        nativeHydrationBuildId,
+        workerFederation: { transport, locale: 'default' },
+        load: async () => {
+          imports++;
+          return {
+            default: ClientApplication,
+            props: { label: 'Rejected import' },
+          };
+        },
+      }),
+      /requires the trusted document identity/,
+    );
+    assert.equal(imports, 0);
+    handle = await mountOctaneApplication({
+      container: element,
+      identity,
+      nativeHydrationBuildId,
+      load: async () => ({
+        default: ClientApplication,
+        props: { label: 'Recovered document ownership' },
+      }),
+    });
+  } finally {
+    handle?.dispose();
+    element.remove();
+  }
+}
 
 function container() {
   const element = document.createElement('div');

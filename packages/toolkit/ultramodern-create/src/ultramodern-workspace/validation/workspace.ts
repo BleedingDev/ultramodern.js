@@ -340,7 +340,7 @@ export function validateWorkspace(
       `${app.path}/shared/ultramodern-build.json`,
       `${app.id} build stamp`,
     );
-    if (!nativeRenderer) {
+    if (!nativeRenderer || generation?.capabilities.workers) {
       const cloudflare = record(app.cloudflare, `${app.id} cloudflare`);
       for (const field of ['workerName', 'publicUrlEnv'])
         assert(
@@ -353,7 +353,7 @@ export function validateWorkspace(
       );
       record(cloudflare.security, `${app.id} cloudflare.security`);
       record(cloudflare.qualityGates, `${app.id} cloudflare.qualityGates`);
-      if (app.kind === 'shell')
+      if (app.kind === 'shell' || (nativeRenderer && input.emitsUi))
         assert(
           typeof cloudflareRoutes.ssr === 'string' &&
             cloudflareRoutes.ssr.startsWith('/'),

@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import { rspack } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
@@ -327,7 +329,7 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       '@modern-js/renderer-octane/client',
     ]) {
       expect(bindings.imports[request]).toBe(
-        path.join(root, owner, 'published.mjs'),
+        fs.realpathSync(path.join(root, owner, 'published.mjs')),
       );
       expect(bindings.aliases[`${request}$`]).toBe(bindings.imports[request]);
     }
@@ -366,10 +368,16 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       path.resolve(__dirname, '../..'),
       'client',
     );
-    expect(client.imports['octane/signals/client']).toMatch(
-      /\/dist\/signals\/client\.js$/u,
+    const selected = fs.realpathSync(
+      path.resolve(
+        __dirname,
+        '../../../../runtime/renderer-octane/node_modules/octane',
+      ),
     );
-    expect(client.imports.octane).toMatch(/\/dist\/index\.js$/u);
+    expect(client.imports['octane/signals/client']).toBe(
+      path.join(selected, 'dist/signals/client.js'),
+    );
+    expect(client.imports.octane).toBe(path.join(selected, 'dist/index.js'));
     expect(client.imports['octane/signals/server']).toBeUndefined();
   });
 
@@ -860,6 +868,79 @@ describe('native Module Federation plugin', () => {
     },
   );
 
+  it('pins the actual Octane Worker graph without an Enhanced or Node container runtime', async () => {
+    const root = app({
+      'module-federation.config.mjs':
+        'export default {name:"workerRemote",exposes:{"./Widget":"./Widget.js"}};',
+    });
+    installPackages(root, false, 'octane');
+    const config = {
+      mode: 'none' as const,
+      target: 'web',
+      context: root,
+      entry:
+        'data:text/javascript,import {useSignal$} from "octane/signals/server";globalThis.__nativeWorkerSignal=useSignal$;',
+      resolve: {
+        conditionNames: ['workerd', 'worker', 'import', 'module', 'default'],
+      },
+      optimization: { minimize: false },
+    };
+    const selected = chain();
+    Object.assign(selected.chain, { toConfig: () => config });
+    const hooks = setup('octane', root, {
+      deploy: { target: 'cloudflare', worker: { ssr: true } },
+    });
+    await hooks.modifyBundlerChain(selected.chain, {
+      environment: { name: SERVICE_WORKER_ENVIRONMENT_NAME },
+    });
+    expect(selected.uses.map(([key]) => key)).toEqual([
+      'ultramodern-federation-shared-owners',
+    ]);
+    const [, Owner, args] = selected.uses[0]!;
+    const owner = Reflect.construct(Owner as Function, args as unknown[]);
+    const compiler = rspack({
+      ...config,
+      plugins: [
+        owner,
+        {
+          apply(compiler) {
+            compiler.hooks.shouldEmit.tap('worker-no-emit', () => false);
+          },
+        },
+      ],
+    });
+    try {
+      const stats = await new Promise<rspack.Stats>((resolve, reject) =>
+        compiler.run((error, stats) =>
+          error
+            ? reject(error)
+            : stats
+              ? resolve(stats)
+              : reject(new Error('missing compiler stats')),
+        ),
+      );
+      expect(stats.hasErrors()).toBe(false);
+      const modules = [...stats.compilation.modules].map(module =>
+        module.identifier(),
+      );
+      expect(modules.some(module => module.includes('runtime.server'))).toBe(
+        true,
+      );
+      expect(modules.filter(module => module.includes('/dist/node/'))).toEqual(
+        [],
+      );
+      expect(
+        modules.filter(module =>
+          /node:(?:fs|vm)|module-federation[/](?:node|sdk)/u.test(module),
+        ),
+      ).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        compiler.close(error => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   it.each(nativeRenderers)(
     'rejects %s Worker MF before creating runtime files or providers',
     async renderer => {
@@ -879,6 +960,71 @@ describe('native Module Federation plugin', () => {
       expect(
         fs.existsSync(path.join(root, 'node_modules/.modern-js/federation')),
       ).toBe(false);
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'registers %s graph refresh only in the Node development runtime',
+    async renderer => {
+      const root = app({
+        'package.json': '{}',
+        'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+      });
+      installPackages(root, true, renderer);
+      const hooks = setup(
+        renderer,
+        root,
+        { server: { ssr: true } },
+        { command: 'dev' },
+      );
+      const refresh = createRequire(import.meta.url).resolve(
+        '@modern-js/federation-runtime/native-dev-refresh-runtime-plugin',
+      );
+      for (const name of ['client', 'server']) {
+        const configured = chain();
+        await hooks.modifyBundlerChain(configured.chain, {
+          environment: { name },
+        });
+        const [, , [options]] = configured.uses.find(
+          ([key]) => key === 'plugin-module-federation',
+        ) as [string, unknown, [any]];
+        const registration = options.runtimePlugins.find(
+          (plugin: unknown) => Array.isArray(plugin) && plugin[0] === refresh,
+        );
+        if (name === 'server')
+          expect(registration).toEqual([
+            refresh,
+            {
+              remotes: [
+                {
+                  name: 'remote',
+                  alias: 'remote',
+                  entry: 'https://remote.example/mf-manifest.json',
+                },
+              ],
+              revisionHeader: 'x-ultramodern-mf-revision',
+              requestTimeout: 3000,
+              shared: expect.arrayContaining(
+                renderer === 'octane'
+                  ? [
+                      'octane/server',
+                      'octane/internal/server',
+                      'octane/signals/server',
+                      '@modern-js/renderer-octane/',
+                      '@modern-js/renderer-core/',
+                    ]
+                  : [
+                      'solid-js',
+                      '@solidjs/web',
+                      '@solidjs/signals',
+                      '@modern-js/renderer-solid/federation',
+                      '@modern-js/renderer-core/',
+                    ],
+              ),
+            },
+          ]);
+        else expect(registration).toBeUndefined();
+      }
     },
   );
 

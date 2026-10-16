@@ -84,7 +84,7 @@ export function verticalTopologyEntry(
       : {}),
     ...(vertical.renderer === 'none' ||
     resolveAppGenerationProfile(vertical)?.capabilities.workers
-      ? { cloudflare: createCloudflareDeployContract(scope, vertical) }
+      ? { cloudflare: createCloudflareDeployContract(scope, vertical, remotes) }
       : {}),
     ownership: vertical.ownership,
   };

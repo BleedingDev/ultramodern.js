@@ -8,6 +8,7 @@ import {
   memo,
   Suspense,
   useContext,
+  useId,
   useState,
 } from 'octane';
 import { mountOctaneApplication } from '../src/client';
@@ -147,6 +148,104 @@ test('application updates preserve the loaded remote and its native state while 
     expect(loadRemote).toHaveBeenCalledTimes(1);
   } finally {
     handle.dispose();
+  }
+});
+
+test('publisher occurrences retain native ids, independent state and live host context', async () => {
+  const Theme = createContext('missing');
+  const remoteState = Symbol(hookSlots(1));
+  const remoteId = Symbol(hookSlots(1));
+  const hostState = Symbol(hookSlots(1));
+  const siblingState = Symbol(hookSlots(1));
+  const loadRemote = rstest.fn(async () => ({
+    default: (props: { label: string }) => {
+      const [count, update] = useState(0, remoteState);
+      const id = useId(remoteId);
+      return createElement(
+        'button',
+        { id, 'data-remote': props.label, onClick: () => update(count + 1) },
+        `${props.label}: ${useContext(Theme)}: ${count}`,
+      );
+    },
+  }));
+  const Widget = federatedComponent<{ label: string }>('remote/Widget');
+  const Sibling = () => {
+    const [count, update] = useState(42, siblingState);
+    return createElement(
+      'button',
+      { 'data-sibling': '', onClick: () => update(count + 1) },
+      String(count),
+    );
+  };
+  const App = (props: { theme: string }) => {
+    const [count, update] = useState(6, hostState);
+    return createElement(Theme, {
+      value: props.theme,
+      children: createElement(
+        'div',
+        null,
+        createElement(
+          'button',
+          { 'data-host': '', onClick: () => update(count + 1) },
+          String(count),
+        ),
+        createElement(Widget, { label: 'first' }),
+        createElement(Widget, { label: 'second' }),
+        createElement(Sibling),
+      ),
+    });
+  };
+  const container = document.createElement('div');
+  const handle = await mountOctaneApplication({
+    container,
+    identity,
+    nativeHydrationBuildId: 'native-build',
+    federation: { instance: () => ({ loadRemote }) },
+    load: async () => ({ default: App, props: { theme: 'initial theme' } }),
+  });
+  try {
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-remote="second"]')?.textContent,
+      ).toBe('second: initial theme: 0'),
+    );
+    const first = container.querySelector<HTMLButtonElement>(
+      '[data-remote="first"]',
+    )!;
+    const second = container.querySelector<HTMLButtonElement>(
+      '[data-remote="second"]',
+    )!;
+    const host = container.querySelector<HTMLButtonElement>('[data-host]')!;
+    const sibling =
+      container.querySelector<HTMLButtonElement>('[data-sibling]')!;
+    expect(first.id).not.toBe('');
+    expect(second.id).not.toBe(first.id);
+    const ids = [first.id, second.id];
+    first.click();
+    host.click();
+    await waitFor(() => {
+      expect(first.textContent).toBe('first: initial theme: 1');
+      expect(second.textContent).toBe('second: initial theme: 0');
+      expect(host.textContent).toBe('7');
+    });
+    second.click();
+    sibling.click();
+    handle.update({ default: App, props: { theme: 'updated theme' } });
+    await waitFor(() => {
+      expect(first.textContent).toBe('first: updated theme: 1');
+      expect(second.textContent).toBe('second: updated theme: 1');
+      expect(host.textContent).toBe('7');
+      expect(sibling.textContent).toBe('43');
+    });
+    expect(container.querySelector('[data-remote="first"]')).toBe(first);
+    expect(container.querySelector('[data-remote="second"]')).toBe(second);
+    expect(container.querySelector('[data-host]')).toBe(host);
+    expect(container.querySelector('[data-sibling]')).toBe(sibling);
+    expect([first.id, second.id]).toEqual(ids);
+    expect(loadRemote).toHaveBeenCalledExactlyOnceWith('remote/Widget');
+  } finally {
+    handle.dispose();
+    container.remove();
   }
 });
 

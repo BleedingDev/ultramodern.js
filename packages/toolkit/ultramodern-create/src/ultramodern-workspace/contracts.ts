@@ -108,7 +108,13 @@ export function createTopology(
         createDeliveryUnitRecord(scope, shellHost),
       ),
       ...(resolveAppGenerationProfile(shellHost)!.capabilities.workers
-        ? { cloudflare: createCloudflareDeployContract(scope, shellHost) }
+        ? {
+            cloudflare: createCloudflareDeployContract(
+              scope,
+              shellHost,
+              remotes,
+            ),
+          }
         : {}),
       ownership: shellHost.ownership,
     },
@@ -164,7 +170,13 @@ export function createTopology(
       ...optionalJsonEntry('api', apiTopologyMetadata(vertical)),
       ...(vertical.renderer === 'none' ||
       resolveAppGenerationProfile(vertical)!.capabilities.workers
-        ? { cloudflare: createCloudflareDeployContract(scope, vertical) }
+        ? {
+            cloudflare: createCloudflareDeployContract(
+              scope,
+              vertical,
+              remotes,
+            ),
+          }
         : {}),
       ownership: vertical.ownership,
     })),

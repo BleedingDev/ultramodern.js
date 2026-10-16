@@ -146,7 +146,7 @@ function appDevDependencies(
               name !== '@types/react' &&
               name !== '@types/react-dom' &&
               name !== 'zephyr-rspack-plugin' &&
-              name !== 'wrangler',
+              (name !== 'wrangler' || generationProfile?.capabilities.workers),
           ),
         );
 
@@ -184,6 +184,8 @@ export function createRootPackageJson(
   const renderer = resolveWorkspaceRenderer(primaryShell);
   if (hasNativeAppGeneration(renderer)) {
     const apps = [primaryShell, ...additionalShells, ...remotes];
+    const workers =
+      resolveAppGenerationProfile(primaryShell)!.capabilities.workers;
     if (bridge)
       throw new Error(
         `Renderer ${renderer} does not support React bridge configuration.`,
@@ -191,9 +193,9 @@ export function createRootPackageJson(
     const rootDevDependencies = Object.fromEntries(
       Object.entries(ULTRAMODERN_PACKAGE_PINS.rootDevDependencies).filter(
         ([name]) =>
-          name !== 'wrangler' &&
+          (name !== 'wrangler' || workers) &&
           name !== 'zephyr-agent' &&
-          name !== 'miniflare',
+          (name !== 'miniflare' || workers),
       ),
     );
     return {
@@ -222,6 +224,25 @@ export function createRootPackageJson(
         'skills:install': 'ultramodern-create ultramodern skills install',
         'skills:check': 'ultramodern-create ultramodern skills check',
         postinstall: GENERATED_POSTINSTALL_SCRIPT,
+        ...(workers
+          ? {
+              'cloudflare:build': [
+                ...(remotes.length
+                  ? ['pnpm -r --filter "./verticals/*" run cloudflare:build']
+                  : []),
+                'pnpm -r --filter "./apps/*" run cloudflare:build',
+                'pnpm cloudflare-output:verify',
+              ].join(' && '),
+              'cloudflare:deploy': [
+                ...(remotes.length
+                  ? ['pnpm -r --filter "./verticals/*" run cloudflare:deploy']
+                  : []),
+                'pnpm -r --filter "./apps/*" run cloudflare:deploy',
+              ].join(' && '),
+              'cloudflare-output:verify':
+                'ultramodern-create ultramodern cloudflare-output-verify',
+            }
+          : {}),
       },
       workspaces: ['apps/*', 'verticals/*', 'packages/*'],
       modernjs: {

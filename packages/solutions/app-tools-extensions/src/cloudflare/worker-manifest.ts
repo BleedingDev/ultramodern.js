@@ -219,6 +219,21 @@ export const createWorkerManifest = async (
         `Cloudflare worker deploy of the ${renderer} renderer requires its native worker build for entry ${route.entryName}. Set deploy.worker.ssr: true and rebuild with the Cloudflare deploy target.`,
       );
   }
+  for (const [expose, coordinate] of Object.entries(
+    nativeRenderer?.workerFederation?.worker.exposes ?? {},
+  )) {
+    const exposeRoutes = routes.filter(
+      route => route.entryName === coordinate.entryName,
+    );
+    if (
+      exposeRoutes.length === 0 ||
+      exposeRoutes.some(route => !route.workerExists || !route.worker) ||
+      new Set(exposeRoutes.map(route => route.worker)).size !== 1
+    )
+      throw new Error(
+        `Cloudflare Worker federation expose ${expose} requires one compiled native Worker bundle for entry ${coordinate.entryName}. Rebuild the application before deploying.`,
+      );
+  }
 
   const isEffectApi =
     Boolean(modernConfig.bff) && modernConfig.bff?.runtimeFramework !== 'hono';
@@ -230,6 +245,20 @@ export const createWorkerManifest = async (
     modernConfig,
     undefined,
   );
+  const configuredServices =
+    typedServiceBindings ?? modernConfig.deploy?.worker?.wrangler?.services;
+  for (const service of nativeRenderer?.workerFederationServices ?? []) {
+    if (
+      !Array.isArray(configuredServices) ||
+      !configuredServices.some(
+        configured =>
+          isRecord(configured) && configured.binding === service.binding,
+      )
+    )
+      throw new Error(
+        `Cloudflare Worker federation remote ${service.remote} requires its compiled service binding ${service.binding} in deploy.worker.services. Rebuild the application with the declared service topology.`,
+      );
+  }
   const serviceBindings = createWorkerManifestServiceBindings(
     typedServiceBindings,
     // The wrangler config checks VPC names against every Worker binding; the

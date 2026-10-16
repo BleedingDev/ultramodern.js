@@ -56,6 +56,8 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
+  '@tanstack/router-core@1.171.15': patches/@tanstack__router-core@1.171.15.patch
+  '@tanstack/router-core@1.171.34': patches/@tanstack__router-core@1.171.34.patch
   '@rsbuild/core@2.2.11': patches/@rsbuild__core@2.2.11.patch
   '@module-federation/bridge-react@2.9.2': patches/@module-federation__bridge-react@2.9.2.patch
   '@module-federation/dts-plugin@2.9.2': patches/@module-federation__dts-plugin@2.9.2.patch
@@ -66,6 +68,8 @@ patchedDependencies:
   '@module-federation/runtime-core@2.9.2': patches/@module-federation__runtime-core@2.9.2.patch
   '@module-federation/sdk@2.9.2': patches/@module-federation__sdk@2.9.2.patch
 overrides:
+  # The Octane core patch uses the supported native blocker API from history 1.162.4.
+  '@tanstack/router-core@1.171.15>@tanstack/history': 1.162.4
   # Keep Miniflare and image plugins on one compatible Sharp native patch.
   'sharp@>=0.35.0 <0.35.5': 0.35.5
   'axios@>=1.0.0 <1.20.0': 1.20.0

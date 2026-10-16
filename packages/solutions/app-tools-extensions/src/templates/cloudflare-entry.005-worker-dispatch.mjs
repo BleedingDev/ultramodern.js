@@ -234,6 +234,30 @@ async function dispatchRouteWorker(route, request, env, ctx) {
   );
 }
 
+async function dispatchNativeFederationRequest(request, env, ctx) {
+  const publication = MODERN_WORKER_MANIFEST.nativeRenderer?.workerFederation;
+  if (!publication) return undefined;
+  const { pathname } = new URL(request.url);
+  for (const coordinate of Object.values(publication.worker.exposes)) {
+    if (!Object.values(coordinate.paths).includes(pathname)) continue;
+    const route = MODERN_WORKER_MANIFEST.routeSpec.routes.find(
+      candidate => candidate.entryName === coordinate.entryName,
+    );
+    const identity = route && getNativeRouteIdentity(route);
+    if (!route || !identity) {
+      return createWorkerRendererErrorResponse(
+        'missing-native-federation-entry',
+        coordinate.entryName,
+      );
+    }
+    return withWorkerRendererIdentity(
+      await invokeNativeRouteWorker(route, identity, request, env, ctx),
+      route,
+    );
+  }
+  return undefined;
+}
+
 function createWorkerRendererErrorResponse(code, entryName) {
   return Response.json(
     { code, entryName: String(entryName) },
@@ -282,7 +306,21 @@ async function invokeNativeRouteWorker(route, identity, request, env, ctx) {
     return await workerModule.dispatchNativeWorkerRequest(request, {
       identity,
       bundle: workerModule,
-      resources,
+      resources: {
+        ...resources,
+        ...(nativeRenderer.workerFederation === undefined
+          ? {}
+          : {
+              workerFederation: nativeRenderer.workerFederation,
+              workerFederationManifestUrl:
+                nativeRenderer.workerFederationManifestUrl,
+            }),
+        ...(nativeRenderer.workerFederationServices === undefined
+          ? {}
+          : {
+              workerFederationServices: nativeRenderer.workerFederationServices,
+            }),
+      },
       bindings: env,
       executionContext: ctx,
     });

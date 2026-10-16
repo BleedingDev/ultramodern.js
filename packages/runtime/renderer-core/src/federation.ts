@@ -1,6 +1,15 @@
+/** The Node dev runtime captures assets before releasing a container load. */
+const LOAD_WITH_CAPTURE = Symbol.for(
+  'ultramodern.federation.load-with-capture',
+);
+
 /** The application compiler's native Module Federation runtime. */
 export interface FederationInstance {
   loadRemote<T>(id: string): Promise<T | null>;
+  [LOAD_WITH_CAPTURE]?: <T, Captured>(
+    id: string,
+    capture: (module: T | null, resolution?: LoadResolution) => Captured,
+  ) => Promise<{ module: T | null; captured: Captured | undefined }>;
   readonly remoteHandler?: {
     readonly idToRemoteMap?: Record<string, { name: string; expose: string }>;
   };
@@ -23,6 +32,11 @@ interface RemoteSnapshot {
       };
     };
   }[];
+}
+
+interface LoadResolution {
+  readonly remoteSnapshot: unknown;
+  readonly expose: string;
 }
 
 /** Generated entries retain their own compiler's host, including on the server. */
@@ -52,27 +66,41 @@ export function getFederationHost(
 export async function loadFederatedModule<T>(
   instance: FederationInstance | undefined,
   id: string,
-): Promise<T> {
+): Promise<{ module: T; assets: FederatedAssets | undefined }> {
   if (!instance)
     throw new Error(
       `Cannot load ${id}: this application has no Module Federation runtime. Add module-federation.config.ts with its remotes.`,
     );
-  const module = await instance.loadRemote<T>(id);
+  const coupledLoad = instance[LOAD_WITH_CAPTURE];
+  const result = coupledLoad
+    ? await coupledLoad<T, FederatedAssets | undefined>(
+        id,
+        (_module, resolution) => remoteBrowserAssets(instance, id, resolution),
+      )
+    : {
+        module: await instance.loadRemote<T>(id),
+        captured: remoteBrowserAssets(instance, id),
+      };
+  const module = result.module;
   if (!module) throw new Error(`Remote module ${id} is unavailable`);
-  return module;
+  return { module, assets: result.captured };
 }
 
 /** Browser assets from the native snapshot that admitted and loaded this remote. */
 export function remoteBrowserAssets(
   instance: FederationInstance,
   id: string,
+  resolution?: LoadResolution,
 ): FederatedAssets | undefined {
   const target = instance.remoteHandler?.idToRemoteMap?.[id];
   const loaded = target && instance.moduleCache?.get(target.name);
-  const snapshot =
-    loaded &&
-    instance.snapshotHandler?.getGlobalRemoteInfo(loaded.remoteInfo)
-      .remoteSnapshot;
+  const snapshot = (
+    resolution
+      ? resolution.remoteSnapshot
+      : loaded &&
+        instance.snapshotHandler?.getGlobalRemoteInfo(loaded.remoteInfo)
+          .remoteSnapshot
+  ) as RemoteSnapshot | undefined;
   if (
     !snapshot ||
     typeof snapshot.publicPath !== 'string' ||
@@ -82,7 +110,7 @@ export function remoteBrowserAssets(
   )
     return undefined;
   const expose = snapshot.modules?.find(
-    module => module.modulePath === target.expose,
+    module => module.modulePath === (resolution?.expose ?? target?.expose),
   );
   if (!expose?.assets) return undefined;
   const publicPath = snapshot.publicPath;

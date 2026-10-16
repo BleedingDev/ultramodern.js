@@ -38,7 +38,10 @@ import {
 } from '../public-surface';
 import { resolveWorkspaceRenderer } from '../renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from '../types';
-import { preserveConsumerWorkspaceArtifacts } from '../workspace-artifact-ownership';
+import {
+  type createCanonicalWorkspaceArtifactFormatter,
+  preserveConsumerWorkspaceArtifacts,
+} from '../workspace-artifact-ownership';
 
 export function updateRootWorkspaceScripts(
   workspaceRoot: string,
@@ -94,7 +97,7 @@ export function updateRootWorkspaceScripts(
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
-function shellAppArtifacts(
+export function shellAppArtifacts(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
@@ -232,6 +235,9 @@ export function rewriteShellAppFiles(
     remotes: WorkspaceApp[];
     enableTailwind?: boolean;
   } = { shell, remotes },
+  canonicalFormatter?: ReturnType<
+    typeof createCanonicalWorkspaceArtifactFormatter
+  >,
 ) {
   const before = shellAppArtifacts(
     scope,
@@ -249,10 +255,11 @@ export function rewriteShellAppFiles(
     bridge,
     shell,
   );
-  const { io } = preserveConsumerWorkspaceArtifacts(workspaceRoot, [
-    ...before.artifacts,
-    ...next.artifacts,
-  ]);
+  const { io } = preserveConsumerWorkspaceArtifacts(
+    workspaceRoot,
+    [...before.artifacts, ...next.artifacts],
+    canonicalFormatter,
+  );
   for (const artifact of next.artifacts) {
     io.write(path.join(workspaceRoot, artifact.relativePath), artifact.content);
   }

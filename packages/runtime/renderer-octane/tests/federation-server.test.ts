@@ -5,6 +5,7 @@ import {
   createElement,
   ssrHtml,
   useContext,
+  useId,
 } from 'octane/server';
 import { federatedComponent } from '../src/federation';
 import { renderOctaneApplication } from '../src/server';
@@ -85,6 +86,50 @@ test('streams native remote HTML, props and provider context with styles before 
   );
   expect(html).toContain('nonce="mf-nonce"');
   expect(html).toMatch(/<\/body><\/html>$/);
+});
+
+test('repeated publisher occurrences keep distinct native ids and their live server ancestry', async () => {
+  const Theme = createContext('missing');
+  const observations = new Map<string, { id: string; theme: string }>();
+  let hostId: string | undefined;
+  const loadRemote = rstest.fn(async () => ({
+    default: (props: { label: string }) => {
+      const id = useId();
+      const theme = useContext(Theme);
+      observations.set(props.label, { id, theme });
+      return createElement('button', { id }, `${props.label}: ${theme}`);
+    },
+  }));
+  const Widget = federatedComponent<{ label: string }>('remote/Widget');
+  const response = await renderOctaneApplication({
+    session: createSession(),
+    App: () => {
+      hostId = useId();
+      return createElement(Theme, {
+        value: 'host theme',
+        children: createElement(
+          'div',
+          { id: hostId },
+          createElement(Widget, { label: 'first' }),
+          createElement(Widget, { label: 'second' }),
+        ),
+      });
+    },
+    federation: { instance: () => host(loadRemote) },
+    document,
+  });
+  const html = await response.text();
+  expect(html).toContain('first: host theme');
+  expect(html).toContain('second: host theme');
+  expect([...observations.keys()].sort()).toEqual(['first', 'second']);
+  const ids = [...observations.values()].map(value => value.id);
+  expect(ids.every(id => id.length > 0)).toBe(true);
+  expect(new Set([hostId, ...ids]).size).toBe(3);
+  expect([...observations.values()].map(value => value.theme)).toEqual([
+    'host theme',
+    'host theme',
+  ]);
+  expect(loadRemote).toHaveBeenCalledExactlyOnceWith('remote/Widget');
 });
 
 test('concurrent requests using one component retain their own host and asset snapshots', async () => {

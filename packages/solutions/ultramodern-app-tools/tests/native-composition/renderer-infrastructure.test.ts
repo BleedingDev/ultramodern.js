@@ -871,6 +871,115 @@ describe('native infrastructure in the owning CLI hooks', () => {
     },
   );
 
+  it.each(['client', 'server'] as const)(
+    'rejects a custom %s entry before compiling native Worker federation',
+    async kind => {
+      const root = createFixture();
+      try {
+        const generator: NativeEntryGenerator = {
+          client: rstest.fn(() => 'export const client = true;'),
+          server: rstest.fn(() => 'export const nativeRequestHandler = true;'),
+        };
+        const resolveBuildIdentities = rstest.fn(async () => {
+          throw new Error(
+            'Custom entries must fail before identity compilation',
+          );
+        });
+        const entry = path.join(
+          root,
+          'src',
+          kind === 'client' ? 'index.tsrx' : 'App.tsrx',
+        );
+        const server = path.join(root, 'src/index.server.tsrx');
+        fs.writeFileSync(
+          entry,
+          'export default function App() { return null; }',
+        );
+        fs.writeFileSync(server, 'export default () => new Response();');
+        fs.writeFileSync(
+          path.join(root, 'module-federation.config.mjs'),
+          'export default {name:"host"};',
+        );
+        const { api, context } = await initializeInfrastructure(
+          'octane',
+          root,
+          generator,
+          true,
+          { resolveBuildIdentities },
+        );
+        context.normalizedConfig = {
+          ...api.getNormalizedConfig(),
+          deploy: { target: 'cloudflare', worker: { ssr: true } },
+        } as AppNormalizedConfig;
+        const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
+          entrypoints: [{ entryName: 'main', entry }],
+        });
+        await expect(
+          api.getHooks().generateEntryCode.call({ entrypoints }),
+        ).rejects.toThrow('requires generated client and server entries');
+        expect(resolveBuildIdentities).not.toHaveBeenCalled();
+        expect(generator.client).not.toHaveBeenCalled();
+        expect(generator.server).not.toHaveBeenCalled();
+        expect(fs.existsSync(entrypoints[0].internalEntry!)).toBe(false);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('preflights every profile path before federation config execution or identity compilation', async () => {
+    const root = createFixture();
+    try {
+      const marker = path.join(root, 'executed-profile-or-config');
+      const generator: NativeEntryGenerator = {
+        client: rstest.fn(() => 'export const client = true;'),
+        server: rstest.fn(() => 'export const nativeRequestHandler = true;'),
+      };
+      const resolveBuildIdentities = rstest.fn(async () => {
+        throw new Error('Profile preflight must precede identity compilation');
+      });
+      const entry = path.join(root, 'src/App.tsrx');
+      fs.writeFileSync(entry, 'export default function App() { return null; }');
+      const sentinel = `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)},'executed');`;
+      fs.writeFileSync(path.join(root, 'src/profile.mjs'), sentinel);
+      fs.writeFileSync(
+        path.join(root, 'module-federation.config.mjs'),
+        `${sentinel}\nexport default {name:'host'};`,
+      );
+      const { api, context } = await initializeInfrastructure(
+        'octane',
+        root,
+        generator,
+        true,
+        { resolveBuildIdentities },
+      );
+      context.normalizedConfig = {
+        ...api.getNormalizedConfig(),
+        deploy: {
+          target: 'cloudflare',
+          worker: {
+            ssr: true,
+            federation: {
+              contextProfiles: ['./src/profile.mjs', '../foreign.mjs'],
+            },
+          },
+        },
+      } as AppNormalizedConfig;
+      const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
+        entrypoints: [{ entryName: 'main', entry }],
+      });
+      await expect(
+        api.getHooks().generateEntryCode.call({ entrypoints }),
+      ).rejects.toThrow('plain ./ source-module path');
+      expect(fs.existsSync(marker)).toBe(false);
+      expect(resolveBuildIdentities).not.toHaveBeenCalled();
+      expect(generator.client).not.toHaveBeenCalled();
+      expect(generator.server).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each(['solid', 'octane'] as const)(
     'keeps authored %s custom TypeScript entries and Fetch handlers native',
     async renderer => {

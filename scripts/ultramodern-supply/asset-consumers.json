@@ -1,0 +1,23 @@
+[
+  {
+    "recipe": "tanstack-router-core-octane",
+    "source": {
+      "importer": "packages/runtime/renderer-octane",
+      "name": "@modern-js/renderer-octane",
+      "published": "@bleedingdev/modern-js-renderer-octane"
+    },
+    "consumer": {
+      "name": "@octanejs/tanstack-router",
+      "version": "0.1.60+ultramodern.0b9f76ee3003"
+    },
+    "artifact": {
+      "tarball": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz",
+      "integrity": "sha512-WaCM0FMOPETQNBA8GSGFectIxXwuri00dXpue3ux6q9WczjiESvOBVtiYRvYEKNQMWU9liXyDiLv3DJvY8DNrA=="
+    },
+    "dependency": {
+      "block": "dependencies",
+      "name": "@tanstack/router-core",
+      "specifier": "1.171.15"
+    }
+  }
+]

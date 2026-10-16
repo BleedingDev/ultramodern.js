@@ -186,7 +186,7 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 15);
+  assert.equal(sidecars.length, 17);
   assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
   assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
   assert.equal(byName.has('@bleedingdev/jiti'), false);
@@ -322,10 +322,10 @@ test('every repository recipe has a runtime consumer in the published cohort', a
       name: targetPackageName(packageJson.name, options),
     }),
   );
-  assertRepositoryRecipeConsumers(published);
+  await assertRepositoryRecipeConsumers(published);
   // Staging ships source edges unchanged, so an upstream name that has a
   // recipe must already be the exact fork alias in source.
-  assert.throws(
+  await assert.rejects(
     () =>
       assertRepositoryRecipeConsumers([
         ...published,

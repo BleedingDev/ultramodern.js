@@ -1,4 +1,4 @@
-import type { RuntimePlugin } from '@modern-js/plugin';
+import type { RuntimePlugin } from '@modern-js/runtime';
 import type { ComponentType } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -412,7 +412,7 @@ function BoundaryDebugger({
 
 export const ultramodernBoundaryDebuggerPlugin = (
   options: BoundaryDebuggerPluginOptions,
-): RuntimePlugin<{}> => ({
+): RuntimePlugin => ({
   name: '@modern-js/runtime/boundary-debugger',
   setup: api => {
     api.wrapRoot((App: ComponentType<any>) => (props: any) => (

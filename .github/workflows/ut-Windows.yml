@@ -95,8 +95,17 @@ jobs:
       - name: Verify dependency bundle module classification
         run: node --test --test-name-pattern="prebundle distinguishes" scripts/prebundle/ultramodern/packed-utils-consumer.test.mjs
 
+      - name: Report unit test resources
+        run: >-
+          node --input-type=module --eval "import os from 'node:os';
+          console.log(JSON.stringify({platform:process.platform,
+          availableParallelism:os.availableParallelism(),cpuCount:os.cpus().length,
+          totalMemoryBytes:os.totalmem(),testFileWorkers:1}))"
+
+      # Generator tests launch their own tools and config workers. Run one test
+      # file at a time per runner; all four shards still run in parallel.
       - name: Test
-        run: pnpm run test:ut:prepared --shard=${{ matrix.shard }}/4
+        run: pnpm run test:ut:prepared --shard=${{ matrix.shard }}/4 --pool.maxWorkers=1
 
   # Keep the original check name and fail it if any shard fails or is cancelled.
   ut-windows:

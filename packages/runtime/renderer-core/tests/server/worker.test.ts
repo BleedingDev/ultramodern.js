@@ -5,6 +5,7 @@ import {
   type NativeRequestContext,
   type NativeWorkerEntryResources,
 } from '../../src/server';
+import { createWorkerFederationTransport } from '../../src/worker-federation';
 
 const identity: RendererIdentity = {
   renderer: 'solid',
@@ -146,6 +147,34 @@ describe('native worker Fetch dispatch', () => {
       false,
       true,
     ]);
+  });
+
+  it('forwards only the current document transport into its native request context', async () => {
+    const seen: NativeRequestContext[] = [];
+    const transports = [0, 1].map(() =>
+      createWorkerFederationTransport({
+        services: [],
+        admitRendererContract: () => ({ identities: { main: identity } }),
+      }),
+    );
+    for (const workerFederation of transports) {
+      const response = await dispatchNativeWorkerRequest(
+        new Request('https://worker.test/'),
+        {
+          identity,
+          bundle: {
+            rendererIdentity: identity,
+            nativeRequestHandler: documentHandler(seen),
+          },
+          resources,
+          bindings: {},
+          workerFederation,
+        },
+      );
+      await response.text();
+    }
+    expect(seen.map(context => context.workerFederation)).toEqual(transports);
+    expect(seen[0]!.workerFederation).not.toBe(seen[1]!.workerFederation);
   });
 
   it('keeps the Node host on the node platform', async () => {

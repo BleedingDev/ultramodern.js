@@ -356,11 +356,11 @@ export function findUnscopedOverrides(overrides) {
  */
 export function findForcedMajors(lockfileText, readManifest) {
   const lockfile = parse(lockfileText);
-  const targets = new Set(
-    Object.keys(lockfile.overrides ?? {}).map(
-      key => parseOverrideKey(key).target.name,
-    ),
+  const overrides = Object.keys(lockfile.overrides ?? {}).map(parseOverrideKey);
+  const genericTargets = new Set(
+    overrides.filter(({ parent }) => !parent).map(({ target }) => target.name),
   );
+  const parentOverrides = overrides.filter(({ parent }) => parent);
   const violations = [];
   const judge = (dependent, name, declared, edge) => {
     const resolved = String(edge).replace(/\(.*$/, '');
@@ -385,7 +385,7 @@ export function findForcedMajors(lockfileText, readManifest) {
       'optionalDependencies',
     ]) {
       for (const [name, entry] of Object.entries(manifest?.[field] ?? {})) {
-        if (targets.has(name)) {
+        if (genericTargets.has(name)) {
           judge(importer, name, String(entry.specifier), entry.version);
         }
       }
@@ -394,13 +394,22 @@ export function findForcedMajors(lockfileText, readManifest) {
 
   const seen = new Set();
   for (const [key, snapshot] of Object.entries(lockfile.snapshots ?? {})) {
+    const { name, version } = parsePackageKey(key);
     const edges = {
       ...snapshot?.dependencies,
       ...snapshot?.optionalDependencies,
     };
-    const overridden = Object.keys(edges).filter(name => targets.has(name));
+    const overridden = Object.keys(edges).filter(
+      targetName =>
+        genericTargets.has(targetName) ||
+        parentOverrides.some(
+          ({ parent, target }) =>
+            target.name === targetName &&
+            parent.name === name &&
+            inRange(version, parent.range),
+        ),
+    );
     if (overridden.length === 0) continue;
-    const { name, version } = parsePackageKey(key);
     const manifest = readManifest(name, version);
     if (!manifest) {
       // Optional snapshots for other platforms are not installed.

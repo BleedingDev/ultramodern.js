@@ -7,6 +7,7 @@ export async function createBuilderGenerator() {
 
 export { parseRspackConfig } from '@modern-js/builder';
 export { getBundleEntry } from '../plugins/analyze/getBundleEntry';
+export { getServerRoutes } from '../plugins/analyze/getServerRoutes';
 
 export {
   builderPluginAdapterBasic,

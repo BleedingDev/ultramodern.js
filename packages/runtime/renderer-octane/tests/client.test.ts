@@ -18,9 +18,14 @@ import {
   assertRootClaimsAndImportFailures,
   assertScheduledRenderFailureReleasesRoot,
   assertStrictBootstrapIdentity,
+  assertWorkerDocumentIdentityBeforeImport,
 } from './fixtures/client-lifecycle';
 
 describe('native Octane application lifecycle', () => {
+  it(
+    'rejects Worker federation without a trusted document before import and releases ownership',
+    assertWorkerDocumentIdentityBeforeImport,
+  );
   it(
     'mounts a real native root, updates it and disposes resources once',
     assertNativeMountLifecycle,

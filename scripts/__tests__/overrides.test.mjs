@@ -133,6 +133,92 @@ test('a dependent that is not installed fails unless it is optional', () => {
   );
 });
 
+const parentScopedMajorLockfile = `
+lockfileVersion: '9.0'
+overrides:
+  '@tanstack/router-core@1.171.15>@tanstack/history': 1.162.4
+importers:
+  app:
+    dependencies:
+      '@tanstack/history':
+        specifier: ^2.0.0
+        version: 1.162.4
+snapshots:
+  '@tanstack/router-core@1.171.15':
+    dependencies:
+      '@tanstack/history': 1.162.4
+  '@tanstack/router-core@1.172.0':
+    dependencies:
+      '@tanstack/history': 1.162.4
+  '@octanejs/tanstack-router@https://example.test/router.tgz':
+    dependencies:
+      '@tanstack/history': 1.162.4
+`;
+
+test('parent-scoped major checks read only matching parent snapshots', () => {
+  for (const selector of ['1.171.15', '>=1.171.0 <1.172.0']) {
+    const reads = [];
+    const lockfile = parentScopedMajorLockfile.replace(
+      'router-core@1.171.15>',
+      `router-core@${selector}>`,
+    );
+    assert.deepEqual(
+      findForcedMajors(lockfile, (name, version) => {
+        reads.push(`${name}@${version}`);
+        assert.equal(name, '@tanstack/router-core');
+        assert.equal(version, '1.171.15');
+        return { dependencies: { '@tanstack/history': '^1.162.0' } };
+      }),
+      [],
+    );
+    assert.deepEqual(reads, ['@tanstack/router-core@1.171.15']);
+  }
+});
+
+test('a matching parent override still rejects forced major changes', () => {
+  for (const target of ['@tanstack/history', '@tanstack/history@^2.0.0']) {
+    const lockfile = parentScopedMajorLockfile.replace(
+      ">@tanstack/history':",
+      `>${target}':`,
+    );
+    assert.deepEqual(
+      findForcedMajors(lockfile, () => ({
+        dependencies: { '@tanstack/history': '^2.0.0' },
+      })),
+      [
+        '@tanstack/router-core@1.171.15 declares @tanstack/history@^2.0.0 but resolves @tanstack/history@1.162.4, another major. ' +
+          'Scope the @tanstack/history override to the major it fixes, or drop @tanstack/router-core@1.171.15.',
+      ],
+    );
+  }
+});
+
+test('a generic same-child override still checks unrelated URL consumers and importers', () => {
+  const lockfile = parentScopedMajorLockfile.replace(
+    'importers:',
+    "  '@tanstack/history': 1.162.4\nimporters:",
+  );
+  const reads = [];
+  assert.deepEqual(
+    findForcedMajors(lockfile, (name, version) => {
+      reads.push(`${name}@${version}`);
+      return name === '@tanstack/router-core'
+        ? { dependencies: { '@tanstack/history': '^1.162.0' } }
+        : undefined;
+    }),
+    [
+      'app declares @tanstack/history@^2.0.0 but resolves @tanstack/history@1.162.4, another major. ' +
+        'Scope the @tanstack/history override to the major it fixes, or drop app.',
+      '@octanejs/tanstack-router@https://example.test/router.tgz is not installed, so its declared ranges cannot be checked. Run pnpm install.',
+    ],
+  );
+  assert.deepEqual(reads, [
+    '@tanstack/router-core@1.171.15',
+    '@tanstack/router-core@1.172.0',
+    '@octanejs/tanstack-router@https://example.test/router.tgz',
+  ]);
+});
+
 test('override keys split on the parent separator, not on range operators', () => {
   assert.deepEqual(parseOverrideKey('react-router@>=7.0.0 <7.18.2'), {
     target: { name: 'react-router', range: '>=7.0.0 <7.18.2' },

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { registerOwnedRoot } from './lifecycle.mjs';
+import { promisify } from 'node:util';
+import { registerOwnedRoot, retryMaintenanceOperation } from './lifecycle.mjs';
 
 const markerName = '.disk-guardian-owner';
 const lockReason = 'another maintenance operation holds the lock';
@@ -68,6 +69,138 @@ function failedRegistration(error) {
     throw error;
   };
 }
+
+test('maintenance retry accepts only the exact async guardian lock failure', async () => {
+  let clock = 0;
+  const attempts = [];
+  const lock = registrationFailure({ status: undefined, code: 1 });
+  const result = await retryMaintenanceOperation(
+    async remaining => {
+      attempts.push(remaining);
+      if (attempts.length === 1) throw lock;
+      return 'registered';
+    },
+    {
+      timeoutMs: 100,
+      retryDelayMs: 25,
+      now: () => clock,
+      sleep: async duration => {
+        clock += duration;
+      },
+    },
+  );
+  assert.equal(result, 'registered');
+  assert.deepEqual(attempts, [100, 75]);
+});
+
+test('maintenance retry handles real async command errors and retains exact arguments', async () => {
+  const execute = promisify(execFile);
+  const args = ['release', '/private/tmp/owned-only', '--owner', 'proof-owner'];
+  let attempts = 0;
+  const result = await retryMaintenanceOperation(
+    timeout =>
+      execute(
+        process.execPath,
+        [
+          '-e',
+          ++attempts === 1
+            ? `process.stdout.write(${JSON.stringify(JSON.stringify({ status: 'failed', reason: lockReason }))}); process.exit(1);`
+            : 'process.stdout.write(JSON.stringify(process.argv.slice(1)))',
+          '--',
+          ...args,
+        ],
+        { timeout },
+      ),
+    { retryDelayMs: 1 },
+  );
+  assert.equal(attempts, 2);
+  assert.deepEqual(JSON.parse(result.stdout), args);
+});
+
+test('maintenance retry keeps the original lock error when its total deadline expires', async () => {
+  let clock = 0;
+  const attempts = [];
+  const lock = registrationFailure({ status: undefined, code: 1 });
+  await assert.rejects(
+    retryMaintenanceOperation(
+      async remaining => {
+        attempts.push(remaining);
+        throw lock;
+      },
+      {
+        timeoutMs: 60,
+        retryDelayMs: 25,
+        now: () => clock,
+        sleep: async duration => {
+          clock += duration;
+        },
+      },
+    ),
+    error => error === lock,
+  );
+  assert.deepEqual(attempts, [60, 35, 10]);
+  assert.equal(clock, 60);
+});
+
+test('maintenance retry includes command execution in its total deadline', async () => {
+  let clock = 0;
+  const lock = registrationFailure({ status: undefined, code: 1 });
+  let attempts = 0;
+  await assert.rejects(
+    retryMaintenanceOperation(
+      async remaining => {
+        attempts++;
+        assert.equal(remaining, 50);
+        clock += 50;
+        throw lock;
+      },
+      {
+        timeoutMs: 50,
+        now: () => clock,
+        sleep: () => assert.fail('An exhausted deadline must not wait'),
+      },
+    ),
+    error => error === lock,
+  );
+  assert.equal(attempts, 1);
+});
+
+test('maintenance retry immediately preserves every nonexact failure', async () => {
+  for (const error of [
+    registrationFailure({ status: undefined, code: 'ENOENT' }),
+    registrationFailure({ status: undefined, code: 2 }),
+    registrationFailure({ status: 2, code: 1 }),
+    registrationFailure({ signal: 'SIGTERM' }),
+    registrationFailure({ killed: true }),
+    registrationFailure({ status: undefined, code: 'ABORT_ERR' }),
+    registrationFailure({ stderr: 'additional failure' }),
+    registrationFailure({ stdout: 'malformed lock response' }),
+    registrationFailure({
+      stdout: JSON.stringify({
+        status: 'failed',
+        reason: 'owner or identity mismatch',
+      }),
+    }),
+    registrationFailure({
+      stdout: `${registrationFailure().stdout}\n${registrationFailure().stdout}`,
+    }),
+    new Error('Acceptance assertion failed'),
+    null,
+  ]) {
+    let attempts = 0;
+    await assert.rejects(
+      retryMaintenanceOperation(
+        async () => {
+          attempts++;
+          throw error;
+        },
+        { sleep: () => assert.fail('Nonexact failures must not wait') },
+      ),
+      observed => observed === error,
+    );
+    assert.equal(attempts, 1);
+  }
+});
 
 function assertRejectedWithoutResidue(proofOptions, configuration, expected) {
   assert.throws(

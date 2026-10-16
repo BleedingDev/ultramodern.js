@@ -153,7 +153,7 @@ async function prepareBleedingdevPackages(options) {
   let sidecarDescriptor = null;
   if (options.includeSidecars) {
     assertSidecarAliasConsumerCount(sidecarAliasConsumerCount);
-    assertRepositoryRecipeConsumers(stagedManifests.map(item => item.packageJson));
+    await assertRepositoryRecipeConsumers(stagedManifests.map(item => item.packageJson));
     validateAliasConsistency(stagedManifests, stagedSidecars, {
       cohortTargetNames: new Set(Object.values(aliases)),
     });

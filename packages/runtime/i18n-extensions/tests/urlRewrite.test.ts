@@ -105,6 +105,29 @@ describe('createI18nUrlRewrite', () => {
     );
   });
 
+  test('output preserves an explicit language and the search and hash', () => {
+    const rewrite = createI18nUrlRewrite({
+      languages,
+      getLanguage: () => 'en',
+      localisedUrls: {
+        '/products/:slug': { en: '/products/:slug', cs: '/produkty/:slug' },
+      },
+    });
+    expect(
+      runOutput(rewrite, 'https://example.com/CS/produkty/red?sort=price#top'),
+    ).toBe('/cs/produkty/red?sort=price#top');
+  });
+
+  test('an explicit language survives output under the router basepath', () => {
+    const rewrite = composeWithBasepath(
+      '/store',
+      createI18nUrlRewrite({ languages, getLanguage: () => 'en' }),
+    );
+    expect(runOutput(rewrite, 'https://example.com/cs/products?x=1#top')).toBe(
+      '/store/cs/products?x=1#top',
+    );
+  });
+
   test('reports the detected language segment on input without mutating callers', () => {
     const detected: string[] = [];
     const rewrite = createI18nUrlRewrite({

@@ -1,3 +1,4 @@
+import { CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS } from '@modern-js/app-tools-extensions/cloudflare-output-contract';
 import { rpcPath } from './api/rpc';
 import {
   appEmitsBrowserUi,
@@ -8,9 +9,11 @@ import {
   resolveApiPrefix,
   resolveApiProtocol,
   resolveApiStem,
+  resolveRemoteRefs,
 } from './descriptors';
+import { resolveWorkspaceRenderer } from './renderer-profile';
 import { createLocalisedUrlsMap } from './routes';
-import type { JsonValue, WorkspaceApp } from './types';
+import type { JsonObject, JsonValue, WorkspaceApp } from './types';
 import { isRecord } from './types';
 import {
   CLOUDFLARE_COMPATIBILITY_DATE,
@@ -21,11 +24,15 @@ import {
 } from './versions';
 
 function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
+  const nativeUi =
+    appEmitsBrowserUi(app) && resolveWorkspaceRenderer(app) !== 'react';
   if (app.kind === 'shell') {
     return {
-      ssr: '/en',
+      ssr: nativeUi ? '/' : '/en',
       mfManifest: '/mf-manifest.json',
-      locale: `/locales/en/${appI18nNamespace(app)}.json`,
+      ...(nativeUi
+        ? {}
+        : { locale: `/locales/en/${appI18nNamespace(app)}.json` }),
     };
   }
 
@@ -39,9 +46,11 @@ function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
   return {
     ...(appEmitsBrowserUi(app)
       ? {
-          ssr: localizedPath ?? '/en',
+          ssr: nativeUi ? '/' : (localizedPath ?? '/en'),
           mfManifest: '/mf-manifest.json',
-          locale: `/locales/en/${appI18nNamespace(app)}.json`,
+          ...(nativeUi
+            ? {}
+            : { locale: `/locales/en/${appI18nNamespace(app)}.json` }),
         }
       : {}),
     ...(appHasApi(app)
@@ -184,23 +193,31 @@ export function createPublicSurfaceContentExpansionPolicy() {
 export function createCloudflareDeployContract(
   scope: string,
   app: WorkspaceApp,
-): JsonValue {
+  remotes: WorkspaceApp[] = [],
+): JsonObject {
+  const nativeUi =
+    appEmitsBrowserUi(app) && resolveWorkspaceRenderer(app) !== 'react';
+  const referencedRemotes = nativeUi ? resolveRemoteRefs(app, remotes) : [];
   return {
     target: 'cloudflare',
     workerName: createCloudflareWorkerName(scope, app),
     publicUrlEnv: createCloudflarePublicUrlEnv(app),
     compatibilityDate: CLOUDFLARE_COMPATIBILITY_DATE,
-    // Required so a deployed Worker's `request.signal` actually fires on
-    // client disconnect (see CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS in
-    // app-tools-extensions/src/cloudflare-output-contract.ts, the generator's
-    // own output verifier).
-    compatibilityFlags: [
-      'nodejs_compat',
-      'global_fetch_strictly_public',
-      'enable_request_signal',
-    ],
+    compatibilityFlags: [...CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS],
     assetsBinding: 'ASSETS',
     routes: createCloudflareProofRoute(app),
+    ...(nativeUi && referencedRemotes.length
+      ? {
+          distributedSsrProofRoutes: [
+            ...(referencedRemotes.some(remote => remote.exposes?.['./Widget'])
+              ? ['/remotes']
+              : []),
+            ...referencedRemotes
+              .filter(remote => remote.exposes?.['./Route'])
+              .map(remote => `/remotes/${remote.id}`),
+          ],
+        }
+      : {}),
     security: createCloudflareSecurityContract(),
     qualityGates: createPublicWebsiteQualityGateContract(),
     // Exercise the actual public protocol rather than treating generated files

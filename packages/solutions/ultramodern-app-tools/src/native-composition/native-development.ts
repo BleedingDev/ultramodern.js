@@ -24,7 +24,9 @@ import {
 } from './native-build-manifest';
 import {
   collectNativeFederationDevAssets,
+  NATIVE_FEDERATION_DEV_REVISION_HEADER,
   type NativeDevelopmentAsset,
+  nativeFederationDevRevision,
   resolveNativeFederationDevAsset,
 } from './native-federation-dev-assets';
 import type { NativeDevelopmentSnapshot } from './native-server-plugin';
@@ -102,6 +104,7 @@ export class NativeDevelopment {
   /** Node containers and their chunks belong to the latest completed build. */
   private federationAssets: ReadonlyMap<string, NativeDevelopmentAsset> =
     new Map();
+  private federationRevision: string | undefined;
   private readonly mutableClientAssets = new Set(['renderer-assets.json']);
   private readonly adapter: NativeRendererAdapter;
   private readonly compilerArtifacts: NativeCompilerArtifacts;
@@ -151,42 +154,57 @@ export class NativeDevelopment {
         });
         api.modifyRsbuildConfig(config => {
           config.mode = 'development';
-          const previous = config.dev?.setupMiddlewares;
+          const previous = config.server?.setup;
           const retain: NonNullable<
-            NonNullable<typeof config.dev>['setupMiddlewares']
-          > = middlewares => {
-            middlewares.unshift((request, response, next) => {
-              if (request.method !== 'GET' && request.method !== 'HEAD')
-                return next();
-              const pathname = URL.parse(
-                request.url ?? '/',
-                'http://native-dev.invalid',
-              )?.pathname;
-              const protocol =
-                request.socket instanceof TLSSocket ? 'https:' : 'http:';
-              const asset =
-                resolveNativeFederationDevAsset(
+            NonNullable<typeof config.server>['setup']
+          > = ({ action, server }) => {
+            if (action !== 'dev') return;
+            // Rsbuild registers its CORS, configured headers and current web
+            // asset middleware before invoking this supported post callback.
+            return () => {
+              server.middlewares.use((request, response, next) => {
+                if (this.closed) return next();
+                if (request.method !== 'GET' && request.method !== 'HEAD')
+                  return next();
+                const target = request.originalUrl ?? request.url ?? '/';
+                const pathname = URL.parse(
+                  target,
+                  'http://native-dev.invalid',
+                )?.pathname;
+                const protocol =
+                  request.socket instanceof TLSSocket ? 'https:' : 'http:';
+                const federationAsset = resolveNativeFederationDevAsset(
                   this.federationAssets,
-                  request.url ?? '/',
+                  target,
                   `${protocol}//${request.headers.host}`,
-                ) ||
-                (pathname && this.retained.get(pathname));
-              if (!asset) return next();
-              response.setHeader('Content-Type', asset.contentType);
-              response.setHeader('Content-Length', asset.bytes.length);
-              response.setHeader('Cache-Control', 'no-store');
-              response.end(request.method === 'HEAD' ? undefined : asset.bytes);
-            });
+                );
+                const asset =
+                  federationAsset || (pathname && this.retained.get(pathname));
+                if (!asset) return next();
+                response.setHeader('Content-Type', asset.contentType);
+                response.setHeader('Content-Length', asset.bytes.length);
+                if (!response.hasHeader('Cache-Control'))
+                  response.setHeader('Cache-Control', 'no-store');
+                if (federationAsset && this.federationRevision)
+                  response.setHeader(
+                    NATIVE_FEDERATION_DEV_REVISION_HEADER,
+                    this.federationRevision,
+                  );
+                response.end(
+                  request.method === 'HEAD' ? undefined : asset.bytes,
+                );
+              });
+            };
           };
-          config.dev = {
-            ...config.dev,
-            setupMiddlewares: [
-              retain,
+          config.server = {
+            ...config.server,
+            setup: [
               ...(Array.isArray(previous)
                 ? previous
                 : previous
                   ? [previous]
                   : []),
+              retain,
             ],
           };
         });
@@ -251,6 +269,7 @@ export class NativeDevelopment {
             const publication = await this.publish(stats);
             if (this.closed || epoch !== this.epoch) return;
             this.federationAssets = publication.federationAssets;
+            this.federationRevision = publication.federationRevision;
             this.ready = publication.entries;
             this.failure = undefined;
             this.notify();
@@ -322,6 +341,7 @@ export class NativeDevelopment {
   private async publish(stats: Rspack.Stats | Rspack.MultiStats): Promise<{
     readonly entries: ReadonlyMap<string, NativeDevelopmentSnapshot>;
     readonly federationAssets: ReadonlyMap<string, NativeDevelopmentAsset>;
+    readonly federationRevision: string | undefined;
   }> {
     const results = 'stats' in stats ? stats.stats : [stats];
     const client = results.find(result => result.compilation.name === 'client');
@@ -347,6 +367,7 @@ export class NativeDevelopment {
         : '/';
     for (const asset of client.compilation.getAssets()) {
       if (
+        asset.info.immutable !== true ||
         asset.info.hotModuleReplacement ||
         this.mutableClientAssets.has(asset.name) ||
         this.compilerArtifacts.isMutableDevelopmentAsset(asset.name, entryNames)
@@ -448,7 +469,13 @@ export class NativeDevelopment {
     await fs.mkdir(path.dirname(manifestFile), { recursive: true });
     await fs.writeFile(temporary, JSON.stringify(metadata));
     await fs.rename(temporary, manifestFile);
-    return { entries, federationAssets };
+    return {
+      entries,
+      federationAssets,
+      federationRevision: federationAssets.size
+        ? nativeFederationDevRevision(federationAssets)
+        : undefined,
+    };
   }
 
   async close(): Promise<void> {
@@ -458,6 +485,7 @@ export class NativeDevelopment {
     this.notify();
     this.retained.clear();
     this.federationAssets = new Map();
+    this.federationRevision = undefined;
     if (this.manifestFile) await fs.rm(this.manifestFile, { force: true });
   }
 }

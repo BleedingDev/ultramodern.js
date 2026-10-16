@@ -39,6 +39,7 @@ export default withTestPreset({
         'tests/native-router-lifecycle.test.ts',
         'tests/i18n.test.ts',
         'tests/component-i18n-client.test.ts',
+        'tests/worker-federation-contexts.test.ts',
       ],
       testEnvironment: 'happy-dom',
       resolve: {
@@ -70,6 +71,9 @@ export default withTestPreset({
       include: [
         'tests/server.test.ts',
         'tests/federation-server.test.ts',
+        'tests/worker-federation-server.test.ts',
+        'tests/i18n-external-snapshot.test.ts',
+        'tests/router-external-snapshot.test.ts',
         'tests/component-i18n-server.test.ts',
         'tests/routes.test.ts',
         'tests/manifest.test.ts',

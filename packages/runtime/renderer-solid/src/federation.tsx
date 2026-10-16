@@ -1,7 +1,6 @@
 import {
   type FederationInstance,
   loadFederatedModule,
-  remoteBrowserAssets,
 } from '@modern-js/renderer-core/federation';
 import { isServer, type JSX } from '@solidjs/web';
 import * as solid from 'solid-js';
@@ -78,10 +77,11 @@ function withTimeout<T>(
 }
 
 /** Record a server-rendered remote's browser assets under its asset key. */
-function registerServerAssets(id: string): string {
+function registerServerAssets(
+  id: string,
+  assets: FederatedAssets | undefined,
+): string {
   const state = federationSSRState();
-  const instance = hostInstance();
-  const assets = instance && remoteBrowserAssets(instance, id);
   if (!state || !assets)
     throw new Error(
       `Cannot server-render ${id}: the host has no server federation state for its browser assets`,
@@ -144,11 +144,14 @@ export function federatedComponent<P extends object = Record<string, never>>(
       throw new Error(
         'A federatedComponent loader renders in the browser only; use a remote id to server-render it',
       );
-    const module = await withTimeout(
+    const { module, assets } = await withTimeout(
       Promise.resolve().then(() =>
         id
           ? loadFederatedModule<FederatedModule<P>>(hostInstance(), id)
-          : (remote as () => Promise<never>)(),
+          : (remote as () => Promise<FederatedModule<P>>)().then(module => ({
+              module,
+              assets: undefined,
+            })),
       ),
       timeout,
       id ?? 'loader',
@@ -161,7 +164,7 @@ export function federatedComponent<P extends object = Record<string, never>>(
     // Solid resolves a loaded module's $$moduleUrl through the document's
     // asset resolver: stylesheets, preloads and the hydration module.
     return isServer && id
-      ? { default: component, $$moduleUrl: registerServerAssets(id) }
+      ? { default: component, $$moduleUrl: registerServerAssets(id, assets) }
       : { default: component };
   });
   const fallback = (): JSX.Element => options.fallback?.();

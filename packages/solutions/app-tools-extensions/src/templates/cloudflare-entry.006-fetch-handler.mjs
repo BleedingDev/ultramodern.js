@@ -16,6 +16,18 @@ export default {
       return finalizeResponseForRequest(corsPreflightResponse, request);
     }
 
+    const nativeFederationResponse = await dispatchNativeFederationRequest(
+      request,
+      env,
+      ctx,
+    );
+    if (nativeFederationResponse) {
+      return finalizeResponseForRequest(
+        withAppCorsHeaders(nativeFederationResponse, request),
+        request,
+      );
+    }
+
     const bffResponse = await dispatchBffRequest(request, env, ctx);
 
     if (bffResponse) {

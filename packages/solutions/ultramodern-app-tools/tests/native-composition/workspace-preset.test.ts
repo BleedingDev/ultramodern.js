@@ -7,17 +7,20 @@ import { createUltramodernReleaseBuildMarker } from '@modern-js/app-tools-extens
 import { createConfigOptions } from '@modern-js/plugin/cli';
 import {
   createPresetUltramodernWorkspaceConfig,
+  defineConfig,
   presetUltramodernWorkspace,
+  resolveUltramodernConfig,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 
-const fixture = () => {
+const fixture = (renderer?: 'solid' | 'octane') => {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'um-workspace-policy-')),
   );
   const makeApp = (id: string, kind = 'vertical') => ({
     id,
     kind,
+    ...(renderer ? { renderer } : {}),
     path: `${kind === 'shell' ? 'apps' : 'verticals'}/${id}`,
     package: `@acme/${id}`,
     portEnv: `${id.toUpperCase()}_PORT`,
@@ -99,6 +102,132 @@ const fixture = () => {
 };
 
 describe('native workspace build policy', () => {
+  for (const renderer of ['solid', 'octane'] as const) {
+    it(`projects ${renderer} worker bindings without imposing React entry, translation or upload policy`, () => {
+      const workspace = fixture(renderer);
+      try {
+        const config = presetUltramodernWorkspace(
+          { renderer, source: { mainEntryName: 'main' } },
+          {
+            ...workspace.options(),
+            deployTarget: 'cloudflare',
+            environment: {
+              VERTICAL_CATALOG_WORKER_BINDING: 'CATALOG',
+              VERTICAL_CATALOG_WORKER_NAME: 'catalog-preview',
+            },
+          },
+        );
+        expect(config.source?.mainEntryName).toBe('main');
+        expect(config.source?.alias).toBeUndefined();
+        expect(config.source?.reactCompiler).toBeUndefined();
+        expect(config.server?.publicDir).toBeUndefined();
+        expect(config.plugins?.map(plugin => plugin.name)).not.toContain(
+          'ultramodern-zephyr-rspack-plugin',
+        );
+        expect(config.deploy?.worker?.services).toEqual([
+          {
+            binding: 'CATALOG',
+            service: 'catalog-preview',
+            prefix: '/catalog-api',
+            fragments: [
+              {
+                boundaryId: 'verticalCatalog',
+                expose: './ProductCard',
+                path: '/{locale}/_mf/fragment/product-card',
+                remote: 'catalog',
+              },
+              {
+                boundaryId: 'verticalCatalog',
+                expose: './Route',
+                path: '/{locale}/_mf/fragment/route',
+                remote: 'catalog',
+              },
+            ],
+          },
+        ]);
+        workspace.topology.verticals[0].cloudflare.workerName = 'catalog-next';
+        workspace.topology.verticals[0].moduleFederation.exposes = ['./Route'];
+        workspace.save();
+        const updated = createPresetUltramodernWorkspaceConfig({
+          ...workspace.options(),
+          deployTarget: 'cloudflare',
+        });
+        expect(updated.source?.mainEntryName).toBeUndefined();
+        expect(updated.deploy?.worker?.services?.[0]).toMatchObject({
+          service: 'catalog-next',
+          fragments: [{ expose: './Route' }],
+        });
+      } finally {
+        workspace.cleanup();
+      }
+    });
+  }
+
+  it('loads current async Octane exposes and preserves authored services through the native config lifecycle', async () => {
+    const workspace = fixture('octane');
+    try {
+      fs.writeFileSync(
+        path.join(
+          workspace.root,
+          'verticals/catalog/module-federation.config.ts',
+        ),
+        `export default async () => {
+  await Promise.resolve();
+  return { name: 'verticalCatalog', exposes: {
+    './Route': './src/federation-entry.tsx',
+    './CurrentWidget': './src/current-widget.tsx',
+  } };
+};`,
+      );
+      const authoredService = { binding: 'CUSTOM', service: 'authored-worker' };
+      const config = await resolveUltramodernConfig(
+        defineConfig(
+          presetUltramodernWorkspace(
+            {
+              renderer: 'octane',
+              source: { mainEntryName: 'main' },
+              deploy: { worker: { services: [authoredService] } },
+            },
+            { ...workspace.options(), deployTarget: 'cloudflare' },
+          ),
+        ),
+        { env: 'production', command: 'build' },
+      );
+      expect(config.deploy?.worker?.services).toEqual([authoredService]);
+      const resolved = await createConfigOptions<AppTools>({
+        command: 'build',
+        configFile: false,
+        cwd: path.join(workspace.root, 'apps/shell'),
+        config,
+      });
+      expect(resolved.config.source.mainEntryName).toBe('main');
+      expect(resolved.config.deploy.worker?.services).toEqual([
+        {
+          binding: 'VERTICAL_CATALOG_WORKER',
+          service: 'acme-catalog',
+          prefix: '/catalog-api',
+          fragments: [
+            {
+              boundaryId: 'verticalCatalog',
+              expose: './CurrentWidget',
+              path: '/{locale}/_mf/fragment/current-widget',
+              remote: 'catalog',
+            },
+            {
+              boundaryId: 'verticalCatalog',
+              expose: './Route',
+              path: '/{locale}/_mf/fragment/route',
+              remote: 'catalog',
+            },
+          ],
+        },
+        authoredService,
+      ]);
+    } finally {
+      workspace.cleanup();
+    }
+  });
+
   it('keeps shell assets relative and remote assets absolute, independently of site origin', () => {
     const workspace = fixture();
     try {

@@ -4,15 +4,20 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { NativeRendererFederation } from '@modern-js/renderer-core/adapter';
 import { SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
 import { type Rspack, rspack } from '@rsbuild/core';
 import { resolveManifestRecoveryRuntimePlugin } from '../renderers/react/module-federation-recovery-plugin';
 import { NATIVE_MODULE_FEDERATION_PLUGIN } from './module-federation-renderer-plugin';
-import { NativeFederationDevAssetsPlugin } from './native-federation-dev-assets';
+import {
+  NATIVE_FEDERATION_DEV_REVISION_HEADER,
+  NativeFederationDevAssetsPlugin,
+} from './native-federation-dev-assets';
 import { resolveNativeFederationDevPublicPath } from './native-federation-dev-public-path';
 import { findNativeFederationConfig } from './native-federation-files';
+import { isNativeWorkerBuild } from './native-worker';
 import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export {
@@ -595,7 +600,10 @@ export function createNativeServerFederationOptions(
   renderer: NativeRenderer,
   authored: FederationOptions,
   versions: Readonly<Record<string, string>>,
-  runtimePlugins: readonly string[],
+  runtimePlugins: readonly (
+    | string
+    | readonly [string, Record<string, unknown>]
+  )[],
   bindings?: NativeSharedBindings,
 ): FederationOptions {
   const { remotes: _remotes, ...container } = authored;
@@ -917,7 +925,11 @@ export function nativeModuleFederationPlugin(
             throw new Error(
               `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation; remove ${path.basename(file)}`,
             );
-          if (api.getNormalizedConfig().deploy?.worker?.ssr)
+          if (
+            api.getNormalizedConfig().deploy?.worker?.ssr &&
+            (renderer !== 'octane' ||
+              !isNativeWorkerBuild(api.getNormalizedConfig()))
+          )
             throw new Error(
               `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation worker server rendering; native federation requires the Node server transport`,
             );
@@ -951,6 +963,26 @@ export function nativeModuleFederationPlugin(
       api.modifyBundlerChain(async (chain, { environment }) => {
         const authored = await load();
         if (!authored) return;
+        if (environment.name === SERVICE_WORKER_ENVIRONMENT_NAME) {
+          const { appDirectory } = api.getAppContext();
+          const bindings = resolveNativeSharedBindings(
+            renderer,
+            appDirectory,
+            'server',
+            chain.toConfig?.() ?? {},
+          );
+          chain
+            .plugin('ultramodern-federation-shared-owners')
+            .use(NativeFederationSharedOwnersPlugin, [
+              renderer,
+              appDirectory,
+              'server',
+              bindings,
+            ]);
+          // Static native snapshots use service bindings. A Worker never executes
+          // a downloaded Enhanced/Node container or its fs/vm transport.
+          return;
+        }
         const server = environment.name === 'server';
         if (!server && environment.name !== 'client') return;
         const ssr = serverRendered(authored);
@@ -996,20 +1028,40 @@ export function nativeModuleFederationPlugin(
               hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
             }),
           );
-          chain
-            .plugin(NATIVE_FEDERATION_CHAIN_KEY)
-            .use(
-              Plugin as never,
-              [
-                createNativeServerFederationOptions(
-                  renderer,
-                  authored,
-                  versions,
-                  [resolveNodeRuntimePlugin(appDirectory), runtimePlugin],
-                  bindings,
-                ),
-              ] as never,
-            );
+          chain.plugin(NATIVE_FEDERATION_CHAIN_KEY).use(
+            Plugin as never,
+            [
+              createNativeServerFederationOptions(
+                renderer,
+                authored,
+                versions,
+                [
+                  resolveNodeRuntimePlugin(appDirectory),
+                  runtimePlugin,
+                  ...(api.getAppContext().command === 'dev'
+                    ? [
+                        [
+                          createRequire(import.meta.url).resolve(
+                            '@modern-js/federation-runtime/native-dev-refresh-runtime-plugin',
+                          ),
+                          {
+                            remotes,
+                            shared: nativeSharedRequests(
+                              nativeFederationProfile(renderer),
+                              'server',
+                            ),
+                            revisionHeader:
+                              NATIVE_FEDERATION_DEV_REVISION_HEADER,
+                            requestTimeout: 3000,
+                          },
+                        ] as const,
+                      ]
+                    : []),
+                ],
+                bindings,
+              ),
+            ] as never,
+          );
           return;
         }
         const runtimePlugin = await writeRuntimePlugin(

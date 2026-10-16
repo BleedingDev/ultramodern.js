@@ -184,7 +184,9 @@ export async function resolveUltramodernEntryIdentities({
     const context = resolved.getAppContext();
     const hooks = context._internalContext.pluginAPI?.getHooks();
     if (!hooks) throw new Error('The owning entry hooks are unavailable');
-    const { getBundleEntry } = await import('@modern-js/app-tools/builder');
+    const { getBundleEntry, getServerRoutes } = await import(
+      '@modern-js/app-tools/builder'
+    );
     const { entrypoints } = await hooks.modifyEntrypoints.call({
       entrypoints: await getBundleEntry(hooks, context, resolved.config),
     });
@@ -192,10 +194,36 @@ export async function resolveUltramodernEntryIdentities({
       entryName,
       isMainEntry,
     }));
+    const adapter = resolveRendererAdapter(config.renderer);
+    let entryBasePaths: Record<string, string> = {};
+    if (adapter.kind === 'native') {
+      const { routes } = await hooks.modifyServerRoutes.call({
+        routes: getServerRoutes(entrypoints, {
+          appContext: context,
+          config: resolved.config,
+        }),
+      });
+      entryBasePaths = Object.fromEntries(
+        entries.map(({ entryName }) => {
+          const paths = [
+            ...new Set(
+              routes
+                .filter(route => route.entryName === entryName && !route.isApi)
+                .map(route => route.urlPath),
+            ),
+          ];
+          if (paths.length !== 1)
+            throw new Error(
+              `Native entry ${entryName} requires exactly one analyzed public route prefix`,
+            );
+          return [entryName, paths[0]];
+        }),
+      );
+    }
     const primary = entries.find(entry => entry.isMainEntry) ?? entries[0];
     if (!primary)
       throw new Error('UltraModern configuration has no application entries');
-    const renderer = resolveRendererAdapter(config.renderer).name;
+    const renderer = adapter.name;
     const routerBindings = await resolveEntrypointRouterBindings(
       renderer,
       entrypoints,
@@ -203,6 +231,11 @@ export async function resolveUltramodernEntryIdentities({
       undefined,
       appDirectory,
     );
-    return { entries, primaryEntryName: primary.entryName, routerBindings };
+    return {
+      entries,
+      primaryEntryName: primary.entryName,
+      routerBindings,
+      entryBasePaths,
+    };
   });
 }

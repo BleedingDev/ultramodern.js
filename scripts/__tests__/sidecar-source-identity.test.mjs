@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 import { parsePnpmLockfile as parse } from '../lib/parse-pnpm-lockfile.mjs';
 
-import { isUnpublishedForkEdge } from '../ultramodern-supply/verify-sidecars.mjs';
+import {
+  isUnpublishedForkEdge,
+  selectRecipeForDependency,
+} from '../ultramodern-supply/verify-sidecars.mjs';
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -23,18 +26,22 @@ const recipes = JSON.parse(
 // monorepo tests must already be the corrected sidecar graph: a runtime edge
 // of a framework package may not resolve an upstream name that has a recipe.
 function upstreamRecipeEdges(lockfileText) {
-  const byUpstream = new Map(
-    recipes.map(recipe => [recipe.upstream.name, recipe]),
-  );
+  const upstreamNames = new Set(recipes.map(recipe => recipe.upstream.name));
   const edges = [];
   for (const [importer, blocks] of Object.entries(
     parse(lockfileText).importers ?? {},
   )) {
     if (!importer.startsWith('packages/')) continue;
     for (const block of ['dependencies', 'optionalDependencies']) {
-      for (const [name, { version }] of Object.entries(blocks[block] ?? {})) {
-        const recipe = byUpstream.get(name);
-        if (!recipe) continue;
+      for (const [name, { specifier, version }] of Object.entries(
+        blocks[block] ?? {},
+      )) {
+        if (!upstreamNames.has(name)) continue;
+        const recipe = selectRecipeForDependency(recipes, name, specifier);
+        if (!recipe) {
+          edges.push(`${importer} ${block}.${name} -> ${version}`);
+          continue;
+        }
         const fork = `${recipe.fork.name}@${recipe.fork.version}`;
         if (
           version !== fork &&
@@ -53,6 +60,39 @@ test('no framework runtime edge resolves an upstream package that has a recipe',
   assert.deepEqual(
     upstreamRecipeEdges(
       readFileSync(path.join(repoRoot, 'pnpm-lock.yaml'), 'utf8'),
+    ),
+    [],
+  );
+});
+
+test('dual router recipes check the declared version against the resolved version', () => {
+  const fixture = (specifier, version) => `
+lockfileVersion: '9.0'
+importers:
+  packages/runtime/renderer-solid:
+    dependencies:
+      '@tanstack/router-core':
+        specifier: ${specifier}
+        version: '${version}'
+`;
+  assert.deepEqual(
+    upstreamRecipeEdges(fixture('1.171.34', '1.171.34(patch_hash=abc)')),
+    [],
+  );
+  assert.deepEqual(
+    upstreamRecipeEdges(fixture('1.171.34', '1.171.15(patch_hash=abc)')),
+    [
+      'packages/runtime/renderer-solid dependencies.@tanstack/router-core -> 1.171.15(patch_hash=abc)',
+    ],
+  );
+  assert.equal(upstreamRecipeEdges(fixture('1.171.15', '1.171.15')).length, 1);
+  assert.equal(upstreamRecipeEdges(fixture('^1.171.34', '1.171.34')).length, 1);
+  assert.deepEqual(
+    upstreamRecipeEdges(
+      fixture(
+        'npm:@bleedingdev/tanstack-router-core@1.171.34',
+        '@bleedingdev/tanstack-router-core@1.171.34(@types/node@26.6.3)',
+      ),
     ),
     [],
   );

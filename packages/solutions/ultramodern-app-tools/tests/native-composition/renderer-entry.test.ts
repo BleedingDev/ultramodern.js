@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { rspack } from '@rsbuild/core';
+import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
 import {
   createNativeEntryGenerator,
   createNativeEntryStubGenerator,
@@ -108,6 +109,92 @@ describe('native owning entry generation', () => {
       code: 'ENOENT',
     });
   });
+
+  it('emits a native Worker entry without the Node federation binding', async () => {
+    const generation = await context('octane');
+    await fs.writeFile(
+      path.join(generation.appDirectory, 'module-federation.config.mjs'),
+      'export default {name:"workerHost"};',
+    );
+    generation.workerFederation = {
+      compatibility: resolveRendererFederationCompatibility('octane'),
+      services: [],
+    };
+    const generator = createNativeEntryGenerator('octane');
+    const worker = await generator.worker!(generation);
+    const handlers = await fs.readFile(
+      path.join(generation.internalDirectory, 'octane/main/handlers.worker.ts'),
+      'utf8',
+    );
+    expect(handlers).not.toContain('__webpack_require__');
+    expect(handlers).not.toContain('federation:');
+    expect(handlers).not.toContain('external-snapshot');
+    expect(worker).toContain('createNativeWorkerFederationRuntime');
+    expect(worker).toContain('runtime.handleRequest(request)');
+    expect(worker).not.toContain('loadRemote');
+    await expectValidNativeSource(worker);
+    await expectValidNativeSource(handlers);
+    const client = await generator.client(generation);
+    expect(client).toContain('createWorkerFederationTransport');
+    expect(client).toContain('workerFederation,');
+    expect(client).not.toContain('external-snapshot');
+    await expectValidNativeSource(client);
+  });
+
+  it.each([false, true])(
+    'registers only configured Worker contexts before startup with i18n %s',
+    async localized => {
+      const generation = await context('octane', true);
+      const profile = path.join(generation.appDirectory, 'src/profile.mjs');
+      await fs.writeFile(
+        profile,
+        'import {registerOctaneRouterWorkerContexts} from "@modern-js/renderer-octane/router-external-snapshot"; registerOctaneRouterWorkerContexts();',
+      );
+      generation.workerFederation = {
+        compatibility: resolveRendererFederationCompatibility('octane'),
+        services: [],
+        contextProfiles: [profile],
+      };
+      if (localized) {
+        generation.i18n = {
+          languages: ['en', 'cs'],
+          fallbackLanguage: 'en',
+          detect: true,
+          detection: {},
+          ignoreRedirectRoutes: [],
+          backend: { enabled: false },
+          initOptions: {},
+          basePath: '/',
+          resources: {},
+        };
+      }
+      const generator = createNativeEntryGenerator('octane');
+      await generator.worker!(generation);
+      const handlers = await fs.readFile(
+        path.join(
+          generation.internalDirectory,
+          'octane/main/handlers.worker.ts',
+        ),
+        'utf8',
+      );
+      const client = await generator.client(generation);
+      for (const [source, start] of [
+        [handlers, ' = createNativeServerEntry('],
+        [client, 'startNativeClient({'],
+      ]) {
+        expect(source).toContain(`import ${JSON.stringify(profile)};`);
+        expect(source).toContain('registerOctaneRouterWorkerContexts();');
+        expect(
+          source.indexOf('registerOctaneRouterWorkerContexts();'),
+        ).toBeLessThan(source.indexOf(start));
+        expect(source.includes('registerOctaneI18nWorkerContexts();')).toBe(
+          localized,
+        );
+        expect(source).not.toContain('snapshotBoundary(');
+        await expectValidNativeSource(source);
+      }
+    },
+  );
 
   it('rejects an unregistered renderer instead of emitting another renderer bootstrap', () => {
     expect(() =>

@@ -99,8 +99,13 @@ const serviceBinding = (
   ) {
     throw new Error(`[ultramodern-workspace] Invalid exposes for ${id}.`);
   }
+  const renderer = (remote as { renderer?: unknown }).renderer;
+  const nativeRenderer =
+    typeof renderer === 'string' && renderer !== 'react' && renderer !== 'none';
   const fragments = exposes
-    .filter((expose): expose is string => expose !== './Route')
+    .filter(
+      (expose): expose is string => nativeRenderer || expose !== './Route',
+    )
     .toSorted()
     .map(expose => ({
       boundaryId: requiredString(
@@ -356,6 +361,9 @@ const resolveWorkspaceConfig = (
       `[ultramodern-workspace] Renderer for ${options.appId} does not match topology.`,
     );
   }
+  const renderer = config.renderer ?? declaredRenderer;
+  const nativeRenderer =
+    typeof renderer === 'string' && renderer !== 'react' && renderer !== 'none';
   const portEnv = portEnvironment(app);
   const port = developmentPort(
     environment[portEnv] ?? overlay.ports[options.appId],
@@ -530,18 +538,25 @@ const resolveWorkspaceConfig = (
             ),
           ]
         : []),
-      ...(app.surfaceProfile === 'api-only'
+      ...(app.surfaceProfile === 'api-only' || nativeRenderer
         ? []
         : [zephyrBuildPlugin(configFilename, environment)]),
     ],
-    server: { port, publicDir: ['./locales', './assets'] },
+    server: {
+      port,
+      ...(nativeRenderer ? {} : { publicDir: ['./locales', './assets'] }),
+    },
     source: {
-      alias: {
-        '@modern-js/plugin-i18n/runtime$':
-          '@modern-js/plugin-i18n/runtime/no-react-i18next',
-      },
+      ...(nativeRenderer
+        ? {}
+        : {
+            alias: {
+              '@modern-js/plugin-i18n/runtime$':
+                '@modern-js/plugin-i18n/runtime/no-react-i18next',
+            },
+            mainEntryName: 'index',
+          }),
       globalVars: { ULTRAMODERN_SITE_URL: siteUrl },
-      mainEntryName: 'index',
     },
     tools: {
       autoprefixer: { overrideBrowserslist: ['defaults'] },

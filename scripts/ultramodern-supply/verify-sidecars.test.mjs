@@ -11,8 +11,120 @@ import {
   assertRecipeGraph,
   findUpstreamedPatches,
   isUnpublishedForkEdge,
+  selectRecipeForDependency,
   verifySidecar,
 } from './verify-sidecars.mjs';
+
+const routerRecipes = JSON.parse(
+  fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
+).filter(recipe => recipe.upstream.name === '@tanstack/router-core');
+
+test('router recipes select exact versions and identities independently of recipe order', () => {
+  assert.equal(routerRecipes.length, 2);
+  for (const recipes of [routerRecipes, [...routerRecipes].reverse()]) {
+    for (const recipe of recipes) {
+      const name = recipe.upstream.name;
+      assert.equal(
+        selectRecipeForDependency(recipes, name, recipe.upstream.version),
+        recipe,
+      );
+      assert.equal(
+        selectRecipeForDependency(
+          recipes,
+          name,
+          `npm:${recipe.fork.name}@${recipe.fork.version}`,
+        ),
+        recipe,
+      );
+      for (const identity of [
+        recipe.upstream.version,
+        `${recipe.fork.name}@${recipe.fork.version}`,
+      ])
+        assert.equal(
+          selectRecipeForDependency(
+            recipes,
+            name,
+            `${identity}(patch_hash=abc)(@types/node@26.6.3)`,
+            { resolved: true },
+          ),
+          recipe,
+        );
+    }
+    for (const specifier of [
+      '^1.171.15',
+      '~1.171.34',
+      '1.171.35',
+      'npm:@bleedingdev/tanstack-router-core@1.171.15',
+      '1.171.34(peer)trailing',
+    ])
+      assert.equal(
+        selectRecipeForDependency(recipes, '@tanstack/router-core', specifier),
+        undefined,
+      );
+  }
+  assert.throws(
+    () =>
+      selectRecipeForDependency(
+        [...routerRecipes, routerRecipes[0]],
+        '@tanstack/router-core',
+        routerRecipes[0].upstream.version,
+      ),
+    /Ambiguous exact sidecar identity/,
+  );
+});
+
+test('Solid and React source consumers cannot consume the Octane recipe by version accident', () => {
+  const current = routerRecipes.find(
+    recipe => recipe.upstream.version === '1.171.34',
+  );
+  const consumers = specifier => ({
+    generatorPins: [],
+    publishedManifests: [
+      {
+        name: '@bleedingdev/modern-js-renderer-solid',
+        dependencies: { '@tanstack/router-core': specifier },
+      },
+    ],
+  });
+  assertRecipeConsumers([current], consumers('1.171.34'));
+  for (const specifier of ['1.171.15', '^1.171.34'])
+    assert.throws(
+      () => assertRecipeConsumers(routerRecipes, consumers(specifier)),
+      /declare npm:@bleedingdev\/tanstack-router-core/,
+    );
+  assert.throws(
+    () => assertRecipeConsumers(routerRecipes, consumers('1.171.34')),
+    /sidecar tanstack-router-core-octane has no runtime consumer/,
+  );
+});
+
+test('a diagnostic list of exact aliases is never admitted as a source specifier', () => {
+  const aliases = routerRecipes.map(
+    recipe => `npm:${recipe.fork.name}@${recipe.fork.version}`,
+  );
+  const publishedManifests = aliases.map((alias, index) => ({
+    name: `@bleedingdev/modern-js-fixture-${index}`,
+    dependencies: { '@tanstack/router-core': alias },
+  }));
+  assertRecipeConsumers(routerRecipes, {
+    generatorPins: [],
+    publishedManifests,
+  });
+  assert.throws(
+    () =>
+      assertRecipeConsumers(routerRecipes, {
+        generatorPins: [],
+        publishedManifests: [
+          ...publishedManifests,
+          {
+            name: '@bleedingdev/modern-js-fixture-invalid',
+            dependencies: { '@tanstack/router-core': aliases.join(' or ') },
+          },
+        ],
+      }),
+    /declare npm:@bleedingdev\/tanstack-router-core/,
+  );
+});
 
 test('a recipe consumed only through devDependencies or an unaliased edge is rejected', () => {
   const orphan = {

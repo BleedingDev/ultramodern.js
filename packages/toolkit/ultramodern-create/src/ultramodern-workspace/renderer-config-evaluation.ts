@@ -18,36 +18,49 @@ export async function captureWorkspaceRendererEvaluations(
   } = {},
 ): Promise<Map<string, WorkspaceRendererEvaluation>> {
   const evaluations = new Map<string, WorkspaceRendererEvaluation>();
-  for (const app of apps) {
-    if (!appEmitsBrowserUi(app)) continue;
-    const metadata = await loadUltramodernConfigMetadata({
-      appDirectory: path.join(workspaceRoot, app.directory),
-      env: options.env ?? 'development',
-      command: options.command ?? 'dev',
-      sourceRoot: workspaceRoot,
-      ...(options.originalWorkspaceRoot &&
-      path.resolve(options.originalWorkspaceRoot) !==
-        path.resolve(workspaceRoot)
-        ? {
-            stagedWorkspace: {
-              root: path.resolve(workspaceRoot),
-              originalRoot: path.resolve(options.originalWorkspaceRoot),
-            },
-          }
-        : {}),
-      fallbackPackageRoots: [createPackageRoot],
-    });
-    if (!isApplicationRenderer(metadata.renderer)) {
-      throw new Error(
-        `Application ${app.id} has no registered renderer from modern.config.`,
-      );
+  const uiApps = apps.filter(appEmitsBrowserUi);
+  // Each app still has a fresh child process. Drain both before selecting an
+  // error or starting another pair, so callers can safely clean up on failure.
+  for (let offset = 0; offset < uiApps.length; offset += 2) {
+    const results = await Promise.allSettled(
+      uiApps.slice(offset, offset + 2).map(async app => {
+        const metadata = await loadUltramodernConfigMetadata({
+          appDirectory: path.join(workspaceRoot, app.directory),
+          env: options.env ?? 'development',
+          command: options.command ?? 'dev',
+          sourceRoot: workspaceRoot,
+          ...(options.originalWorkspaceRoot &&
+          path.resolve(options.originalWorkspaceRoot) !==
+            path.resolve(workspaceRoot)
+            ? {
+                stagedWorkspace: {
+                  root: path.resolve(workspaceRoot),
+                  originalRoot: path.resolve(options.originalWorkspaceRoot),
+                },
+              }
+            : {}),
+          fallbackPackageRoots: [createPackageRoot],
+        });
+        if (!isApplicationRenderer(metadata.renderer)) {
+          throw new Error(
+            `Application ${app.id} has no registered renderer from modern.config.`,
+          );
+        }
+        return {
+          id: app.id,
+          evaluation: {
+            renderer: metadata.renderer,
+            entries: metadata.entries,
+            primaryEntryName: metadata.primaryEntryName,
+            routerBindings: metadata.routerBindings,
+          },
+        };
+      }),
+    );
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason;
+      evaluations.set(result.value.id, result.value.evaluation);
     }
-    evaluations.set(app.id, {
-      renderer: metadata.renderer,
-      entries: metadata.entries,
-      primaryEntryName: metadata.primaryEntryName,
-      routerBindings: metadata.routerBindings,
-    });
   }
   return evaluations;
 }

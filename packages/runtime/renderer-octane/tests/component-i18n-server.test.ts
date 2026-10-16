@@ -1,13 +1,24 @@
+import { createNativeI18n } from '@modern-js/i18n-runtime-extensions/native';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createRequestSession } from '@modern-js/renderer-core/session';
+import {
+  createRequestHandler,
+  createSsrStreamResponse,
+  RouterServer,
+} from '@octanejs/tanstack-router/ssr/server';
 import { expect, rstest, test } from '@rstest/core';
 import { createElement } from 'octane/server';
 import { createNativeServerEntry } from '../src/entry-server';
+import { I18nProvider } from '../src/i18n/I18nProvider';
+import { LocalizedLink } from '../src/i18n/LocalizedLink';
 import { useI18n } from '../src/i18n/useI18n';
 import {
   OCTANE_COMPILER_VERSION,
   OCTANE_RUNTIME_VERSION,
 } from '../src/manifest';
+import { createRootRoute, createRoute, createRouter } from '../src/router';
+import { createOctaneRouterInjection } from '../src/router-injection';
+import { renderOctaneApplication } from '../src/server';
 
 test('a component-only entry renders with its request localization instance and handoff', async () => {
   const identity: RendererIdentity = {
@@ -88,4 +99,92 @@ test('a component-only entry renders with its request localization instance and 
   expect(html).toContain('<html lang="cs">');
   expect(html).toContain('<main>cs: Ahoj</main>');
   expect(html).toContain('"resources":{"translation":{"greeting":"Ahoj"}}');
+});
+
+test('native localized SSR links retain their requested language, route params and active props', async () => {
+  const identity: RendererIdentity = {
+    renderer: 'octane',
+    appId: 'localized-link-store',
+    entryName: 'main',
+    protocolVersion: 1,
+    buildId: 'localized-link-build',
+  };
+  const localization = createNativeI18n(
+    {
+      languages: ['en', 'cs'],
+      fallbackLanguage: 'en',
+      basePath: '/store',
+      detect: false,
+      localisedUrls: {
+        '/products/:slug': { en: '/products/:slug', cs: '/produkty/:slug' },
+      },
+    },
+    {},
+  );
+  const instance = await localization.create('en');
+  const rootRoute = createRootRoute({
+    component: () =>
+      createElement(I18nProvider, {
+        instance,
+        languages: localization.languages,
+        localisedUrls: localization.localisedUrls,
+        children: createElement(
+          LocalizedLink,
+          {
+            to: '/products/$slug',
+            params: { slug: 'RED' },
+            language: 'cs',
+            search: { sort: 'price' },
+            hash: 'details',
+            activeOptions: { exact: true, includeHash: true },
+            activeProps: { 'data-locale-link': 'active' },
+          },
+          'Česky',
+        ),
+      }),
+  });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: '/products/$slug',
+        params: {
+          stringify: params => ({ slug: String(params.slug).toLowerCase() }),
+        },
+      }),
+    ]),
+    basepath: '/store',
+    rewrite: localization.rewrite(() => instance.language),
+    isServer: true,
+  });
+  const request = new Request(
+    'https://store.test/store/en/products/red?sort=price#details',
+  );
+  const session = createRequestSession({
+    request,
+    identity,
+    platform: { kind: 'node', bindings: {} },
+  });
+  const response = await createRequestHandler({
+    request,
+    createRouter: () => router,
+  })(async ({ router }) => {
+    const response = await renderOctaneApplication({
+      session,
+      App: RouterServer,
+      props: { router },
+      injection: createOctaneRouterInjection(router, session),
+      document: {
+        documentId: 'localized-link-document',
+        nativeHydrationBuildId: 'localized-link-client',
+      },
+    });
+    return createSsrStreamResponse(router, response);
+  });
+  const html = await response.text();
+  expect(html).toContain('href="/store/cs/produkty/red?sort=price#details"');
+  expect(html).toContain('hreflang="cs"');
+  expect(html).toContain('data-locale-link="active"');
+  expect(html).toContain('data-status="active"');
+  expect(instance.language).toBe('en');
 });

@@ -7,6 +7,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { retryMaintenanceOperation } from '../../../scripts/ultramodern-production-readiness/react-rsc-worker-proof/lifecycle.mjs';
 import { inspectOwnedProcessGroup } from '../../../scripts/ultramodern-production-readiness/react-rsc-worker-proof/runtime.mjs';
 import {
   createOctaneFederationFixtures,
@@ -26,27 +27,45 @@ const artifacts = new Set();
 const results = {};
 let browserOpened = false;
 let proxy;
+let developmentURLs;
+let remoteWidgetFile;
+let remoteEdited = false;
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'])
   process.once(signal, () =>
     cancellation.abort(new Error(`Received ${signal}`)),
   );
 
 async function registerArtifact(directory, kind) {
+  cancellation.signal.throwIfAborted();
   await fs.mkdir(directory, { recursive: true });
-  await execute('/Users/satan/bin/disk-guardian-artifacts', [
-    'register',
-    directory,
-    '--owner',
-    owner,
-    '--owner-pid',
-    String(process.pid),
-    '--kind',
-    kind,
-    '--grace-hours',
-    '24',
-  ]);
+  await guardianCommand(
+    [
+      'register',
+      directory,
+      '--owner',
+      owner,
+      '--owner-pid',
+      String(process.pid),
+      '--kind',
+      kind,
+      '--grace-hours',
+      '24',
+    ],
+    cancellation.signal,
+  );
   artifacts.add(directory);
+  cancellation.signal.throwIfAborted();
 }
+
+const guardianCommand = (args, signal) =>
+  retryMaintenanceOperation(timeout => {
+    signal?.throwIfAborted();
+    return execute('/Users/satan/bin/disk-guardian-artifacts', args, {
+      timeout,
+      maxBuffer: 1024 * 1024,
+      signal,
+    });
+  });
 
 async function freePort() {
   const server = net.createServer();
@@ -167,13 +186,114 @@ async function waitFor(check, label, timeout = 30_000) {
   );
 }
 
-const request = (url, timeout = 2000) =>
+const request = (url, timeout = 2000, options = {}) =>
   fetch(url, {
+    ...options,
     signal: AbortSignal.any([
       cancellation.signal,
       AbortSignal.timeout(timeout),
     ]),
   });
+
+async function verifyNodePublication(url) {
+  const options = { headers: { 'accept-encoding': 'identity' } };
+  const response = await request(url, 10_000, options);
+  assert.equal(
+    response.status,
+    200,
+    'the native Node container is downloadable',
+  );
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert.ok(bytes.length > 0, 'the published Node container holds bytes');
+  assert.match(
+    response.headers.get('content-type') ?? '',
+    /(?:java|ecma)script/u,
+  );
+  assert.match(
+    bytes.toString('utf8'),
+    /module\.exports\s*=/u,
+    'the published entry is a Node container',
+  );
+  const revision = response.headers.get('x-ultramodern-mf-revision');
+  assert.match(
+    revision ?? '',
+    /^[0-9a-f]{64}$/u,
+    'the Node graph has a SHA-256 revision',
+  );
+  assert.equal(response.headers.get('content-length'), String(bytes.length));
+  const head = await request(url, 10_000, { ...options, method: 'HEAD' });
+  assert.equal(head.status, 200, 'HEAD reaches the native Node publisher');
+  assert.equal(head.headers.get('x-ultramodern-mf-revision'), revision);
+  assert.equal(head.headers.get('content-length'), String(bytes.length));
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  return { url, bytes: bytes.length, revision, headMatches: true };
+}
+
+async function editRemoteSource() {
+  cancellation.signal.throwIfAborted();
+  const source = await fs.readFile(remoteWidgetFile, 'utf8');
+  assert.equal(
+    source.split('Remote native v1').length,
+    2,
+    'one native remote marker changes',
+  );
+  cancellation.signal.throwIfAborted();
+  await fs.writeFile(
+    remoteWidgetFile,
+    source.replace('Remote native v1', 'Remote native v2'),
+  );
+  remoteEdited = true;
+}
+
+async function verifyFreshRemoteSSR({ remoteUrl, hostUrl }) {
+  await waitFor(async () => {
+    const response = await request(remoteUrl, 10_000);
+    const { markup } = decodeOctaneSSRDocument(await response.text());
+    return (
+      response.ok &&
+      markup.includes('data-testid="remote-widget"') &&
+      /data-testid="remote-version">Remote native v2</u.test(markup)
+    );
+  }, 'the completed remote server compilation');
+  results.nodePublicationAfterEdit = await verifyNodePublication(
+    results.nodePublication.url,
+  );
+  assert.notEqual(
+    results.nodePublicationAfterEdit.revision,
+    results.nodePublication.revision,
+    'the published Node graph revision changes after a real source edit',
+  );
+  const response = await request(hostUrl, 10_000);
+  const { markup, segments } = decodeOctaneSSRDocument(await response.text());
+  results.freshSSR = {
+    status: response.status,
+    remoteMarkup: markup.includes('data-testid="remote-widget"'),
+    currentRemote: /data-testid="remote-version">Remote native v2</u.test(
+      markup,
+    ),
+    staleRemote: markup.includes('Remote native v1'),
+    segments: segments.map(({ completed, markup }) => ({
+      completed,
+      remoteMarkup: markup.includes('data-testid="remote-widget"'),
+    })),
+  };
+  assert.equal(response.status, 200, 'fresh dev SSR still answers a document');
+  assert.equal(
+    results.freshSSR.remoteMarkup,
+    true,
+    'fresh dev SSR renders its remote',
+  );
+  assert.equal(
+    results.freshSSR.currentRemote,
+    true,
+    'the same host process loads the edited remote',
+  );
+  assert.equal(
+    results.freshSSR.staleRemote,
+    false,
+    'SSR does not retain the old remote module',
+  );
+}
 
 // Delay only the initial native entries until the completed streamed SSR node
 // can be observed. Redirects preserve their native module URLs and HMR runtime.
@@ -246,6 +366,7 @@ try {
   const proxyPort = await freePort();
   const remoteUrl = `http://127.0.0.1:${remotePort}`;
   const hostUrl = `http://127.0.0.1:${hostPort}`;
+  developmentURLs = { remoteUrl, hostUrl };
   const fixtures = createOctaneFederationFixtures({
     remoteUrl,
     failures: false,
@@ -255,6 +376,7 @@ try {
   const hostDirectory = path.join(temporary, 'host');
   await writeApp(remoteDirectory, fixtures.remote);
   await writeApp(hostDirectory, fixtures.host);
+  remoteWidgetFile = path.join(remoteDirectory, 'src/components/Widget.tsx');
   await startDev(remoteDirectory, remotePort);
   const manifest = await waitFor(
     async () => {
@@ -275,8 +397,16 @@ try {
     publicPath: manifest.metaData.publicPath,
     ssrPublicPath: manifest.metaData.ssrPublicPath,
   };
+  assert.equal(manifest.metaData.ssrRemoteEntry?.type, 'commonjs-module');
+  const nodeEntry = new URL(
+    `${manifest.metaData.ssrRemoteEntry.path}${manifest.metaData.ssrRemoteEntry.name}`,
+    manifest.metaData.ssrPublicPath,
+  );
+  assert.equal(nodeEntry.port, String(remotePort));
+  assert.ok(['localhost', '127.0.0.1'].includes(nodeEntry.hostname));
+  results.nodePublication = await verifyNodePublication(nodeEntry.href);
   process.stdout.write(
-    `${JSON.stringify({ stage: 'remote-published', remoteUrl, ...results.remoteManifest })}\n`,
+    `${JSON.stringify({ stage: 'remote-published', remoteUrl, ...results.remoteManifest, nodePublication: results.nodePublication })}\n`,
   );
   await startDev(hostDirectory, hostPort);
   const document = await waitFor(
@@ -307,9 +437,24 @@ try {
   );
   assert.match(document.markup, /Remote native v1/u);
   assert.match(document.markup, /data-owner="host-owned"/u);
+  const remoteStylesheets = [
+    ...new Set(
+      (manifest.exposes ?? []).flatMap(expose => [
+        ...(expose.assets?.css?.sync ?? []),
+        ...(expose.assets?.css?.async ?? []),
+      ]),
+    ),
+  ].map(name => new URL(name, manifest.metaData.publicPath).href);
+  assert.ok(remoteStylesheets.length > 0, 'the native remote publishes CSS');
+  for (const href of remoteStylesheets)
+    assert.ok(
+      document.markup.includes(`href="${href}"`),
+      'native SSR links the remote stylesheet',
+    );
   results.ssr = {
     remoteMarkup: true,
     renderer: 'octane',
+    cssLinked: true,
     completedRemoteSegments: document.segments.filter(
       segment =>
         segment.completed &&
@@ -353,6 +498,9 @@ try {
     });
   assert.ok(allowedEntrySources.length > 0);
   proxy = await markingProxy(nativeHostOrigin, proxyPort, allowedEntrySources);
+  results.entryBarrier = proxy.proof;
+  await browser('open', 'about:blank');
+  await browser('network', 'requests', '--clear');
   await browser('open', `http://127.0.0.1:${proxyPort}`);
   await waitFor(
     async () =>
@@ -394,6 +542,14 @@ try {
     '0',
   );
   assert.equal(await evaluate('window.__remoteFallbackSeen'), false);
+  await waitFor(
+    async () =>
+      (await evaluate(
+        `getComputedStyle(document.querySelector('[data-testid="remote-widget"]')).color`,
+      )) === 'rgb(1, 2, 3)',
+    'the remote native stylesheet',
+  );
+  results.remoteStyle = 'rgb(1, 2, 3)';
   assert.equal(
     await browser('get', 'attr', '[data-testid="remote-widget"]', 'data-owner'),
     'host-owned',
@@ -417,69 +573,13 @@ try {
   process.stdout.write(
     `${JSON.stringify({ stage: 'hydrated-before-edit', retainedServerNode: true, owner: 'host-owned', hostCount: 2, remoteCount: 2, label: 'relabelled' })}\n`,
   );
-  const widgetFile = path.join(remoteDirectory, 'src/components/Widget.tsx');
-  const widgetSource = await fs.readFile(widgetFile, 'utf8');
-  assert.equal(
-    widgetSource.split('Remote native v1').length,
-    2,
-    'one native remote marker changes',
-  );
-  await fs.writeFile(
-    widgetFile,
-    widgetSource.replace('Remote native v1', 'Remote native v2'),
-  );
+  await editRemoteSource();
   const updates = await Promise.allSettled([
     waitFor(
       async () => (await text('remote-version')) === 'Remote native v2',
       'the remote component HMR update',
     ),
-    (async () => {
-      await waitFor(async () => {
-        const response = await request(remoteUrl, 10_000);
-        const { markup } = decodeOctaneSSRDocument(await response.text());
-        return (
-          response.ok &&
-          markup.includes('data-testid="remote-widget"') &&
-          /data-testid="remote-version">Remote native v2</u.test(markup)
-        );
-      }, 'the completed remote server compilation');
-      const response = await request(hostUrl, 10_000);
-      const { markup, segments } = decodeOctaneSSRDocument(
-        await response.text(),
-      );
-      results.freshSSR = {
-        status: response.status,
-        remoteMarkup: markup.includes('data-testid="remote-widget"'),
-        currentRemote: /data-testid="remote-version">Remote native v2</u.test(
-          markup,
-        ),
-        staleRemote: markup.includes('Remote native v1'),
-        segments: segments.map(({ completed, markup }) => ({
-          completed,
-          remoteMarkup: markup.includes('data-testid="remote-widget"'),
-        })),
-      };
-      assert.equal(
-        response.status,
-        200,
-        'fresh dev SSR still answers a document',
-      );
-      assert.equal(
-        results.freshSSR.remoteMarkup,
-        true,
-        'fresh dev SSR renders its remote',
-      );
-      assert.equal(
-        results.freshSSR.currentRemote,
-        true,
-        'the same host process loads the edited remote',
-      );
-      assert.equal(
-        results.freshSSR.staleRemote,
-        false,
-        'SSR does not retain the old remote module',
-      );
-    })(),
+    verifyFreshRemoteSSR(developmentURLs),
   ]);
   results.postEdit = updates.map((update, index) => ({
     observation:
@@ -607,9 +707,127 @@ try {
   results.verdict = 'FAIL';
   results.failure = String(error);
   if (browserOpened && !cancellation.signal.aborted) {
+    results.entryRequests = await browser(
+      'network',
+      'requests',
+      '--filter',
+      'localhost',
+    ).catch(String);
+    results.markerRequests = await browser(
+      'network',
+      'requests',
+      '--filter',
+      '__octane_mf_marker',
+    ).catch(String);
+    results.browserSnapshot = await evaluate(`({
+      marker: typeof window.__ssrRemoteWidget !== 'undefined',
+      markerBeforeHydration: window.__ssrRemoteAlreadyHydrated,
+      nativeScripts: window.__ssrEntryScripts,
+      hydration: document.querySelector('[data-testid="remote-widget"]')?.getAttribute('data-hydrated'),
+      lifecycle: globalThis.__octaneMFRemoteLifecycle,
+      resources: performance.getEntriesByType('resource').map(entry => ({ name: entry.name, initiator: entry.initiatorType, responseEnd: entry.responseEnd, transferSize: entry.transferSize }))
+    })`).catch(String);
     results.pageErrors = await browser('errors').catch(String);
     results.console = await browser('console').catch(String);
     results.html = await browser('get', 'html', 'body').catch(String);
+    if (
+      results.ssr?.remoteMarkup &&
+      !remoteEdited &&
+      !cancellation.signal.aborted
+    ) {
+      let directHydrated = false;
+      try {
+        const originalHost = new URL(developmentURLs.hostUrl);
+        originalHost.hostname = 'localhost';
+        await browser('open', originalHost.href);
+        await waitFor(
+          async () =>
+            (await text('remote-increment')) === 'Count 0' &&
+            (await browser(
+              'get',
+              'attr',
+              '[data-testid="remote-widget"]',
+              'data-hydrated',
+            )) === 'true',
+          'direct native host hydration',
+        );
+        await click('remote-increment');
+        await click('remote-increment');
+        await click('host-increment');
+        await click('host-increment');
+        await click('host-relabel');
+        assert.equal(await text('remote-increment'), 'Count 2');
+        assert.equal(await text('host-increment'), 'Host count 2');
+        assert.equal(await text('remote-label'), 'relabelled');
+        assert.equal(
+          await browser(
+            'get',
+            'attr',
+            '[data-testid="remote-widget"]',
+            'data-owner',
+          ),
+          'host-owned',
+        );
+        results.directHostControl = await evaluate(`(() => {
+          globalThis.__octaneMFControlSentinel = crypto.randomUUID();
+          return { hydrated: true, remoteCount: 2, hostCount: 2, label: 'relabelled', owner: 'host-owned', sentinel: globalThis.__octaneMFControlSentinel, timeOrigin: performance.timeOrigin, location: location.href, lifecycle: globalThis.__octaneMFRemoteLifecycle };
+        })()`);
+        directHydrated = true;
+      } catch (error) {
+        results.directHostControl = { hydrated: false, error: String(error) };
+      }
+      // Initial hydration failure must not hide same-process server freshness.
+      // Keep the original failure verdict while measuring the real native edit.
+      try {
+        cancellation.signal.throwIfAborted();
+        await editRemoteSource();
+        const diagnosticUpdates = await Promise.allSettled([
+          verifyFreshRemoteSSR(developmentURLs),
+          directHydrated
+            ? waitFor(
+                async () =>
+                  (await text('remote-version')) === 'Remote native v2',
+                'direct native remote update',
+              )
+            : Promise.resolve(),
+        ]);
+        results.updatesAfterFailure = diagnosticUpdates.map(
+          (update, index) => ({
+            observation:
+              index === 0
+                ? 'same-process server update'
+                : 'direct native browser update',
+            status: index === 1 && !directHydrated ? 'not-run' : update.status,
+            ...(index === 1 && !directHydrated
+              ? { reason: 'direct native hydration failed' }
+              : {}),
+            ...(update.status === 'rejected'
+              ? { error: String(update.reason) }
+              : {}),
+          }),
+        );
+        results.directHostAfterEdit = await evaluate(`({
+        version: document.querySelector('[data-testid="remote-version"]')?.textContent,
+        hostCount: document.querySelector('[data-testid="host-increment"]')?.textContent,
+        remoteCount: document.querySelector('[data-testid="remote-increment"]')?.textContent,
+        label: document.querySelector('[data-testid="remote-label"]')?.textContent,
+        sentinel: globalThis.__octaneMFControlSentinel,
+        timeOrigin: performance.timeOrigin,
+        location: location.href,
+        lifecycle: globalThis.__octaneMFRemoteLifecycle
+      })`).catch(String);
+        results.directHostErrors = await browser('errors').catch(String);
+        results.directHostConsole = await browser('console').catch(String);
+        results.directHostEntryRequests = await browser(
+          'network',
+          'requests',
+          '--filter',
+          'localhost',
+        ).catch(String);
+      } catch (error) {
+        results.editDiagnosticsFailure = String(error);
+      }
+    }
   }
   results.serverLogs = children.map(child =>
     child.log.length <= 8192
@@ -636,12 +854,9 @@ try {
   await proxy?.().catch(error => cleanupErrors.push(error));
   if (processesRetired)
     for (const directory of artifacts)
-      await execute('/Users/satan/bin/disk-guardian-artifacts', [
-        'release',
-        directory,
-        '--owner',
-        owner,
-      ]).catch(error => cleanupErrors.push(error));
+      await guardianCommand(['release', directory, '--owner', owner]).catch(
+        error => cleanupErrors.push(error),
+      );
   else results.retainedArtifacts = [...artifacts];
   if (cleanupErrors.length) {
     results.verdict = 'FAIL';

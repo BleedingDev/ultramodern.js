@@ -8,6 +8,10 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
 import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
+import {
+  assetConsumerRecipes,
+  verifyRepositoryAssetConsumers,
+} from './asset-consumers.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const recipes = JSON.parse(
@@ -38,6 +42,21 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * in the monorepo.
  */
 export const unpublishedForkEdges = [
+  ...[
+    [
+      'packages/runtime/plugin-tanstack',
+      '@bleedingdev/modern-js-plugin-tanstack',
+    ],
+    [
+      'packages/runtime/renderer-solid',
+      '@bleedingdev/modern-js-renderer-solid',
+    ],
+  ].map(([importer, published]) => ({
+    importer,
+    published,
+    dependency: '@tanstack/router-core',
+    upstreamVersion: '1.171.34',
+  })),
   // The SDK fork has not had its first signed release plus 24h admission.
   {
     importer: 'packages/runtime/federation-runtime',
@@ -101,8 +120,36 @@ export const isUnpublishedForkEdge = (
   unpublishedForkEdges.some(
     edge =>
       edge.dependency === dependency &&
+      (!edge.upstreamVersion ||
+        edge.upstreamVersion === recipe.upstream.version) &&
       (edge.importer === consumer || edge.published === consumer),
   );
+
+/** Select only an exact upstream pin or fork identity, including pnpm peers. */
+export function selectRecipeForDependency(
+  recipeList,
+  name,
+  specifier,
+  { resolved = false } = {},
+) {
+  const value = String(specifier);
+  const identity = resolved
+    ? (/^([^()]+)(?:\(.*\))?$/su.exec(value)?.[1] ?? value)
+    : value;
+  const matches = recipeList.filter(
+    recipe =>
+      recipe.upstream.name === name &&
+      (identity === recipe.upstream.version ||
+        identity === `npm:${recipe.fork.name}@${recipe.fork.version}` ||
+        (resolved &&
+          identity === `${recipe.fork.name}@${recipe.fork.version}`)),
+  );
+  assert.ok(
+    matches.length <= 1,
+    `Ambiguous exact sidecar identity for ${name} ${specifier}`,
+  );
+  return matches[0];
+}
 
 /**
  * Every recipe must be reachable from a generator runtime pin or an alias the
@@ -114,7 +161,7 @@ export const isUnpublishedForkEdge = (
  */
 export function assertRecipeConsumers(
   recipeList,
-  { generatorPins, publishedManifests },
+  { generatorPins, publishedManifests, assetProofs = [] },
 ) {
   const byFork = new Map(
     recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
@@ -138,20 +185,23 @@ export function assertRecipeConsumers(
   };
   // The publisher ships source edges unchanged, so a cohort package that names
   // an upstream package with a recipe would ship the uncorrected artifact.
-  const recipeByUpstream = new Map(
-    recipeList.map(item => [item.upstream.name, item]),
-  );
+  const upstreamNames = new Set(recipeList.map(item => item.upstream.name));
   for (const manifest of publishedManifests) {
     for (const block of consumerBlocks) {
       for (const [name, specifier] of Object.entries(manifest[block] ?? {})) {
-        const recipe = recipeByUpstream.get(name);
-        const expected =
-          recipe && `npm:${recipe.fork.name}@${recipe.fork.version}`;
+        if (!upstreamNames.has(name)) continue;
+        const recipe = selectRecipeForDependency(recipeList, name, specifier);
+        const expected = recipe
+          ? `npm:${recipe.fork.name}@${recipe.fork.version}`
+          : recipeList
+              .filter(item => item.upstream.name === name)
+              .map(item => `npm:${item.fork.name}@${item.fork.version}`)
+              .join(' or ');
         const unpublished =
           recipe &&
           isUnpublishedForkEdge(manifest.name, name, specifier, recipe);
         assert.ok(
-          !recipe || specifier === expected || unpublished,
+          recipe && (specifier === expected || unpublished),
           `${manifest.name} ${block}.${name} is ${specifier}; declare ${expected} in source`,
         );
         // A listed unpublished fork edge is the recipe's declared consumer
@@ -160,6 +210,12 @@ export function assertRecipeConsumers(
       }
     }
   }
+  for (const recipe of assetConsumerRecipes(
+    recipeList,
+    publishedManifests,
+    assetProofs,
+  ))
+    reach(recipe);
   for (const pins of generatorPins) reachSpecifiers(pins);
   for (const manifest of publishedManifests) reachBlocks(manifest);
   while (pending.length) reachBlocks(pending.pop().manifestChanges);
@@ -171,7 +227,7 @@ export function assertRecipeConsumers(
 }
 
 /** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
-export function assertRepositoryRecipeConsumers(publishedManifests) {
+export async function assertRepositoryRecipeConsumers(publishedManifests) {
   assertRecipeGraph(recipes, {
     generatorPins: Object.values(ULTRAMODERN_PACKAGE_PINS),
   });
@@ -180,6 +236,7 @@ export function assertRepositoryRecipeConsumers(publishedManifests) {
       .filter(([block]) => !block.endsWith('DevDependencies'))
       .map(([, pins]) => pins),
     publishedManifests,
+    assetProofs: await verifyRepositoryAssetConsumers(),
   });
 }
 

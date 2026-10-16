@@ -180,6 +180,7 @@ export function formatGeneratedSourceCandidates(
         process.execPath,
         [
           oxfmtBin,
+          '--threads=1',
           '--stdin-filepath',
           path.resolve(formattingWorkspaceRoot, relativePath),
         ],
@@ -249,6 +250,9 @@ export function formatGeneratedWorkspaceFiles(
       process.execPath,
       [
         oxfmtBin,
+        // Generated batches are small; Oxfmt also forks one external-format
+        // worker per thread, multiplying startup costs across concurrent calls.
+        '--threads=1',
         '--config',
         oxfmtConfigPath,
         '--no-error-on-unmatched-pattern',

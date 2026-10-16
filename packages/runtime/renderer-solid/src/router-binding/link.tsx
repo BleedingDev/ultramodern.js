@@ -173,6 +173,8 @@ export function useLinkProps<
     { lazy: true },
   );
 
+  // Internal destinations are undefined; blocked destinations are null, so
+  // they cannot fall through to native navigation or the built href.
   const externalLink = Solid.createMemo(
     () => {
       const _href = hrefOption();
@@ -182,25 +184,46 @@ export function useLinkProps<
           if (process.env.NODE_ENV !== 'production') {
             console.warn(`Blocked Link with dangerous protocol: ${_href.href}`);
           }
-          return undefined;
+          return null;
         }
         return _href.href;
       }
       const to = _options().to;
+      if (typeof to !== 'string') return undefined;
+      const protocolRelative = to.startsWith('//');
+      if (
+        !protocolRelative &&
+        isDangerousProtocol(to, router.protocolAllowlist)
+      ) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn(`Blocked Link with dangerous protocol: ${to}`);
+        }
+        return null;
+      }
       const safeInternal = isSafeInternal(to);
       if (safeInternal) return undefined;
-      if (typeof to !== 'string' || to.indexOf(':') === -1) return undefined;
+      if (!protocolRelative && to.indexOf(':') === -1) return undefined;
       try {
-        new URL(to as any);
+        const target = new URL(
+          to,
+          protocolRelative ? router.origin : undefined,
+        );
         // Block dangerous protocols like javascript:, blob:, data:
-        if (isDangerousProtocol(to, router.protocolAllowlist)) {
+        if (
+          isDangerousProtocol(
+            protocolRelative ? target.href : to,
+            router.protocolAllowlist,
+          )
+        ) {
           if (process.env.NODE_ENV !== 'production') {
             console.warn(`Blocked Link with dangerous protocol: ${to}`);
           }
-          return undefined;
+          return null;
         }
         return to;
-      } catch {}
+      } catch {
+        if (protocolRelative) return null;
+      }
       return undefined;
     },
     { lazy: true },
@@ -208,7 +231,11 @@ export function useLinkProps<
 
   const preload = Solid.createMemo(
     () => {
-      if (_options().reloadDocument || externalLink() || local.disabled) {
+      if (
+        _options().reloadDocument ||
+        externalLink() !== undefined ||
+        local.disabled
+      ) {
         return false;
       }
       return local.preload ?? router.options.defaultPreload;
@@ -220,7 +247,7 @@ export function useLinkProps<
 
   const isActive = Solid.createMemo(
     () => {
-      if (externalLink()) return false;
+      if (externalLink() !== undefined) return false;
       const activeOptions = local.activeOptions;
       const current = currentLocation();
       const nextLocation = next();
@@ -339,31 +366,6 @@ export function useLinkProps<
     }
   });
 
-  if (Solid.untrack(externalLink)) {
-    const externalHref = Solid.untrack(externalLink);
-    return Solid.merge(
-      propsSafeToSpread,
-      {
-        ref: mergeRefs(setRef, options.ref),
-        href: externalHref,
-      },
-      splitProps(local, [
-        'target',
-        'disabled',
-        'style',
-        'class',
-        'onClick',
-        'onBlur',
-        'onFocus',
-        'onMouseEnter',
-        'onMouseLeave',
-        'onMouseOut',
-        'onMouseOver',
-        'onTouchStart',
-      ])[0],
-    ) as any;
-  }
-
   // The click handler
   const handleClick = (e: MouseEvent) => {
     // Check actual element's target attribute as fallback
@@ -375,6 +377,7 @@ export function useLinkProps<
 
     if (
       !local.disabled &&
+      externalLink() === undefined &&
       !isCtrlEvent(e) &&
       !e.defaultPrevented &&
       (!effectiveTarget || effectiveTarget === '_self') &&
@@ -548,7 +551,10 @@ export function useLinkProps<
   });
 
   defineGetters({
-    href: () => hrefOption()?.href,
+    href: () =>
+      local.disabled || externalLink() === null
+        ? undefined
+        : (externalLink() ?? hrefOption()?.href),
     disabled: () => !!local.disabled,
     target: () => local.target,
     role: () => (local.disabled ? 'link' : propsSafeToSpread.role),

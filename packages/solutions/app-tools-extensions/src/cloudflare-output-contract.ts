@@ -107,4 +107,7 @@ export const CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS = [
   // into its render-abort `AbortController`; this flag is what makes the
   // platform actually raise that signal in production.
   'enable_request_signal',
+  // Forward the incoming signal to service-binding manifest and snapshot
+  // subrequests, so disposing the host document also cancels its remote work.
+  'request_signal_passthrough',
 ] as const;

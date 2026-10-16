@@ -377,7 +377,11 @@ async function executeAddUltramodernShell(
     deliveryUnit: shellDeliveryUnitBlock(scope, shell),
     ...(shell.rendererGenerationProfile?.capabilities.workers
       ? {
-          cloudflare: createCloudflareDeployContract(scope, shell),
+          cloudflare: createCloudflareDeployContract(
+            scope,
+            shell,
+            existingVerticals,
+          ),
         }
       : {}),
     ownership: shell.ownership,

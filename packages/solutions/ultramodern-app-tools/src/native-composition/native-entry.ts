@@ -13,6 +13,11 @@ import {
   discoverNativeFileSystemRoutes,
   emitNativeApplicationModule,
 } from './native-routes';
+import { nativeWorkerEntrySource } from './native-worker';
+import {
+  nativeWorkerContextStartupSource,
+  nativeWorkerFederationRegistrySource,
+} from './native-worker-federation';
 import { resolveNativeRendererAdapter } from './renderer-registration';
 
 const entryRoutes = new WeakMap<
@@ -123,23 +128,51 @@ export function createNativeEntryStubGenerator(
 ): NativeEntryGenerator {
   const renderer = adapter.name;
   const extra = adapter.entryClient;
+  const serverSource = async (
+    context: NativeEntryGeneration,
+    worker = false,
+  ) => {
+    const identity = resolveNativeEntryIdentity(context, renderer);
+    const { directory, routed } = await emitNativeEntryApplication(
+      context,
+      'server',
+    );
+    const federated = Boolean(
+      !worker && findNativeFederationConfig(context.appDirectory),
+    );
+    const server = `import { createNativeServerEntry } from ${JSON.stringify(adapter.runtime.entryServer)};
+${worker && !context.workerFederation?.plan ? workerContextStartup(context, routed) : ''}${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${federated ? nativeFederationDeclaration : ''}
+export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
+  identity: ${JSON.stringify(identity)},
+  app: () => import("./app.server"),${worker ? `\n  workerFederationLocale: ${JSON.stringify(context.i18n?.fallbackLanguage ?? 'default')},` : ''}${federated ? `\n  federation: ${nativeFederationBinding},` : ''}${context.i18n ? '\n  i18n,' : ''}
+});
+`;
+    if (!federated) return server;
+    await writeNativeEntryModules(directory, {
+      'handlers.server.ts': server,
+    });
+    return federatedServerSource(identity);
+  };
   return {
     async client(context) {
       const identity = resolveNativeEntryIdentity(context, renderer);
       const federated = Boolean(
         findNativeFederationConfig(context.appDirectory),
       );
-      await emitNativeEntryApplication(context, 'client');
+      const { routed } = await emitNativeEntryApplication(context, 'client');
       const fields = {
         identity: JSON.stringify(identity),
         load: `() => import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)})`,
         ...(context.i18n ? { i18n: 'i18n' } : {}),
         hot: 'import.meta.webpackHot',
         ...(federated ? { federation: nativeFederationBinding } : {}),
+        ...(context.workerFederation
+          ? { workerFederation: 'workerFederation' }
+          : {}),
         ...extra?.fields,
       };
       return `import { startNativeClient } from ${JSON.stringify(adapter.runtime.entryClient)};
-${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${extra?.declarations ?? ''}${federated ? nativeFederationDeclaration : ''}
+${workerContextStartup(context, routed)}${context.workerFederation ? nativeWorkerClientTransportSource(context) : ''}${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${extra?.declarations ?? ''}${federated ? nativeFederationDeclaration : ''}
 startNativeClient({
 ${Object.entries(fields)
   .map(([name, value]) => `  ${name === value ? name : `${name}: ${value}`},`)
@@ -147,26 +180,54 @@ ${Object.entries(fields)
 });
 `;
     },
-    async server(context) {
-      const identity = resolveNativeEntryIdentity(context, renderer);
-      const { directory } = await emitNativeEntryApplication(context, 'server');
-      const federated = Boolean(
-        findNativeFederationConfig(context.appDirectory),
+    server: context => serverSource(context),
+    async worker(context) {
+      const source = await serverSource(context, true);
+      const { directory, routed } = await emitNativeEntryApplication(
+        context,
+        'server',
       );
-      const server = `import { createNativeServerEntry } from ${JSON.stringify(adapter.runtime.entryServer)};
-${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${federated ? nativeFederationDeclaration : ''}
-export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
-  identity: ${JSON.stringify(identity)},
-  app: () => import("./app.server"),${federated ? `\n  federation: ${nativeFederationBinding},` : ''}${context.i18n ? '\n  i18n,' : ''}
-});
-`;
-      if (!federated) return server;
+      const federation = context.workerFederation;
       await writeNativeEntryModules(directory, {
-        'handlers.server.ts': server,
+        'handlers.worker.ts': source,
+        ...(federation?.plan
+          ? {
+              'federation.worker.ts': nativeWorkerFederationRegistrySource(
+                federation.plan,
+                workerContextOptions(context, routed),
+              ),
+            }
+          : {}),
       });
-      return federatedServerSource(identity);
+      return nativeWorkerEntrySource(
+        './handlers.worker',
+        federation
+          ? {
+              runtime: adapter.runtime.entryServer,
+              compatibility: federation.compatibility,
+              registry: federation.plan ? './federation.worker' : undefined,
+            }
+          : undefined,
+      );
     },
   };
+}
+
+function workerContextOptions(context: NativeEntryGeneration, routed: boolean) {
+  return context.renderer === 'octane' && context.workerFederation
+    ? {
+        router: routed,
+        i18n: Boolean(context.i18n),
+        contextProfiles: context.workerFederation.contextProfiles,
+      }
+    : {};
+}
+
+function workerContextStartup(context: NativeEntryGeneration, routed: boolean) {
+  const source = nativeWorkerContextStartupSource(
+    workerContextOptions(context, routed),
+  );
+  return source ? `${source}\n` : '';
 }
 
 // MF owns this compiler-local runtime. Passing a getter from the generated
@@ -209,4 +270,25 @@ export function createNativeEntryGenerator(
   renderer: NativeEntryGeneration['renderer'],
 ): NativeEntryGenerator {
   return createNativeEntryStubGenerator(resolveNativeRendererAdapter(renderer));
+}
+
+function nativeWorkerClientTransportSource(
+  context: NativeEntryGeneration,
+): string {
+  const federation = context.workerFederation!;
+  return `import { createWorkerFederationTransport } from '@modern-js/renderer-core/worker-federation';
+import { assertRendererFederationCompatibility, readRendererFederationContract } from '@modern-js/federation-runtime/renderer-contract';
+const expectedWorkerRenderer = ${JSON.stringify(federation.compatibility)};
+const workerFederation = {
+  locale: ${JSON.stringify(context.i18n?.fallbackLanguage ?? 'default')},
+  transport: createWorkerFederationTransport({
+    services: ${JSON.stringify(federation.services)}.map(service => ({...service, fetch: request => globalThis.fetch(request)})),
+    admitRendererContract(value) {
+      const contract = readRendererFederationContract(value);
+      assertRendererFederationCompatibility(expectedWorkerRenderer, contract);
+      return contract;
+    },
+  }),
+};
+`;
 }

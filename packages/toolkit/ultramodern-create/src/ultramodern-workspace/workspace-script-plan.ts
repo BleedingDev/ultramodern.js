@@ -198,13 +198,27 @@ export function createWorkspaceAppPackageScripts(
 ): Partial<WorkspaceAppPackageScripts> {
   const renderer = resolveWorkspaceRenderer(app);
   if (hasNativeAppGeneration(renderer)) {
+    const generation = resolveAppGenerationProfile(app)!;
+    const cloudflareBuild = [
+      'ultramodern build --deploy-target cloudflare',
+      'ultramodern deploy --skip-build --deploy-target cloudflare',
+      `${packageToolingWrapperCommand(app.directory, 'cloudflareOutputVerify')} --app ${app.id}`,
+    ].join(' && ');
     return {
       dev: 'ultramodern dev',
       build: 'ultramodern build',
       serve: 'ultramodern serve',
       typecheck:
-        resolveAppGenerationProfile(app)?.typecheckCommand ??
+        generation.typecheckCommand ??
         createStrictTsgoTypecheckCommand(app.directory),
+      ...(generation.capabilities.workers
+        ? {
+            'cloudflare:build': cloudflareBuild,
+            'cloudflare:deploy': `${cloudflareBuild} --require-public-urls && wrangler deploy --config .output/wrangler.json`,
+            'cloudflare:preview':
+              'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
+          }
+        : {}),
     };
   }
   const plan = createWorkspaceAppScriptPlan(app);

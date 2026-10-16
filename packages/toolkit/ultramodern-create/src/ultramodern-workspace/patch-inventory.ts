@@ -1,5 +1,25 @@
 export default [
   {
+    packageName: '@tanstack/router-core',
+    version: '1.171.15',
+    path: 'patches/@tanstack__router-core@1.171.15.patch',
+    sha256: '55c91e6e5e51fe1c37d20e15e648080ccc9210778af9a71c4e0c8352cda49bd3',
+    repository: true,
+    workspace: null,
+    reason:
+      'Apply native route masks, search processing and URL rewrites once for localized Octane links, document navigation and history restoration.',
+  },
+  {
+    packageName: '@tanstack/router-core',
+    version: '1.171.34',
+    path: 'patches/@tanstack__router-core@1.171.34.patch',
+    sha256: '0e526bc0a1fd038c459fbf45b2b62da81f7f2516176b585f41fed7098ac4abbb',
+    repository: true,
+    workspace: null,
+    reason:
+      'Apply native route masks, search processing and URL rewrites once for localized Solid and React links, document navigation and history restoration.',
+  },
+  {
     packageName: '@rsbuild/core',
     version: '2.2.11',
     path: 'patches/@rsbuild__core@2.2.11.patch',

@@ -12,15 +12,16 @@ export function useNavigate<
   TRouter extends AnyRouter = RegisteredRouter,
   TDefaultFrom extends string = string,
 >(_defaultOpts?: {
-  from?: FromPathOption<TRouter, TDefaultFrom>;
+  from?: FromPathOption<TRouter, TDefaultFrom> & {};
 }): UseNavigateResult<TDefaultFrom> {
-  const router = useRouter();
+  const router = useRouter<TRouter>();
 
-  return ((options: NavigateOptions) => {
-    return router.navigate({
-      ...options,
-      from: options.from ?? _defaultOpts?.from,
-    });
+  return ((options: NavigateOptions<TRouter, TDefaultFrom>) => {
+    return router.navigate<TRouter, '.', TDefaultFrom, TDefaultFrom, '.'>(
+      Object.assign({}, options, {
+        from: options.from ?? _defaultOpts?.from,
+      }),
+    );
   }) as UseNavigateResult<TDefaultFrom>;
 }
 

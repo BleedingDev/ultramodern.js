@@ -98,19 +98,117 @@ function withoutGeneratedData(source: string, binding?: string) {
   return source;
 }
 
+function createArtifactSourceFormatter(protectInvalidSources = false) {
+  const cache = new Map<string, Map<string, string>>();
+  const remember = (
+    relativePath: string,
+    source: string,
+    formatted: string,
+  ) => {
+    let sources = cache.get(relativePath);
+    if (!sources) {
+      sources = new Map();
+      cache.set(relativePath, sources);
+    }
+    sources.set(source, formatted);
+    sources.set(formatted, formatted);
+  };
+  return (
+    sources: readonly (readonly [relativePath: string, source: string])[],
+  ) => {
+    // Consumer filenames retain native ignore rules; generated comparisons use
+    // canonical paths. Evidence from those contexts must not share a cache.
+    const missing = new Map<string, Set<string>>();
+    for (const [relativePath, source] of sources) {
+      if (cache.get(relativePath)?.has(source)) continue;
+      let pending = missing.get(relativePath);
+      if (!pending) {
+        pending = new Set();
+        missing.set(relativePath, pending);
+      }
+      pending.add(source);
+    }
+    const batches: (readonly [relativePath: string, source: string])[][] = [];
+    for (const [relativePath, pending] of missing) {
+      [...pending].forEach((source, index) => {
+        // Literal consumer paths cannot hold two source variants in one batch.
+        const batchIndex = protectInvalidSources ? index : 0;
+        (batches[batchIndex] ??= []).push([relativePath, source]);
+      });
+    }
+    for (const inputs of batches) {
+      const targets = protectInvalidSources
+        ? inputs
+        : inputs.map(
+            ([relativePath, source], index) =>
+              [`canonical/${index}/${relativePath}`, source] as const,
+          );
+      try {
+        const formatted = formatGeneratedSourceCandidates(targets);
+        inputs.forEach(([relativePath, source], index) =>
+          remember(relativePath, source, formatted[index]!),
+        );
+      } catch (error) {
+        if (!protectInvalidSources) throw error;
+        // A malformed authored file must not prevent recognizing its neighbors.
+        for (const [index, [relativePath, source]] of inputs.entries()) {
+          try {
+            const [formatted] = formatGeneratedSourceCandidates([
+              targets[index]!,
+            ]);
+            remember(relativePath, source, formatted!);
+          } catch {
+            // Unparseable consumer source remains consumer-owned.
+          }
+        }
+      }
+    }
+    return sources.map(([relativePath, source]) =>
+      cache.get(relativePath)?.get(source),
+    );
+  };
+}
+
+/** Share only generated-source formatting evidence within one operation. */
+export function createCanonicalWorkspaceArtifactFormatter(
+  candidates: readonly ArtifactCandidate[],
+) {
+  const formatSources = createArtifactSourceFormatter();
+  try {
+    formatSources(
+      candidates.flatMap(candidate => {
+        const original = [candidate.relativePath, candidate.content] as const;
+        const normalized = withoutGeneratedData(
+          candidate.content,
+          candidate.generatedDataBinding,
+        );
+        return normalized === candidate.content
+          ? [original]
+          : [original, [candidate.relativePath, normalized] as const];
+      }),
+    );
+  } catch {
+    // Future artifacts may be preserved without formatting. Priming is optional;
+    // required ownership checks and writes still report their own format errors.
+  }
+  return formatSources;
+}
+
 /** Protect authored replacements before any stage can delete or regenerate them. */
 export function preserveConsumerWorkspaceArtifacts(
   workspaceRoot: string,
   candidates: readonly ArtifactCandidate[],
+  formatCanonicalSources = createCanonicalWorkspaceArtifactFormatter([]),
 ) {
   const preservedPaths = new Set<string>();
   const recognizedPaths = new Map<string, boolean>();
   const physicalRoot = fs.realpathSync(workspaceRoot);
-  const canonicalSources = formatGeneratedSourceCandidates(
+  const formatConsumerSources = createArtifactSourceFormatter(true);
+  const canonicalSources = formatCanonicalSources(
     candidates.map(
-      (candidate, index) =>
+      candidate =>
         [
-          `canonical/${index}/${candidate.relativePath}`,
+          candidate.relativePath,
           withoutGeneratedData(
             candidate.content,
             candidate.generatedDataBinding,
@@ -118,6 +216,12 @@ export function preserveConsumerWorkspaceArtifacts(
         ] as const,
     ),
   );
+  const inspected: {
+    relativePath: string;
+    recognized: boolean;
+    normalized?: string;
+    canonical?: string;
+  }[] = [];
   for (const [index, candidate] of candidates.entries()) {
     const relativePath = candidate.relativePath;
     const filePath = path.join(workspaceRoot, relativePath);
@@ -136,23 +240,46 @@ export function preserveConsumerWorkspaceArtifacts(
       );
     }
     const source = fs.readFileSync(filePath, 'utf8');
-    let recognized = source === candidate.content;
-    if (!recognized) {
+    const inspection: (typeof inspected)[number] = {
+      relativePath,
+      recognized: source === candidate.content,
+      canonical: canonicalSources[index],
+    };
+    if (!inspection.recognized) {
       try {
         const normalized = withoutGeneratedData(
           source,
           candidate.generatedDataBinding,
         );
-        const canonical = canonicalSources[index];
-        recognized =
-          normalized === canonical ||
-          formatGeneratedSourceCandidates([[relativePath, normalized]])[0] ===
-            canonical;
+        inspection.normalized = normalized;
+        inspection.recognized = normalized === inspection.canonical;
       } catch {
         // An authored file that the generator cannot parse is still owned
         // by its author, not an invitation to overwrite it.
       }
     }
+    inspected.push(inspection);
+  }
+  // A before/next pair needs no consumer formatting once either source matches.
+  const matchedPaths = new Set(
+    inspected
+      .filter(inspection => inspection.recognized)
+      .map(inspection => inspection.relativePath),
+  );
+  const pending = inspected.filter(
+    inspection =>
+      !matchedPaths.has(inspection.relativePath) &&
+      inspection.normalized !== undefined,
+  );
+  const normalizedSources = formatConsumerSources(
+    pending.map(
+      inspection => [inspection.relativePath, inspection.normalized!] as const,
+    ),
+  );
+  pending.forEach((inspection, index) => {
+    inspection.recognized = normalizedSources[index] === inspection.canonical;
+  });
+  for (const { relativePath, recognized } of inspected) {
     recognizedPaths.set(
       relativePath,
       recognizedPaths.get(relativePath) === true || recognized,
@@ -193,11 +320,10 @@ export function preserveConsumerWorkspaceArtifacts(
         if (recognizedPaths.get(relativePath) && fs.existsSync(filePath)) {
           const current = fs.readFileSync(filePath, 'utf8');
           if (current === content) return false;
-          const [canonicalCurrent, canonicalNext] =
-            formatGeneratedSourceCandidates([
-              [`canonical/current/${relativePath}`, current],
-              [`canonical/next/${relativePath}`, content],
-            ]);
+          const [canonicalCurrent, canonicalNext] = formatCanonicalSources([
+            [relativePath, current],
+            [relativePath, content],
+          ]);
           if (canonicalCurrent === canonicalNext) return false;
         }
         writeFileReplacing(workspaceRoot, relativePath, content);

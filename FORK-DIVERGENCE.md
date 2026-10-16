@@ -238,6 +238,12 @@ fork audit passed. Owner: `bleedingdev`.
 ### Worker API implementation graph (2026-09-09)
 
 
+### Native Worker publication route analysis (2026-10-07)
+
+| File | Owner | Reason | Disposition |
+| --- | --- | --- | --- |
+| `packages/solutions/app-tools/src/builder/index.ts` | bleedingdev | Export the existing server route analyzer so the fork-owned Worker compiler can publish exact endpoint paths after native route hooks without importing private files. | inline-patch |
+
 ### Localized server loader identity (2026-09-09)
 
 | File | Owner | Reason | Disposition |

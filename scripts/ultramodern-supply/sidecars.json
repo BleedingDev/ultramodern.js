@@ -1,5 +1,53 @@
 [
   {
+    "id": "tanstack-router-core-octane",
+    "upstream": {
+      "name": "@tanstack/router-core",
+      "version": "1.171.15",
+      "tarball": "https://registry.npmjs.org/@tanstack/router-core/-/router-core-1.171.15.tgz",
+      "integrity": "sha512-IILCDcLaItMZQ2jEmCABHY1Nhjjn5XUvwpQp3e4Nmu+vfg0BgYFuu/QASz2SwE2ZNbVMrvt8X/wxa+Gg5aErxA=="
+    },
+    "fork": {
+      "name": "@bleedingdev/tanstack-router-core-octane",
+      "version": "1.171.15"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": {
+      "inventory": "@tanstack/router-core@1.171.15"
+    },
+    "manifestChanges": {
+      "dependencies": {
+        "@tanstack/history": "1.162.4"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "tanstack-router-core",
+    "upstream": {
+      "name": "@tanstack/router-core",
+      "version": "1.171.34",
+      "tarball": "https://registry.npmjs.org/@tanstack/router-core/-/router-core-1.171.34.tgz",
+      "integrity": "sha512-X+19pGuuLVPvvAvPYw9v/+ktRk5cCll8AtfpBpOhDRmVgUMrfqze0467xtq8YRVVs/mmo5rVtWn/7Tp32RDBKw=="
+    },
+    "fork": {
+      "name": "@bleedingdev/tanstack-router-core",
+      "version": "1.171.34"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": {
+      "inventory": "@tanstack/router-core@1.171.34"
+    },
+    "manifestChanges": {},
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
     "id": "rsbuild-core",
     "upstream": {
       "name": "@rsbuild/core",

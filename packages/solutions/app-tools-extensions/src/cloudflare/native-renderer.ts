@@ -1,5 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import {
+  type RendererFederationContract,
+  readRendererFederationContract,
+} from '@modern-js/federation-runtime/renderer-contract';
+import {
+  readWorkerFederationManifestUrl,
+  readWorkerFederationPath,
+  readWorkerFederationPublication,
+  type WorkerFederationPublication,
+  type WorkerFederationService,
+} from '@modern-js/renderer-core/worker-federation';
 import { WORKER_BUNDLE_DIRECTORY } from './constants';
 import type { WorkerRendererBuild } from './renderer-identity';
 import { isRecord } from './utils';
@@ -23,12 +35,25 @@ export interface NativeRendererWorkerEntry {
   readonly nonce?: string;
 }
 
+export interface NativeWorkerFederationPublication {
+  readonly renderer: RendererFederationContract;
+  readonly worker: WorkerFederationPublication;
+}
+
+export type NativeWorkerFederationService = Omit<
+  WorkerFederationService,
+  'fetch'
+> & { readonly binding: string };
+
 export interface NativeRendererWorkerResources {
   readonly schema: 'ultramodern-native-worker-resources';
   readonly version: 1;
   /** The built renderer, whose adapter serves native documents. */
   readonly renderer: string;
   readonly entries: Readonly<Record<string, NativeRendererWorkerEntry>>;
+  readonly workerFederation?: NativeWorkerFederationPublication;
+  readonly workerFederationManifestUrl?: string;
+  readonly workerFederationServices?: readonly NativeWorkerFederationService[];
 }
 
 const invalid = (detail: string) =>
@@ -61,6 +86,113 @@ function validateEntry(entryName: string, value: unknown) {
   ] as const)
     if (text !== undefined && (typeof text !== 'string' || !text))
       throw invalid(`entry ${entryName} has an invalid ${field}`);
+}
+
+function validateFederationResources(
+  value: Record<string, unknown>,
+  build: WorkerRendererBuild,
+) {
+  if (value.workerFederation !== undefined) {
+    const publication = value.workerFederation;
+    if (
+      !isRecord(publication) ||
+      Object.keys(publication).length !== 2 ||
+      !Object.hasOwn(publication, 'renderer') ||
+      !Object.hasOwn(publication, 'worker')
+    )
+      throw invalid('worker federation publication is invalid');
+    const renderer = readRendererFederationContract(publication.renderer);
+    if (
+      renderer.profile.renderer !== build.renderer.name ||
+      !isDeepStrictEqual(
+        Object.keys(renderer.identities).toSorted(),
+        Object.keys(build.identities).toSorted(),
+      ) ||
+      Object.entries(renderer.identities).some(
+        ([entryName, identity]) =>
+          !isDeepStrictEqual(identity, build.identities[entryName]),
+      )
+    )
+      throw invalid(
+        'worker federation renderer identities differ from the build',
+      );
+    const worker = readWorkerFederationPublication(
+      publication.worker,
+      renderer.identities,
+    );
+    const entries = value.entries as Record<string, NativeRendererWorkerEntry>;
+    for (const [expose, coordinate] of Object.entries(worker.exposes)) {
+      const entry = entries[coordinate.entryName];
+      if (
+        !entry?.hydrationBuildId ||
+        coordinate.native.publisherBuildId !== entry.hydrationBuildId
+      )
+        throw invalid(
+          `worker federation expose ${expose} differs from its native client build`,
+        );
+    }
+    if (typeof value.workerFederationManifestUrl !== 'string')
+      throw invalid('worker federation has no pinned manifest URL');
+    readWorkerFederationManifestUrl(value.workerFederationManifestUrl);
+  } else if (value.workerFederationManifestUrl !== undefined) {
+    throw invalid('worker federation manifest URL has no publication');
+  }
+
+  const services = value.workerFederationServices;
+  if (services === undefined) return;
+  if (!Array.isArray(services))
+    throw invalid('worker federation services are not an array');
+  const remotes = new Set<string>();
+  for (const service of services) {
+    if (
+      !isRecord(service) ||
+      Object.keys(service).some(
+        field =>
+          !['remote', 'alias', 'binding', 'manifestUrl', 'fragments'].includes(
+            field,
+          ),
+      ) ||
+      typeof service.remote !== 'string' ||
+      !service.remote ||
+      service.remote.trim() !== service.remote ||
+      remotes.has(service.remote) ||
+      typeof service.binding !== 'string' ||
+      !service.binding ||
+      service.binding.trim() !== service.binding ||
+      (service.alias !== undefined &&
+        (typeof service.alias !== 'string' ||
+          !service.alias ||
+          service.alias.trim() !== service.alias)) ||
+      typeof service.manifestUrl !== 'string' ||
+      !Array.isArray(service.fragments) ||
+      service.fragments.length === 0
+    )
+      throw invalid('worker federation service has invalid coordinates');
+    remotes.add(service.remote);
+    if (typeof service.alias === 'string' && service.alias !== service.remote) {
+      if (remotes.has(service.alias))
+        throw invalid('worker federation service aliases are not unique');
+      remotes.add(service.alias);
+    }
+    readWorkerFederationManifestUrl(service.manifestUrl);
+    const exposes = new Set<string>();
+    for (const fragment of service.fragments) {
+      if (
+        !isRecord(fragment) ||
+        Object.keys(fragment).length !== 3 ||
+        typeof fragment.expose !== 'string' ||
+        !fragment.expose ||
+        exposes.has(fragment.expose) ||
+        typeof fragment.boundaryId !== 'string' ||
+        !fragment.boundaryId ||
+        !isRecord(fragment.paths) ||
+        Object.keys(fragment.paths).length === 0
+      )
+        throw invalid('worker federation fragment has invalid coordinates');
+      exposes.add(fragment.expose);
+      Object.values(fragment.paths).forEach(readWorkerFederationPath);
+    }
+  }
 }
 
 /**
@@ -113,5 +245,6 @@ export async function readNativeRendererWorkerResources(
       );
     validateEntry(entryName, entry);
   }
+  validateFederationResources(value, build);
   return value as unknown as NativeRendererWorkerResources;
 }

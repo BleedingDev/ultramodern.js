@@ -8,49 +8,101 @@
     "url": "https://github.com/BleedingDev/ultramodern.js",
     "directory": "packages/runtime/renderer-octane"
   },
-  "files": ["dist", "src", "bin"],
+  "files": [
+    "dist",
+    "src",
+    "bin"
+  ],
   "main": "./dist/cjs/index.js",
   "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
       "modern:source": "./src/index.ts",
-      "import": { "types": "./dist/types/index.d.ts", "default": "./dist/esm/index.mjs" },
-      "require": { "types": "./dist/types/index.d.ts", "default": "./dist/cjs/index.js" }
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     },
     "./client": {
       "modern:source": "./src/client.ts",
-      "import": { "types": "./dist/types/client.d.ts", "default": "./dist/esm/client.mjs" },
-      "require": { "types": "./dist/types/client.d.ts", "default": "./dist/cjs/client.js" }
+      "import": {
+        "types": "./dist/types/client.d.ts",
+        "default": "./dist/esm/client.mjs"
+      },
+      "require": {
+        "types": "./dist/types/client.d.ts",
+        "default": "./dist/cjs/client.js"
+      }
     },
     "./federation": {
       "modern:source": "./src/federation.ts",
-      "import": { "types": "./dist/types/federation.d.ts", "default": "./dist/esm/federation.mjs" },
-      "require": { "types": "./dist/types/federation.d.ts", "default": "./dist/cjs/federation.js" }
+      "import": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/esm/federation.mjs"
+      },
+      "require": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/cjs/federation.js"
+      }
     },
     "./server": {
       "modern:source": "./src/server.ts",
-      "import": { "types": "./dist/types/server.d.ts", "default": "./dist/esm/server.mjs" },
-      "require": { "types": "./dist/types/server.d.ts", "default": "./dist/cjs/server.js" }
+      "import": {
+        "types": "./dist/types/server.d.ts",
+        "default": "./dist/esm/server.mjs"
+      },
+      "require": {
+        "types": "./dist/types/server.d.ts",
+        "default": "./dist/cjs/server.js"
+      }
     },
     "./router": {
       "modern:source": "./src/router.ts",
-      "import": { "types": "./dist/types/router.d.ts", "default": "./dist/esm/router.mjs" },
-      "require": { "types": "./dist/types/router.d.ts", "default": "./dist/cjs/router.js" }
+      "import": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/esm/router.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/cjs/router.js"
+      }
     },
     "./router-client": {
       "modern:source": "./src/router-client.ts",
-      "import": { "types": "./dist/types/router-client.d.ts", "default": "./dist/esm/router-client.mjs" },
-      "require": { "types": "./dist/types/router-client.d.ts", "default": "./dist/cjs/router-client.js" }
+      "import": {
+        "types": "./dist/types/router-client.d.ts",
+        "default": "./dist/esm/router-client.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router-client.d.ts",
+        "default": "./dist/cjs/router-client.js"
+      }
     },
     "./router-server": {
       "modern:source": "./src/router-server.ts",
-      "import": { "types": "./dist/types/router-server.d.ts", "default": "./dist/esm/router-server.mjs" },
-      "require": { "types": "./dist/types/router-server.d.ts", "default": "./dist/cjs/router-server.js" }
+      "import": {
+        "types": "./dist/types/router-server.d.ts",
+        "default": "./dist/esm/router-server.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router-server.d.ts",
+        "default": "./dist/cjs/router-server.js"
+      }
     },
     "./manifest": {
       "modern:source": "./src/manifest.ts",
-      "import": { "types": "./dist/types/manifest.d.ts", "default": "./dist/esm/manifest.mjs" },
-      "require": { "types": "./dist/types/manifest.d.ts", "default": "./dist/cjs/manifest.js" }
+      "import": {
+        "types": "./dist/types/manifest.d.ts",
+        "default": "./dist/esm/manifest.mjs"
+      },
+      "require": {
+        "types": "./dist/types/manifest.d.ts",
+        "default": "./dist/cjs/manifest.js"
+      }
     },
     "./typecheck": {
       "types": "./dist/types/typecheck.d.ts",
@@ -62,29 +114,93 @@
     },
     "./i18n": {
       "modern:source": "./src/i18n/index.ts",
-      "import": { "types": "./dist/types/i18n/index.d.ts", "default": "./dist/esm/i18n/index.mjs" },
-      "require": { "types": "./dist/types/i18n/index.d.ts", "default": "./dist/cjs/i18n/index.js" }
+      "import": {
+        "types": "./dist/types/i18n/index.d.ts",
+        "default": "./dist/esm/i18n/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/i18n/index.d.ts",
+        "default": "./dist/cjs/i18n/index.js"
+      }
     },
     "./entry-client": {
       "modern:source": "./src/entry-client.ts",
-      "import": { "types": "./dist/types/entry-client.d.ts", "default": "./dist/esm/entry-client.mjs" },
-      "require": { "types": "./dist/types/entry-client.d.ts", "default": "./dist/cjs/entry-client.js" }
+      "import": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/esm/entry-client.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/cjs/entry-client.js"
+      }
     },
     "./entry-server": {
       "modern:source": "./src/entry-server.ts",
-      "import": { "types": "./dist/types/entry-server.d.ts", "default": "./dist/esm/entry-server.mjs" },
-      "require": { "types": "./dist/types/entry-server.d.ts", "default": "./dist/cjs/entry-server.js" }
+      "import": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/esm/entry-server.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/cjs/entry-server.js"
+      }
     },
     "./plugin": {
       "modern:source": "./src/plugin/index.ts",
-      "import": { "types": "./dist/types/plugin/index.d.ts", "default": "./dist/esm-node/plugin/index.mjs" },
-      "require": { "types": "./dist/types/plugin/index.d.ts", "default": "./dist/cjs/plugin/index.js" }
+      "import": {
+        "types": "./dist/types/plugin/index.d.ts",
+        "default": "./dist/esm-node/plugin/index.mjs"
+      },
+      "require": {
+        "types": "./dist/types/plugin/index.d.ts",
+        "default": "./dist/cjs/plugin/index.js"
+      }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./router-external-snapshot": {
+      "modern:source": "./src/router-external-snapshot.ts",
+      "import": {
+        "types": "./dist/types/router-external-snapshot.d.ts",
+        "default": "./dist/esm/router-external-snapshot.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router-external-snapshot.d.ts",
+        "default": "./dist/cjs/router-external-snapshot.js"
+      }
+    },
+    "./i18n-external-snapshot": {
+      "modern:source": "./src/i18n-external-snapshot.ts",
+      "import": {
+        "types": "./dist/types/i18n-external-snapshot.d.ts",
+        "default": "./dist/esm/i18n-external-snapshot.mjs"
+      },
+      "require": {
+        "types": "./dist/types/i18n-external-snapshot.d.ts",
+        "default": "./dist/cjs/i18n-external-snapshot.js"
+      }
+    },
+    "./worker-federation-contexts": {
+      "modern:source": "./src/worker-federation-contexts.ts",
+      "import": {
+        "types": "./dist/types/worker-federation-contexts.d.ts",
+        "default": "./dist/esm/worker-federation-contexts.mjs"
+      },
+      "require": {
+        "types": "./dist/types/worker-federation-contexts.d.ts",
+        "default": "./dist/cjs/worker-federation-contexts.js"
+      }
+    }
   },
-  "bin": { "octane-tsc": "./bin/octane-tsc.mjs" },
-  "scripts": { "build": "rslib build && tsc -p tsconfig.types.json", "test": "rstest" },
-  "engines": { "node": ">=26.10.0" },
+  "bin": {
+    "octane-tsc": "./bin/octane-tsc.mjs"
+  },
+  "scripts": {
+    "build": "rslib build && tsc -p tsconfig.types.json",
+    "test": "rstest"
+  },
+  "engines": {
+    "node": ">=26.10.0"
+  },
   "dependencies": {
     "@modern-js/renderer-core": "workspace:*",
     "typescript": "7.0.2",
@@ -102,12 +218,24 @@
     "@rsbuild/core": "2.2.11"
   },
   "peerDependenciesMeta": {
-    "@modern-js/i18n-runtime-extensions": { "optional": true },
-    "@octanejs/rspack-plugin": { "optional": true },
-    "@rsbuild/core": { "optional": true },
-    "@octanejs/tanstack-router": { "optional": true },
-    "octane": { "optional": true },
-    "i18next": { "optional": true }
+    "@modern-js/i18n-runtime-extensions": {
+      "optional": true
+    },
+    "@octanejs/rspack-plugin": {
+      "optional": true
+    },
+    "@rsbuild/core": {
+      "optional": true
+    },
+    "@octanejs/tanstack-router": {
+      "optional": true
+    },
+    "octane": {
+      "optional": true
+    },
+    "i18next": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
@@ -120,8 +248,12 @@
     "@types/node": "^26.6.3",
     "happy-dom": "^20.14.5",
     "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "i18next": "26.4.2"
   },
   "sideEffects": false,
-  "publishConfig": { "registry": "https://registry.npmjs.org/", "access": "public" }
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
 }

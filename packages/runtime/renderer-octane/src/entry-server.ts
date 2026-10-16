@@ -27,10 +27,12 @@ import {
 } from './router-server';
 import { renderOctaneApplication, renderOctaneCSRDocument } from './server';
 
-export type OctaneServerEntryOptions = NativeServerEntryOptions<
-  NativeI18nInstance,
-  LocalisedUrlsOption
->;
+export { createNativeWorkerFederationRuntime } from './worker-federation';
+
+export interface OctaneServerEntryOptions
+  extends NativeServerEntryOptions<NativeI18nInstance, LocalisedUrlsOption> {
+  readonly workerFederationLocale?: string;
+}
 
 const LocalizedRouterServer = localizedRouterRoot(OctaneRouterServer);
 
@@ -52,16 +54,23 @@ export function createNativeServerEntry(
       createNativeRouter(application, routerOptions, octaneRouterFactory),
     renderCSR: ({ session }, document) =>
       renderOctaneCSRDocument({ session, document }),
-    renderComponent: ({ session }, component, document, i18n) =>
+    renderComponent: (
+      { session, workerFederation },
+      component,
+      document,
+      i18n,
+    ) =>
       renderOctaneApplication({
         session,
         App: componentView(component, i18n) as ServerRenderNode,
         document,
         federation: options.federation,
+        workerFederation,
+        workerFederationLocale: options.workerFederationLocale,
       }),
     async renderRoutes({
       request,
-      context: { session },
+      context: { session, workerFederation },
       router,
       outcomes,
       document,
@@ -99,6 +108,8 @@ export function createNativeServerEntry(
               }),
           document,
           federation: options.federation,
+          workerFederation,
+          workerFederationLocale: options.workerFederationLocale,
           injection: createOctaneRouterInjection(router, session),
         });
         return createSsrStreamResponse(router, rendered);

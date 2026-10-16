@@ -31,8 +31,9 @@ export function createAppModernConfig(
   const renderer = resolveWorkspaceRenderer(app);
   if (hasNativeAppGeneration(renderer)) {
     const generation = resolveAppGenerationProfile(app)!;
+    const workers = generation.capabilities.workers;
     const exposes = Object.keys(app.exposes ?? {}).length > 0;
-    return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+    return `import { defineConfig${workers ? ', presetUltramodernWorkspace' : ''} } from '@modern-js/ultramodern-app-tools';
 ${exposes ? "import { createRemoteManifestUrl } from '@modern-js/app-tools-extensions/config';\n" : ''}
 ${appHasApi(app) ? "import { bffPlugin } from '@modern-js/plugin-bff-build-extensions';\n" : ''}
 ${enableTailwind ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n" : ''}
@@ -50,11 +51,11 @@ const assetPrefix = new URL('.', remoteAddress.replace(/^[^@]+@(?=https?:\\/\\/)
 `
     : ''
 }
-export default defineConfig({
+export default defineConfig(${workers ? 'presetUltramodernWorkspace(' : ''}{
 ${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer: ${JSON.stringify(renderer)},
 ${appHasApi(app) ? '  plugins: [bffPlugin()],\n' : ''}
 ${exposes ? '  output: { assetPrefix },\n' : ''}
-  server: { port: ${app.port}, ssr: ${generation.capabilities.ssr}${
+  server: { ${workers ? '' : `port: ${app.port}, `}ssr: ${generation.capabilities.ssr}${
     appHasApi(app)
       ? `,
     bff: {
@@ -68,7 +69,7 @@ ${resolveApiProtocol(app) === 'rest' ? "        openapi: { path: '/openapi.json'
       : ''
   } },
   source: { mainEntryName: 'main' },
-});
+}${workers ? `, { appId: ${JSON.stringify(app.id)}, from: import.meta.url })` : ''});
 `;
   }
   // Workspace policy (deploy, dev server, output, delivery identity, Zephyr)
