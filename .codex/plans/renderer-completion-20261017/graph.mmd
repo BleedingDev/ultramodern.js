@@ -1,0 +1,39 @@
+flowchart TD
+  subgraph plan_acceptance["Qualify exact installed renderer consumers"]
+    plan_acceptance_todo_1["modernjs-dnpv3.58.17 (pending)\nPass the complete exact-cohort generated Node, workerd and browser acceptance matrix"]
+  end
+  subgraph plan_baseline["Reconcile preserved renderer work with the merged dependency release"]
+    plan_baseline_todo_1["modernjs-dnpv3.58.14 (pending)\nVerify the PR249 merge and prepare current-baseline feature branches"]
+  end
+  subgraph plan_cohort["Integrate and publish the accepted native feature cohort"]
+    plan_cohort_todo_1["modernjs-dnpv3.58.16 (pending)\nIntegrate reviewed source and pin the exact accepted merged native feature cohort"]
+  end
+  subgraph plan_dev_refresh["Complete retained native development refresh"]
+    plan_dev_refresh_todo_1["modernjs-dnpv3.58.11.6 (pending)\nPass real remote rebuild refresh without document reload or stale SSR"]
+  end
+  subgraph plan_native_snapshots["Port native snapshot ownership APIs to current Octane"]
+    plan_native_snapshots_todo_1["modernjs-dnpv3.58.11.5 (pending)\nImplement and qualify current native external and router snapshot APIs"]
+  end
+  subgraph plan_navigation["Complete localized native navigation"]
+    plan_navigation_todo_1["modernjs-dnpv3.58.12.1 (pending)\nQualify current router-core patches and both installed native localized bindings"]
+  end
+  subgraph plan_release["Publish and verify the completed renderer features"]
+    plan_release_todo_1["modernjs-dnpv3.58.18 (pending)\nMerge, publish and verify the complete renderer feature release"]
+  end
+  subgraph plan_tooling["Integrate required generator and tooling support"]
+    plan_tooling_todo_1["modernjs-dnpv3.58.15 (pending)\nQualify supporting generator, tracing, package identity and CI changes"]
+  end
+  subgraph plan_worker["Complete native Worker federation"]
+    plan_worker_todo_1["modernjs-dnpv3.58.11.1.1 (pending)\nPass source Worker federation and generated separate workerd/browser consumers"]
+  end
+  plan_acceptance_todo_1 --> plan_release_todo_1
+  plan_baseline_todo_1 --> plan_dev_refresh_todo_1
+  plan_baseline_todo_1 --> plan_native_snapshots_todo_1
+  plan_baseline_todo_1 --> plan_navigation_todo_1
+  plan_baseline_todo_1 --> plan_tooling_todo_1
+  plan_cohort_todo_1 --> plan_acceptance_todo_1
+  plan_dev_refresh_todo_1 --> plan_cohort_todo_1
+  plan_native_snapshots_todo_1 --> plan_worker_todo_1
+  plan_navigation_todo_1 --> plan_cohort_todo_1
+  plan_tooling_todo_1 --> plan_cohort_todo_1
+  plan_worker_todo_1 --> plan_cohort_todo_1

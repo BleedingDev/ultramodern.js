@@ -1,0 +1,28 @@
+{
+  "graph_id": "renderer-completion-20261017",
+  "glob": "*.plan.md",
+  "edges": [
+    "baseline:native-snapshots",
+    "baseline:dev-refresh",
+    "baseline:navigation",
+    "baseline:tooling",
+    "native-snapshots:worker",
+    "worker:cohort",
+    "dev-refresh:cohort",
+    "navigation:cohort",
+    "tooling:cohort",
+    "cohort:acceptance",
+    "acceptance:release"
+  ],
+  "issues": {
+    "baseline": "modernjs-dnpv3.58.14",
+    "native-snapshots": "modernjs-dnpv3.58.11.5",
+    "worker": "modernjs-dnpv3.58.11.1.1",
+    "dev-refresh": "modernjs-dnpv3.58.11.6",
+    "navigation": "modernjs-dnpv3.58.12.1",
+    "tooling": "modernjs-dnpv3.58.15",
+    "cohort": "modernjs-dnpv3.58.16",
+    "acceptance": "modernjs-dnpv3.58.17",
+    "release": "modernjs-dnpv3.58.18"
+  }
+}

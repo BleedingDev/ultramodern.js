@@ -1,0 +1,25 @@
+{
+  "astra": {
+    "model": "gpt-6-astra",
+    "provider": "codex",
+    "agent": "/root/astra_renderer_plan_review",
+    "verdict": "executable subject to PR249 merge gate",
+    "resolved": [
+      "P1 integrator active during implementation before downstream cohort",
+      "P1 enable ordinary Worker capability in unpublished candidate before generator proof"
+    ],
+    "optional_fixed": "graph.py --read-only"
+  },
+  "fable": {
+    "model": "claude-fable-5-1",
+    "provider": "claudeAgent",
+    "clientRequestId": "renderer-plan-20261017-fable-r1",
+    "status": "review running"
+  },
+  "opus": {
+    "model": "claude-opus-5-5",
+    "provider": "claudeAgent",
+    "clientRequestId": "renderer-plan-20261017-opus-r1",
+    "status": "review running"
+  }
+}

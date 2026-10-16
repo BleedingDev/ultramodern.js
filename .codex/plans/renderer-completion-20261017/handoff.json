@@ -1,0 +1,69 @@
+{
+  "graph_id": "renderer-completion-20261017",
+  "selection_hash": "56d47497c3",
+  "state_dir": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plan-graphs/renderer-completion-20261017",
+  "snapshot_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plan-graphs/renderer-completion-20261017/snapshot.json",
+  "plans_root": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017",
+  "selected_globs": [
+    "*.plan.md"
+  ],
+  "selected_plan_paths": [
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "baseline",
+      "target": "native-snapshots"
+    },
+    {
+      "source": "baseline",
+      "target": "dev-refresh"
+    },
+    {
+      "source": "baseline",
+      "target": "navigation"
+    },
+    {
+      "source": "baseline",
+      "target": "tooling"
+    },
+    {
+      "source": "native-snapshots",
+      "target": "worker"
+    },
+    {
+      "source": "worker",
+      "target": "cohort"
+    },
+    {
+      "source": "dev-refresh",
+      "target": "cohort"
+    },
+    {
+      "source": "navigation",
+      "target": "cohort"
+    },
+    {
+      "source": "tooling",
+      "target": "cohort"
+    },
+    {
+      "source": "cohort",
+      "target": "acceptance"
+    },
+    {
+      "source": "acceptance",
+      "target": "release"
+    }
+  ],
+  "status_source": "Beads canonical repository; refresh snapshot from plans before execution",
+  "implementation_gate": "PR249 merged and ancestry verified on fork main-ultramodern"
+}

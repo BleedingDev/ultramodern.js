@@ -1,0 +1,419 @@
+{
+  "generated_at": "2026-10-16T22:23:28.159005+00:00",
+  "graph_id": "renderer-completion-20261017",
+  "plan_set_hash": "28a3bfb056",
+  "selection_hash": "56d47497c3",
+  "plan_count": 9,
+  "edge_count": 11,
+  "plans_root": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017",
+  "selected_globs": [
+    "*.plan.md"
+  ],
+  "selected_plan_paths": [
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md"
+  ],
+  "edges": [
+    {
+      "source": "baseline",
+      "target": "native-snapshots"
+    },
+    {
+      "source": "baseline",
+      "target": "dev-refresh"
+    },
+    {
+      "source": "baseline",
+      "target": "navigation"
+    },
+    {
+      "source": "baseline",
+      "target": "tooling"
+    },
+    {
+      "source": "native-snapshots",
+      "target": "worker"
+    },
+    {
+      "source": "worker",
+      "target": "cohort"
+    },
+    {
+      "source": "dev-refresh",
+      "target": "cohort"
+    },
+    {
+      "source": "navigation",
+      "target": "cohort"
+    },
+    {
+      "source": "tooling",
+      "target": "cohort"
+    },
+    {
+      "source": "cohort",
+      "target": "acceptance"
+    },
+    {
+      "source": "acceptance",
+      "target": "release"
+    }
+  ],
+  "plans": [
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
+      "slug": "acceptance",
+      "name": "Qualify exact installed renderer consumers",
+      "overview": "Prove the combined published native bytes and packed framework candidate through fresh generated applications and real runtimes.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.17",
+          "content": "Pass the complete exact-cohort generated Node, workerd and browser acceptance matrix",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+      "slug": "baseline",
+      "name": "Reconcile preserved renderer work with the merged dependency release",
+      "overview": "Establish the merged dependency cohort and an explicit disposition for every preserved source path before new implementation starts.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.14",
+          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+      "slug": "cohort",
+      "name": "Integrate and publish the accepted native feature cohort",
+      "overview": "Combine the independent feature branches, publish only canonical accepted native output, and select one coherent framework dependency tuple.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.16",
+          "content": "Integrate reviewed source and pin the exact accepted merged native feature cohort",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+      "slug": "dev-refresh",
+      "name": "Complete retained native development refresh",
+      "overview": "Finish actual federated native HMR and fresh SSR ownership after remote changes while preserving host application state.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.11.6",
+          "content": "Pass real remote rebuild refresh without document reload or stale SSR",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
+      "slug": "native-snapshots",
+      "name": "Port native snapshot ownership APIs to current Octane",
+      "overview": "Supply the missing runtime and router contracts needed by cross-worker native hydration without restoring obsolete fork history.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.11.5",
+          "content": "Implement and qualify current native external and router snapshot APIs",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
+      "slug": "navigation",
+      "name": "Complete localized native navigation",
+      "overview": "Finish mask, search and document navigation semantics in both native adapters using the current authenticated router cohort.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.12.1",
+          "content": "Qualify current router-core patches and both installed native localized bindings",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+      "slug": "release",
+      "name": "Publish and verify the completed renderer features",
+      "overview": "Ship the qualified renderer feature cohort from merged fork source and verify the actual public installation before closing its work.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.18",
+          "content": "Merge, publish and verify the complete renderer feature release",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
+      "slug": "tooling",
+      "name": "Integrate required generator and tooling support",
+      "overview": "Carry the preserved supporting changes that the renderer features need and verify their public generator, package and process behavior.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.15",
+          "content": "Qualify supporting generator, tracing, package identity and CI changes",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md",
+      "slug": "worker",
+      "name": "Complete native Worker federation",
+      "overview": "Finish the preserved transport and compiler publication code and prove actual worker-to-worker rendering and retained browser hydration.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.11.1.1",
+          "content": "Pass source Worker federation and generated separate workerd/browser consumers",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "frontier": [
+    {
+      "plan_slug": "baseline",
+      "plan_name": "Reconcile preserved renderer work with the merged dependency release",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+      "plan_status": "pending",
+      "state": "ready",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.14",
+          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "navigation",
+      "plan_name": "Complete localized native navigation",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "baseline"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.12.1",
+          "content": "Qualify current router-core patches and both installed native localized bindings",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "worker",
+      "plan_name": "Complete native Worker federation",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "native-snapshots"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.11.1.1",
+          "content": "Pass source Worker federation and generated separate workerd/browser consumers",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "dev-refresh",
+      "plan_name": "Complete retained native development refresh",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "baseline"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.11.6",
+          "content": "Pass real remote rebuild refresh without document reload or stale SSR",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "cohort",
+      "plan_name": "Integrate and publish the accepted native feature cohort",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "worker",
+        "dev-refresh",
+        "navigation",
+        "tooling"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.16",
+          "content": "Integrate reviewed source and pin the exact accepted merged native feature cohort",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "tooling",
+      "plan_name": "Integrate required generator and tooling support",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "baseline"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.15",
+          "content": "Qualify supporting generator, tracing, package identity and CI changes",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "native-snapshots",
+      "plan_name": "Port native snapshot ownership APIs to current Octane",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "baseline"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.11.5",
+          "content": "Implement and qualify current native external and router snapshot APIs",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "release",
+      "plan_name": "Publish and verify the completed renderer features",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "acceptance"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.18",
+          "content": "Merge, publish and verify the complete renderer feature release",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "acceptance",
+      "plan_name": "Qualify exact installed renderer consumers",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "cohort"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.17",
+          "content": "Pass the complete exact-cohort generated Node, workerd and browser acceptance matrix",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "graph_source": "explicit"
+}
