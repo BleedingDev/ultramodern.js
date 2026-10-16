@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-10-16T22:23:28.159005+00:00",
+  "generated_at": "2026-10-16T22:39:37.675690+00:00",
   "graph_id": "renderer-completion-20261017",
-  "plan_set_hash": "28a3bfb056",
-  "selection_hash": "56d47497c3",
-  "plan_count": 9,
-  "edge_count": 11,
+  "plan_set_hash": "e1da013b4a",
+  "selection_hash": "a406e62e1a",
+  "plan_count": 12,
+  "edge_count": 14,
   "plans_root": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017",
   "selected_globs": [
     "*.plan.md"
@@ -13,20 +13,27 @@
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dependency-release.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/router-sidecars.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md"
   ],
   "edges": [
     {
+      "source": "merge-gate",
+      "target": "baseline"
+    },
+    {
       "source": "baseline",
       "target": "native-snapshots"
     },
     {
-      "source": "baseline",
+      "source": "native-snapshots",
       "target": "dev-refresh"
     },
     {
@@ -51,6 +58,10 @@
     },
     {
       "source": "navigation",
+      "target": "router-sidecars"
+    },
+    {
+      "source": "router-sidecars",
       "target": "cohort"
     },
     {
@@ -63,6 +74,10 @@
     },
     {
       "source": "acceptance",
+      "target": "release"
+    },
+    {
+      "source": "dependency-release",
       "target": "release"
     }
   ],
@@ -119,6 +134,23 @@
       "warnings": []
     },
     {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dependency-release.plan.md",
+      "slug": "dependency-release",
+      "name": "Observe the existing dependency publication to completion",
+      "overview": "Keep the already authorized dependency release external to feature implementation and prevent a later feature release from overtaking it.",
+      "todos": [
+        {
+          "id": "modernjs-2uw9v",
+          "content": "Reuse the existing dependency release and verify its completed publication result",
+          "status": "in_progress",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
       "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
       "slug": "dev-refresh",
       "name": "Complete retained native development refresh",
@@ -128,6 +160,23 @@
           "id": "modernjs-dnpv3.58.11.6",
           "content": "Pass real remote rebuild refresh without document reload or stale SSR",
           "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
+      "slug": "merge-gate",
+      "name": "Verify the dependency PR249 merge gate",
+      "overview": "Project the external dependency task's qualified merge into a real blocker for renderer implementation.",
+      "todos": [
+        {
+          "id": "modernjs-2uw9v.1",
+          "content": "Verify all exact-head PR249 checks and its authorized merged fork ancestry",
+          "status": "in_progress",
           "ordinal": 1
         }
       ],
@@ -187,6 +236,23 @@
       "warnings": []
     },
     {
+      "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/router-sidecars.plan.md",
+      "slug": "router-sidecars",
+      "name": "Publish required router sidecars before native adoption",
+      "overview": "Prepare the reviewed router producer as soon as navigation qualifies its recipe and finish bootstrap, publication and maturity independently.",
+      "todos": [
+        {
+          "id": "modernjs-dnpv3.58.12.2",
+          "content": "Publish and age required authenticated router sidecars or prove no new sidecar is needed",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "is_project": false,
+      "errors": [],
+      "warnings": []
+    },
+    {
       "path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
       "slug": "tooling",
       "name": "Integrate required generator and tooling support",
@@ -223,17 +289,36 @@
   ],
   "frontier": [
     {
-      "plan_slug": "baseline",
-      "plan_name": "Reconcile preserved renderer work with the merged dependency release",
-      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
-      "plan_status": "pending",
-      "state": "ready",
+      "plan_slug": "dependency-release",
+      "plan_name": "Observe the existing dependency publication to completion",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dependency-release.plan.md",
+      "plan_status": "in_progress",
+      "state": "in_progress",
       "blocked_by": [],
       "active": [
         {
-          "id": "modernjs-dnpv3.58.14",
-          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
-          "status": "pending",
+          "id": "modernjs-2uw9v",
+          "content": "Reuse the existing dependency release and verify its completed publication result",
+          "status": "in_progress",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "merge-gate",
+      "plan_name": "Verify the dependency PR249 merge gate",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
+      "plan_status": "in_progress",
+      "state": "in_progress",
+      "blocked_by": [],
+      "active": [
+        {
+          "id": "modernjs-2uw9v.1",
+          "content": "Verify all exact-head PR249 checks and its authorized merged fork ancestry",
+          "status": "in_progress",
           "ordinal": 1
         }
       ],
@@ -290,7 +375,7 @@
       "plan_status": "pending",
       "state": "blocked",
       "blocked_by": [
-        "baseline"
+        "native-snapshots"
       ],
       "active": [
         {
@@ -313,7 +398,7 @@
       "blocked_by": [
         "worker",
         "dev-refresh",
-        "navigation",
+        "router-sidecars",
         "tooling"
       ],
       "active": [
@@ -377,12 +462,34 @@
       "plan_status": "pending",
       "state": "blocked",
       "blocked_by": [
-        "acceptance"
+        "acceptance",
+        "dependency-release"
       ],
       "active": [
         {
           "id": "modernjs-dnpv3.58.18",
           "content": "Merge, publish and verify the complete renderer feature release",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "router-sidecars",
+      "plan_name": "Publish required router sidecars before native adoption",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/router-sidecars.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "navigation"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.12.2",
+          "content": "Publish and age required authenticated router sidecars or prove no new sidecar is needed",
           "status": "pending",
           "ordinal": 1
         }
@@ -404,6 +511,27 @@
         {
           "id": "modernjs-dnpv3.58.17",
           "content": "Pass the complete exact-cohort generated Node, workerd and browser acceptance matrix",
+          "status": "pending",
+          "ordinal": 1
+        }
+      ],
+      "upcoming": [],
+      "completed": 0,
+      "total": 1
+    },
+    {
+      "plan_slug": "baseline",
+      "plan_name": "Reconcile preserved renderer work with the merged dependency release",
+      "plan_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
+      "plan_status": "pending",
+      "state": "blocked",
+      "blocked_by": [
+        "merge-gate"
+      ],
+      "active": [
+        {
+          "id": "modernjs-dnpv3.58.14",
+          "content": "Verify the PR249 merge and prepare current-baseline feature branches",
           "status": "pending",
           "ordinal": 1
         }

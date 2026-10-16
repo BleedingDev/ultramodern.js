@@ -3,23 +3,101 @@
     "model": "gpt-6-astra",
     "provider": "codex",
     "agent": "/root/astra_renderer_plan_review",
-    "verdict": "executable subject to PR249 merge gate",
+    "verdict": "current12-plan14-edge graph executable subject to documented external gates",
     "resolved": [
-      "P1 integrator active during implementation before downstream cohort",
-      "P1 enable ordinary Worker capability in unpublished candidate before generator proof"
+      "Integrator available during lanes before downstream cohort",
+      "Ordinary Worker generator capability enabled in unpublished candidate before proof",
+      "Final external gates, native owner sequencing, bootstrap, permanent proof gates and child closure revalidated"
     ],
-    "optional_fixed": "graph.py --read-only"
+    "selection_hash": "a406e62e1a"
   },
   "fable": {
     "model": "claude-fable-5-1",
     "provider": "claudeAgent",
-    "clientRequestId": "renderer-plan-20261017-fable-r1",
-    "status": "review running"
+    "rounds": [
+      {
+        "clientRequestId": "renderer-plan-20261017-fable-r1",
+        "verdict": "executable after named fixes",
+        "responses": [
+          "Plan directory, graph runner and initial Beads children committed and pushed at30d1155; latest handoff and new edges regenerated for follow-up commit",
+          "Corrected false HMR skip claim; installed dev proof must become permanent release and canonicalCI gate",
+          "One native owner, native-snapshots to dev-refresh dependency, Worker defects handed back to sequenced native owner",
+          "Router producer preparation starts as soon as navigation recipe qualifies, before other lanes finish; reviewed bootstrap, OIDC and full1440 age precede adoption",
+          "Baseline reconciles existing MF SDK child; final release cannot close parent while required child remains open",
+          "Baseline audits older branch-only history by content and assigns exact contested paths",
+          "Existing baseline exclusions remain unchanged, no new exceptions; public final packages wait full1440 age",
+          "Worker proof requires isolated service-bound Workers, not separate operating-system processes",
+          "Tooling explicitly classifies react-rsc-worker-proof and alias-set changes",
+          "Read-only graph switch added; actual router-core .34 document behavior must be verified, not assumed",
+          "New Tractor attempt2 failure requires exact diagnosis; old immutable-SHA guard is not current retry cause"
+        ]
+      },
+      {
+        "clientRequestId": "renderer-plan-20261017-fable-r2",
+        "verdict": "executable after two small text fixes",
+        "responses": [
+          "Dedicated router-sidecars plan/issue separates navigation local qualification from producer/bootstrap/maturity, with matching 12-plan14-edge graph and Beads dependencies",
+          "Named new installed-renderer-features job in native-compatibility.yml, its required aggregate dependency and fail-closed success list; exact bundle and published rows also required in publish-bleedingdev accept-release and accept-published with receipt evidence",
+          "Explicit stale renderer-octane asset-consumers.json row reconciliation added",
+          "Merge-gate refreshed to pushed Tractor fix f1c7209ae3 and fresh CI, rather than stale retry state"
+        ]
+      }
+    ],
+    "status": "all reported necessary findings addressed; exact workflow call graph and bounded text corrections checked"
   },
   "opus": {
     "model": "claude-opus-5-5",
     "provider": "claudeAgent",
-    "clientRequestId": "renderer-plan-20261017-opus-r1",
-    "status": "review running"
+    "rounds": [
+      {
+        "clientRequestId": "renderer-plan-20261017-opus-r1",
+        "verdict": "executable after named fixes",
+        "responses": [
+          "Integrator and genuine local packs available during lanes; normal Worker generation enabled before candidate proof",
+          "Independent reviewed router sidecar producer plus closed profile and explicit first-name bootstrap/trust before real OIDC publication",
+          "Plan files committed and pushed; current handoff and Beads export reconciled before final commit",
+          "MF SDK child disposition at baseline and all required children complete before parent closure",
+          "Existing shared live publication concurrency preserved; inspect active and pending runs before dispatch; feature release blocked by dependency release",
+          "One native owner sequences PR2/4 snapshot port then native HMR; dev-refresh depends native-snapshots",
+          "Every original160 source/test/config paths plus Beads file assigned, contested paths serialized",
+          "Same-PR divergence ledger travels with lane changes",
+          "Focused feature PR opens during cohort before acceptance",
+          "Worker prebuilt/generated and installed devHMR added as permanent blocking release/CI gates; false skip claim removed",
+          "Explicit merge-gate node and matching Beads dependency precede all feature implementation",
+          "Existing reviewed baseline age exclusions unchanged; no new or widened exemptions"
+        ]
+      },
+      {
+        "clientRequestId": "renderer-plan-20261017-opus-r2",
+        "verdict": "executable after two saved-state fixes",
+        "responses": [
+          "Handoff regenerated from real11-plan13-edge graph with selection_hash c5186457e5",
+          "Canonical owned Beads records exported to preservation branch, including2uw9v and2uw9v.1 and corrected edges",
+          "Worker native defects handed to single Octane owner with declared branch/issue and fresh packs",
+          "Public final packages explicitly wait1440minutes; current exception file empty, no new exceptions",
+          "Review records and merge-gate in_progress projection synchronized",
+          "Prerequisite coordinator commits logged on enabling lane issue; sidecar preparation starts on navigation recipe qualification"
+        ]
+      },
+      {
+        "clientRequestId": "renderer-plan-20261017-opus-r3",
+        "verdict": "executable after native tuple age rule clarification",
+        "responses": [
+          "Confirmed PR249 initial pnpm install mechanically added exact native runtime/router exclusions; leave old exact entries unchanged, no new exemptions",
+          "New native tuple and all new registry transitives waitfull1440whereagegated before framework pins/acceptance; record exact maturitycriticalpath",
+          "Dedicated router-sidecars issue modernjs-dnpv3.58.12.2 and plan starts after navigation localrecipe, blocks cohort without holdingnavigationopen; graph12plans14edges regenerated matchingBeads"
+        ]
+      },
+      {
+        "clientRequestId": "renderer-plan-20261017-opus-r4",
+        "verdict": "confirmed native age rule and dedicated sidecar graph; requested explicit automatic-exclusion guard",
+        "responses": [
+          "Every install/lock regeneration uses canonical strict1440flags and compares pnpm-workspace.minimumReleaseAgeExclude to merged baseline",
+          "Any addedexclusion invalidates onlythat install, isnotcommitted, requires maturitywait; preserveunrelatededits",
+          "Acceptance, release andsidecar plans explicitlyinherit thisguard; two successiveagewaits disclosed"
+        ]
+      }
+    ],
+    "status": "all reported necessary findings addressed; final guard checked against existing canonical consumer flags"
   }
 }

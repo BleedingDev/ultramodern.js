@@ -8,8 +8,14 @@ flowchart TD
   subgraph plan_cohort["Integrate and publish the accepted native feature cohort"]
     plan_cohort_todo_1["modernjs-dnpv3.58.16 (pending)\nIntegrate reviewed source and pin the exact accepted merged native feature cohort"]
   end
+  subgraph plan_dependency_release["Observe the existing dependency publication to completion"]
+    plan_dependency_release_todo_1["modernjs-2uw9v (in_progress)\nReuse the existing dependency release and verify its completed publication result"]
+  end
   subgraph plan_dev_refresh["Complete retained native development refresh"]
     plan_dev_refresh_todo_1["modernjs-dnpv3.58.11.6 (pending)\nPass real remote rebuild refresh without document reload or stale SSR"]
+  end
+  subgraph plan_merge_gate["Verify the dependency PR249 merge gate"]
+    plan_merge_gate_todo_1["modernjs-2uw9v.1 (in_progress)\nVerify all exact-head PR249 checks and its authorized merged fork ancestry"]
   end
   subgraph plan_native_snapshots["Port native snapshot ownership APIs to current Octane"]
     plan_native_snapshots_todo_1["modernjs-dnpv3.58.11.5 (pending)\nImplement and qualify current native external and router snapshot APIs"]
@@ -20,6 +26,9 @@ flowchart TD
   subgraph plan_release["Publish and verify the completed renderer features"]
     plan_release_todo_1["modernjs-dnpv3.58.18 (pending)\nMerge, publish and verify the complete renderer feature release"]
   end
+  subgraph plan_router_sidecars["Publish required router sidecars before native adoption"]
+    plan_router_sidecars_todo_1["modernjs-dnpv3.58.12.2 (pending)\nPublish and age required authenticated router sidecars or prove no new sidecar is needed"]
+  end
   subgraph plan_tooling["Integrate required generator and tooling support"]
     plan_tooling_todo_1["modernjs-dnpv3.58.15 (pending)\nQualify supporting generator, tracing, package identity and CI changes"]
   end
@@ -27,13 +36,16 @@ flowchart TD
     plan_worker_todo_1["modernjs-dnpv3.58.11.1.1 (pending)\nPass source Worker federation and generated separate workerd/browser consumers"]
   end
   plan_acceptance_todo_1 --> plan_release_todo_1
-  plan_baseline_todo_1 --> plan_dev_refresh_todo_1
   plan_baseline_todo_1 --> plan_native_snapshots_todo_1
   plan_baseline_todo_1 --> plan_navigation_todo_1
   plan_baseline_todo_1 --> plan_tooling_todo_1
   plan_cohort_todo_1 --> plan_acceptance_todo_1
+  plan_dependency_release_todo_1 --> plan_release_todo_1
   plan_dev_refresh_todo_1 --> plan_cohort_todo_1
+  plan_merge_gate_todo_1 --> plan_baseline_todo_1
+  plan_native_snapshots_todo_1 --> plan_dev_refresh_todo_1
   plan_native_snapshots_todo_1 --> plan_worker_todo_1
-  plan_navigation_todo_1 --> plan_cohort_todo_1
+  plan_navigation_todo_1 --> plan_router_sidecars_todo_1
+  plan_router_sidecars_todo_1 --> plan_cohort_todo_1
   plan_tooling_todo_1 --> plan_cohort_todo_1
   plan_worker_todo_1 --> plan_cohort_todo_1

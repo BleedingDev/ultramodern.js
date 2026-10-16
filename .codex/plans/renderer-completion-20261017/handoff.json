@@ -1,6 +1,6 @@
 {
   "graph_id": "renderer-completion-20261017",
-  "selection_hash": "56d47497c3",
+  "selection_hash": "a406e62e1a",
   "state_dir": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plan-graphs/renderer-completion-20261017",
   "snapshot_path": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plan-graphs/renderer-completion-20261017/snapshot.json",
   "plans_root": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017",
@@ -11,20 +11,27 @@
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/acceptance.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/baseline.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/cohort.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dependency-release.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/dev-refresh.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/merge-gate.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/native-snapshots.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/navigation.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/release.plan.md",
+    "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/router-sidecars.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/tooling.plan.md",
     "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-research-20261002/.codex/plans/renderer-completion-20261017/worker.plan.md"
   ],
   "edges": [
     {
+      "source": "merge-gate",
+      "target": "baseline"
+    },
+    {
       "source": "baseline",
       "target": "native-snapshots"
     },
     {
-      "source": "baseline",
+      "source": "native-snapshots",
       "target": "dev-refresh"
     },
     {
@@ -49,6 +56,10 @@
     },
     {
       "source": "navigation",
+      "target": "router-sidecars"
+    },
+    {
+      "source": "router-sidecars",
       "target": "cohort"
     },
     {
@@ -61,6 +72,10 @@
     },
     {
       "source": "acceptance",
+      "target": "release"
+    },
+    {
+      "source": "dependency-release",
       "target": "release"
     }
   ],
