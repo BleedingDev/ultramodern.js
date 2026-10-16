@@ -182,6 +182,64 @@ test('sync-delivery-unit backfills identity blocks matching the generator', asyn
   }
 });
 
+test('sync-delivery-unit refreshes stale derived renderer tuples before validation', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
+  try {
+    const topologyPath = 'topology/reference-topology.json';
+    const original = JSON.parse(read(workspaceDir, topologyPath));
+    const stale = JSON.parse(read(workspaceDir, topologyPath));
+    for (const app of [stale.shell, ...stale.verticals]) {
+      for (const owner of ['compiler', 'hydration', 'router']) {
+        app.rendererProfile[owner].version = '0.0.0-stale';
+      }
+      app.rendererProfile.router.coreVersion = '0.0.0-stale';
+    }
+    writeJson(workspaceDir, topologyPath, stale);
+    const authored = snapshotAllFiles(workspaceDir);
+
+    assert.equal(
+      await runSyncDeliveryUnit([], {
+        workspaceRoot: workspaceDir,
+        invocationCwd: workspaceDir,
+      }),
+      0,
+    );
+    const updated = JSON.parse(read(workspaceDir, topologyPath));
+    for (const [index, app] of [
+      updated.shell,
+      ...updated.verticals,
+    ].entries()) {
+      const expected = [original.shell, ...original.verticals][index];
+      assert.deepEqual(app.rendererProfile, expected.rendererProfile);
+      const artifact = JSON.parse(
+        read(workspaceDir, `${app.path}/shared/ultramodern-build.json`),
+      );
+      assert.deepEqual(
+        artifact.surfaces.ui.rendererProfile,
+        expected.rendererProfile,
+      );
+      for (const file of ['package.json', 'modern.config.ts']) {
+        const relativePath = `${app.path}/${file}`;
+        assert.equal(
+          read(workspaceDir, relativePath),
+          authored.get(relativePath),
+        );
+      }
+    }
+    const afterFirst = snapshotAllFiles(workspaceDir);
+    assert.equal(
+      await runSyncDeliveryUnit([], {
+        workspaceRoot: workspaceDir,
+        invocationCwd: workspaceDir,
+      }),
+      0,
+    );
+    assert.deepEqual(snapshotAllFiles(workspaceDir), afterFirst);
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
 test('sync-delivery-unit is idempotent and only touches identity projections', async () => {
   const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {

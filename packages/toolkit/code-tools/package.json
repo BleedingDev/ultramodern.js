@@ -77,17 +77,17 @@
     "test": "rstest"
   },
   "dependencies": {
-    "@babel/parser": "^8.0.6",
-    "@babel/traverse": "^8.0.6",
+    "@babel/parser": "^8.0.7",
+    "@babel/traverse": "^8.0.7",
     "@babel/types": "^8.0.6",
-    "oxlint": "1.86.0",
-    "resolve.exports": "2.0.3"
+    "oxlint": "1.88.0",
+    "resolve.exports": "2.0.4"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3"
+    "@types/node": "^26.6.5"
   },
   "sideEffects": false,
   "publishConfig": {

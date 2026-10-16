@@ -19,15 +19,15 @@ afterEach(async () => {
 const solidProfile: RendererBuildIdentityOptions['profile'] = {
   renderer: 'solid',
   protocolVersion: 1,
-  compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-  hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+  compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+  hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
   router: {
     name: '@tanstack/solid-router',
     version: '2.0.0-rc.8',
     coreName: '@tanstack/router-core',
     coreVersion: '1.171.22',
   },
-  dependencies: { 'solid-js': '2.0.0-rc.13' },
+  dependencies: { 'solid-js': '2.0.0-rc.15' },
 };
 
 function routerBindings(profile: RendererBuildIdentityOptions['profile']) {

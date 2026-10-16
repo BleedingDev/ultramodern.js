@@ -143,13 +143,13 @@
     "test": "rstest"
   },
   "engines": {
-    "node": ">=26.10.0"
+    "node": ">=26.12.0"
   },
   "dependencies": {
-    "seroval": "1.6.8"
+    "seroval": "1.6.9"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.11"
+    "@rsbuild/core": "2.2.13"
   },
   "peerDependenciesMeta": {
     "@rsbuild/core": {
@@ -159,10 +159,10 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rsbuild/core": "2.2.11",
+    "@rsbuild/core": "2.2.13",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3"
+    "@types/node": "^26.6.5"
   },
   "sideEffects": false,
   "publishConfig": {

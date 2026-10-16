@@ -445,7 +445,11 @@ export function assertAuthoredRendererDependencyPins(
     ...generation.dependencies,
     ...generation.devDependencies,
   })) {
-    if (isForeignRendererPackage(name, 'none')) pins[name] = version;
+    if (
+      name === profile.compiler.name ||
+      isForeignRendererPackage(name, 'none')
+    )
+      pins[name] = version;
   }
   for (const group of [
     'dependencies',

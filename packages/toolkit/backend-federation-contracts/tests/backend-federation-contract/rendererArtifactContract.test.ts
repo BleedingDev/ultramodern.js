@@ -34,7 +34,7 @@ const record: DeliveryUnitRecord = {
 const profile = (renderer: RendererName): RendererProfile => ({
   renderer,
   protocolVersion: 1,
-  compiler: { name: `${renderer}-compiler`, version: '2.0.0-rc.13' },
+  compiler: { name: `${renderer}-compiler`, version: '2.0.0-rc.15' },
   hydration: { name: `${renderer}-hydration`, version: '1' },
   router: {
     name: `${renderer}-router`,
@@ -561,7 +561,7 @@ describe('persisted renderer artifact contract', () => {
     });
     Object.assign(input.compiler, { version: '9.0.0' });
     expect(value.surfaces.ui?.rendererProfile.compiler.version).toBe(
-      '2.0.0-rc.13',
+      '2.0.0-rc.15',
     );
     expect(Object.isFrozen(value.surfaces.ui?.rendererProfile)).toBe(true);
     expect(Object.isFrozen(value.surfaces.ui?.rendererProfile.router)).toBe(
@@ -592,7 +592,7 @@ describe('immutable compiled renderer metadata', () => {
       version: '9.0.0',
     });
     expect(stamped.surfaces.ui?.rendererProfile.compiler.version).toBe(
-      '2.0.0-rc.13',
+      '2.0.0-rc.15',
     );
   });
 

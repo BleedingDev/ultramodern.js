@@ -5,18 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { verifyTestToolchain } from '../ci/check-test-toolchain.mjs';
 
 const toolchain = {
-  nodeVersion: '26.10.0',
-  pnpmVersion: '12.8.1',
-  miseConfig: '[tools]\nnode = "26.10.0"\npnpm = "12.8.1"\n',
-  packageManager: 'pnpm@12.8.1',
+  nodeVersion: '26.12.0',
+  pnpmVersion: '12.11.2',
+  miseConfig: '[tools]\nnode = "26.12.0"\npnpm = "12.11.2"\n',
+  packageManager: 'pnpm@12.11.2',
 };
 
 test('accepts the exact configured toolchain and Windows command line endings', () => {
   assert.deepEqual(
-    verifyTestToolchain({ ...toolchain, pnpmVersion: '12.8.1\r\n' }),
+    verifyTestToolchain({ ...toolchain, pnpmVersion: '12.11.2\r\n' }),
     {
-      node: '26.10.0',
-      pnpm: '12.8.1',
+      node: '26.12.0',
+      pnpm: '12.11.2',
     },
   );
 });
@@ -45,7 +45,7 @@ test('rejects packageManager drift and missing or unpinned tools', () => {
     () =>
       verifyTestToolchain({
         ...toolchain,
-        miseConfig: '[env]\nnode = "26.10.0"\n',
+        miseConfig: '[env]\nnode = "26.12.0"\n',
       }),
     /Missing mise tools/,
   );
@@ -53,7 +53,7 @@ test('rejects packageManager drift and missing or unpinned tools', () => {
     () =>
       verifyTestToolchain({
         ...toolchain,
-        miseConfig: '[tools]\nnode = "latest"\npnpm = "12.8.1"\n',
+        miseConfig: '[tools]\nnode = "latest"\npnpm = "12.11.2"\n',
       }),
     /exact mise node/,
   );

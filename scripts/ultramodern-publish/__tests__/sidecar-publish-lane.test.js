@@ -833,13 +833,10 @@ test('bundle-free sidecar registry checks read only their closed profile', async
   const { checkSidecarRegistry, parseArgs } = await importCli();
   const parserNames = [
     '@bleedingdev/braces',
-    '@bleedingdev/chokidar',
     '@bleedingdev/fast-glob',
     '@bleedingdev/find-workspaces',
     '@bleedingdev/micromatch',
     '@bleedingdev/rsbuild-plugin-source-build',
-    '@bleedingdev/rsbuild-plugin-type-check',
-    '@bleedingdev/ts-checker-rspack-plugin',
     '@bleedingdev/ultracite',
   ];
   for (const [profile, expected] of [

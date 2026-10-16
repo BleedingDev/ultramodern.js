@@ -574,111 +574,6 @@
     }
   },
   {
-    "id": "chokidar",
-    "upstream": {
-      "name": "chokidar",
-      "version": "3.6.0",
-      "tarball": "https://registry.npmjs.org/chokidar/-/chokidar-3.6.0.tgz",
-      "integrity": "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw=="
-    },
-    "fork": {
-      "name": "@bleedingdev/chokidar",
-      "version": "3.6.0"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": null,
-    "manifestChanges": {
-      "dependencies": {
-        "braces": "npm:@bleedingdev/braces@3.0.4"
-      }
-    },
-    "provenance": {
-      "grandfatheredVersions": [
-        {
-          "version": "0.0.0-stage",
-          "publishedAt": "2026-10-11T22:51:29.609Z",
-          "integrity": "sha512-J8jJW6XiVGOmxvl18RohWpBaTIEWTFeA0OtwNXskrLs78Gi4vgM/pwt2ke9yyRQ0Y44GqT22ofyyg9iJH/qchw=="
-        },
-        {
-          "version": "0.0.0-bootstrap",
-          "publishedAt": "2026-10-11T22:53:06.817Z",
-          "integrity": "sha512-+kXVNb41mQg46uiw766eRrJ0qGMI0szduSz+opjkdN1UfCe+7OAAaoNpx33h1OuhHioTVsRQ6pJ5KCRUWFteHA=="
-        }
-      ]
-    }
-  },
-  {
-    "id": "ts-checker-rspack-plugin",
-    "upstream": {
-      "name": "ts-checker-rspack-plugin",
-      "version": "1.6.1",
-      "tarball": "https://registry.npmjs.org/ts-checker-rspack-plugin/-/ts-checker-rspack-plugin-1.6.1.tgz",
-      "integrity": "sha512-9bnsisnBiPfVzONCMWjHpmc4I4ND+LFw+5qY/saKXiP+fhMvicgEmwTLjMGWnxPrOOsRre9IgROGtCPwhhSj0A=="
-    },
-    "fork": {
-      "name": "@bleedingdev/ts-checker-rspack-plugin",
-      "version": "1.6.1"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": null,
-    "manifestChanges": {
-      "dependencies": {
-        "chokidar": "npm:@bleedingdev/chokidar@3.6.0"
-      }
-    },
-    "provenance": {
-      "grandfatheredVersions": [
-        {
-          "version": "0.0.0-stage",
-          "publishedAt": "2026-10-11T22:51:32.129Z",
-          "integrity": "sha512-MzWP7BbfgvnxeW+FTKBZLP3gifdXk0egYaJcVQzekaFg2doFLnXnGpLrO8lwY5UM4jAUg3qIha2MeFkIzBJSpA=="
-        },
-        {
-          "version": "0.0.0-bootstrap",
-          "publishedAt": "2026-10-11T22:52:49.051Z",
-          "integrity": "sha512-GStzjpnLzfCK9hHjkCgwS/b5qIb5rVF/tcGTniDVIWj8BCQDp2CGcro2BDAMqFQt/7u6TedRFAE6pCNNHoP9mA=="
-        }
-      ]
-    }
-  },
-  {
-    "id": "rsbuild-plugin-type-check",
-    "upstream": {
-      "name": "@rsbuild/plugin-type-check",
-      "version": "1.6.0",
-      "tarball": "https://registry.npmjs.org/@rsbuild/plugin-type-check/-/plugin-type-check-1.6.0.tgz",
-      "integrity": "sha512-AZDLYGUfqAqwn50pkliVgI9UN4+AsM8yh0XqySCianYUeftSPa4By7tyP7+TBXpnJ6Ev3xaha/cS/462MNT18w=="
-    },
-    "fork": {
-      "name": "@bleedingdev/rsbuild-plugin-type-check",
-      "version": "1.6.0"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": null,
-    "manifestChanges": {
-      "dependencies": {
-        "ts-checker-rspack-plugin": "npm:@bleedingdev/ts-checker-rspack-plugin@1.6.1"
-      }
-    },
-    "provenance": {
-      "grandfatheredVersions": [
-        {
-          "version": "0.0.0-stage",
-          "publishedAt": "2026-10-11T22:51:34.605Z",
-          "integrity": "sha512-a3PV59YkZkf4z3p8Mh+tOYx0ohc8NkFOwi8C0qtRVtrjyBihCXFUjn1JGUYMkzLqX8cAUSJxwwPT9G8cAr7NXw=="
-        },
-        {
-          "version": "0.0.0-bootstrap",
-          "publishedAt": "2026-10-11T22:52:52.054Z",
-          "integrity": "sha512-fIG3c9Vc+QBk6a76n3czpT5WcotrD0yFG99W3FuH/QAGADBomWnDn0mssQ0zOEAnAsq9C+cdR/ERoqrsTxWeWA=="
-        }
-      ]
-    }
-  },
-  {
     "id": "rsbuild-plugin-source-build",
     "upstream": {
       "name": "@rsbuild/plugin-source-build",
@@ -752,18 +647,18 @@
     "id": "ultracite",
     "upstream": {
       "name": "ultracite",
-      "version": "7.12.2",
-      "tarball": "https://registry.npmjs.org/ultracite/-/ultracite-7.12.2.tgz",
-      "integrity": "sha512-0FQE7EuVFnX1FjtlIBklkfBTiZ5bJxknXSxcsjKos5Y73FlkasubWH7uVLS8jgOAI204B7xaIq+buE3vUybuwQ=="
+      "version": "8.0.1",
+      "tarball": "https://registry.npmjs.org/ultracite/-/ultracite-8.0.1.tgz",
+      "integrity": "sha512-4XtB3My7o/O8uveSBPjMO6aPwkO7LEGDf2RCuR4jMVSJ4JByLNIb8+xpCR5M+HssgPrl0aSTQ/40od80ItmiqQ=="
     },
     "fork": {
       "name": "@bleedingdev/ultracite",
-      "version": "7.12.2"
+      "version": "8.0.1"
     },
     "license": "MIT",
     "artifacts": ["*"],
     "patch": {
-      "inventory": "ultracite@7.12.2"
+      "inventory": "ultracite@8.0.1"
     },
     "manifestChanges": {
       "dependencies": {

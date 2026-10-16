@@ -35,7 +35,7 @@ const applyBaseUrl = (
       );
     } else {
       return routes.map(route => {
-        const urlPath = urlJoin(baseUrl, route.urlPath);
+        const urlPath = urlJoin(baseUrl, route.urlPath).replace(/^\/{2,}/, '/');
         return {
           ...route,
           urlPath: urlPath === '/' ? urlPath : removeTailSlash(urlPath),

@@ -292,7 +292,7 @@ if (prepareSourceHost) {
     fs.readFileSync(path.join(serovalRoot, 'package.json')),
   );
   assert.equal(serovalManifest.name, 'seroval');
-  assert.equal(serovalManifest.version, '1.6.8');
+  assert.equal(serovalManifest.version, '1.6.9');
   assert.ok(
     serovalRoot.startsWith(`${sourceHost}${path.sep}node_modules${path.sep}`),
   );
@@ -444,7 +444,7 @@ if (prepareSourceHost) {
       sourceExport('@modern-js/renderer-core/session', 'createRequestSession') +
         sourceExport(
           path.join(adapter, 'src/router-server.ts'),
-          'createOctaneRequestHandler, createOctaneRouterInjection, createSsrStreamResponse, OctaneRouterServer',
+          'createOctaneRequestHandler, createSsrStreamResponse, OctaneRouterServer',
         ) +
         sourceExport(
           path.join(adapter, 'src/server.ts'),

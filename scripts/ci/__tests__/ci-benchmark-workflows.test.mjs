@@ -158,12 +158,12 @@ test('measurement commands retain existing type-check and Linux unit coverage', 
       step(unit, 'Setup mise').uses,
     );
     assert.equal(
-      step(benchmark, 'Setup Node.js 26.10.0').uses,
-      step(typeCheck, 'Setup Node.js 26.10.0').uses,
+      step(benchmark, 'Setup Node.js 26.12.0').uses,
+      step(typeCheck, 'Setup Node.js 26.12.0').uses,
     );
     assert.deepEqual(
-      step(benchmark, 'Setup Node.js 26.10.0').with,
-      step(typeCheck, 'Setup Node.js 26.10.0').with,
+      step(benchmark, 'Setup Node.js 26.12.0').with,
+      step(typeCheck, 'Setup Node.js 26.12.0').with,
     );
   }
 });

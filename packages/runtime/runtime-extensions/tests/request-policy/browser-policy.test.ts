@@ -2,7 +2,6 @@ import {
   configure,
   createRequest,
 } from '@modern-js/runtime-extensions/request-policy/client';
-import nock from 'nock';
 
 describe('configure', () => {
   const path = '/api';
@@ -21,10 +20,9 @@ describe('configure', () => {
     process.env.NODE_ENV = 'production';
 
     try {
-      nock(producerUrl).get(path).reply(200, response);
       const customRequest = rs.fn(
-        (requestPath: RequestInfo, init?: RequestInit) =>
-          fetch(requestPath, init),
+        (_requestPath: RequestInfo, _init?: RequestInit) =>
+          Promise.resolve(new Response(JSON.stringify(response))),
       );
 
       configure({
@@ -46,6 +44,7 @@ describe('configure', () => {
         producer,
       );
       const res = await request();
+      expect(customRequest.mock.calls[0][0]).toBe(`${producerUrl}${path}`);
 
       const headers = customRequest.mock.calls[0][1].headers as Record<
         string,
@@ -55,6 +54,7 @@ describe('configure', () => {
       expect(envelope.requestId).toBe(producer);
       expect(envelope.target).toBe('browser');
       expect(res instanceof Response).toBe(true);
+      await expect(res.json()).resolves.toEqual(response);
     } finally {
       process.env.NODE_ENV = previousEnv;
     }

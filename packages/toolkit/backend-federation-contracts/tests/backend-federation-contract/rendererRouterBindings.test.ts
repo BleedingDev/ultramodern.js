@@ -18,7 +18,7 @@ const reactRouter: RouterPackageBinding = {
 const tanstack: RouterPackageBinding = {
   framework: 'tanstack',
   name: '@tanstack/react-router',
-  version: '1.171.34',
+  version: '1.171.37',
   coreName: '@tanstack/router-core',
   coreVersion: '1.171.15',
 };
@@ -34,7 +34,7 @@ const octane: RouterPackageBinding = {
   name: '@octanejs/tanstack-router',
   version: '0.1.60',
   coreName: '@tanstack/router-core',
-  coreVersion: '1.171.34',
+  coreVersion: '1.171.37',
 };
 const replacement: RouterPackageBinding = {
   framework: 'replacement',

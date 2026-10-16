@@ -37,7 +37,7 @@ function withRuntimes(fn) {
 
 test('resolve writes the version, cache key and cache path the workflow restores', () =>
   withRuntimes(root => {
-    const runtime = makeRuntime(root, 'a', '1.63.0');
+    const runtime = makeRuntime(root, 'a', '1.64.1');
     const output = path.join(root, 'github-output');
     const result = provisionBrowsers(['--resolve', '--runtime', runtime], {
       environment: {
@@ -47,19 +47,19 @@ test('resolve writes the version, cache key and cache path the workflow restores
       },
     });
     assert.deepEqual(result, {
-      cache_key: 'playwright-chromium-1.63.0-Linux',
+      cache_key: 'playwright-chromium-1.64.1-Linux',
       cache_path: path.join(root, 'browsers'),
-      version: '1.63.0',
+      version: '1.64.1',
     });
     assert.equal(
       fs.readFileSync(output, 'utf8'),
-      `cache_key=playwright-chromium-1.63.0-Linux\ncache_path=${path.join(root, 'browsers')}\nversion=1.63.0\n`,
+      `cache_key=playwright-chromium-1.64.1-Linux\ncache_path=${path.join(root, 'browsers')}\nversion=1.64.1\n`,
     );
   }));
 
 test('runtimes that resolve different playwright versions fail with both paths', () =>
   withRuntimes(root => {
-    const a = makeRuntime(root, 'a', '1.63.0');
+    const a = makeRuntime(root, 'a', '1.64.1');
     const b = makeRuntime(root, 'b', '1.60.0');
     assert.throws(
       () =>
@@ -68,7 +68,7 @@ test('runtimes that resolve different playwright versions fail with both paths',
         }),
       error =>
         error.message.includes(`${b} resolves playwright 1.60.0`) &&
-        error.message.includes(`${a} resolves 1.63.0`),
+        error.message.includes(`${a} resolves 1.64.1`),
     );
   }));
 
@@ -85,7 +85,7 @@ test('a runtime without playwright names the missing install', () =>
 
 test('install spawns the runtime CLI through node on every platform', () =>
   withRuntimes(root => {
-    const runtime = makeRuntime(root, 'a', '1.63.0');
+    const runtime = makeRuntime(root, 'a', '1.64.1');
     for (const [platform, args] of [
       ['linux', ['install', '--with-deps', 'chromium']],
       ['darwin', ['install', 'chromium']],
@@ -93,7 +93,7 @@ test('install spawns the runtime CLI through node on every platform', () =>
     ]) {
       const calls = [];
       installBrowsers(
-        { runtimeDirs: [runtime], version: '1.63.0' },
+        { runtimeDirs: [runtime], version: '1.64.1' },
         {
           platform,
           runCommandImpl: (command, commandArgs, options) => {
@@ -118,7 +118,7 @@ test('install spawns the runtime CLI through node on every platform', () =>
 
 test('install fails closed when the runtime is not the version that keyed the cache', () =>
   withRuntimes(root => {
-    const runtime = makeRuntime(root, 'a', '1.63.0');
+    const runtime = makeRuntime(root, 'a', '1.64.1');
     assert.throws(
       () =>
         installBrowsers(
@@ -127,17 +127,17 @@ test('install fails closed when the runtime is not the version that keyed the ca
             runCommandImpl: () => assert.fail('must not spawn the installer'),
           },
         ),
-      /Installed playwright 1\.63\.0 .* is not the 1\.64\.0 that keyed the browser cache/u,
+      /Installed playwright 1\.64\.1 .* is not the 1\.64\.0 that keyed the browser cache/u,
     );
   }));
 
 test('install surfaces a failing playwright CLI', () =>
   withRuntimes(root => {
-    const runtime = makeRuntime(root, 'a', '1.63.0');
+    const runtime = makeRuntime(root, 'a', '1.64.1');
     assert.throws(
       () =>
         installBrowsers(
-          { runtimeDirs: [runtime], version: '1.63.0' },
+          { runtimeDirs: [runtime], version: '1.64.1' },
           { platform: 'linux', runCommandImpl: () => ({ exitCode: 3 }) },
         ),
       /playwright install --with-deps chromium failed in .* with exit code 3/u,
@@ -168,11 +168,11 @@ test('argument parsing requires one mode, a runtime and a carried version', () =
 
 test('cache key and path follow the playwright version and registry directory', () => {
   assert.throws(
-    () => browserCacheKey({ runnerOs: 'Linux', version: '^1.63.0' }),
+    () => browserCacheKey({ runnerOs: 'Linux', version: '^1.64.1' }),
     /exact playwright version/u,
   );
   assert.throws(
-    () => browserCacheKey({ runnerOs: 'Linux OS', version: '1.63.0' }),
+    () => browserCacheKey({ runnerOs: 'Linux OS', version: '1.64.1' }),
     /simple runner OS name/u,
   );
   const home = path.join(path.sep, 'home', 'runner');

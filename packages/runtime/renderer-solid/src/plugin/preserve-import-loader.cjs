@@ -36,7 +36,7 @@ module.exports = function preserveSolidImport(source, inputMap) {
     });
     if (matched !== 1 || !result) {
       throw new Error(
-        'Solid native browser URL import contract changed. Expected one import(entryUrl) in @solidjs/web 2.0.0-rc.13; update and revalidate the compiler integration.',
+        'Solid native browser URL import contract changed. Expected one import(entryUrl) in @solidjs/web 2.0.0-rc.15; update and revalidate the compiler integration.',
       );
     }
     callback(null, result.code, result.map);

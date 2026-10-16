@@ -1199,7 +1199,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
         expected,
       ),
     ).rejects.toThrow(/protocol/);
-    expect(DATA_CODEC).toBe('seroval-json@1.6.8');
+    expect(DATA_CODEC).toBe('seroval-json@1.6.9');
   });
 
   it('rejects success and not-found envelopes that omit their value', async () => {

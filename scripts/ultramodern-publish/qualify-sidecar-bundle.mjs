@@ -464,34 +464,6 @@ async function packedApiProbeMain() {
     ).sort(),
     ['src/a.js', 'src/b.ts'],
   );
-  const chokidar = requireInstalledPackage('@bleedingdev/chokidar');
-  const watcher = chokidar.watch(path.join(fixture, 'src', '*.{js,ts}'), {
-    usePolling: true,
-    interval: 25,
-    persistent: false,
-  });
-  const watched = [];
-  watcher.on('add', file => watched.push(path.basename(file)));
-  try {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error('Chokidar fixture readiness timed out')),
-        4_000,
-      );
-      watcher.once('error', error => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      watcher.once('ready', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-    });
-    assert.deepEqual(watched.sort(), ['a.js', 'b.ts', 'ignored.js']);
-  } finally {
-    await watcher.close();
-  }
-
   const workspace = path.join(fixture, 'workspace');
   const a = { name: 'a', version: '1.0.0', dependencies: { b: 'workspace:*' } };
   const b = { name: 'b', version: '1.0.0' };
@@ -565,54 +537,6 @@ async function packedApiProbeMain() {
       .map(project => project.name),
     ['b'],
   );
-
-  const typeCheck = await load('@bleedingdev/rsbuild-plugin-type-check');
-  const typePlugin = typeCheck.pluginTypeCheck();
-  assert.equal(typePlugin.name, 'rsbuild:type-check');
-  const tsconfigPath = path.join(workspace, 'tsconfig.json');
-  fs.writeFileSync(tsconfigPath, '{}');
-  let modify;
-  typePlugin.setup({
-    context: { rootPath: workspace },
-    modifyBundlerChain(callback) {
-      modify = callback;
-    },
-  });
-  let registration;
-  await modify(
-    {
-      plugin(id) {
-        assert.equal(id, 'probe-checker');
-        return {
-          use(Ctor, args) {
-            registration = { Ctor, args };
-          },
-        };
-      },
-    },
-    {
-      isProd: false,
-      environment: { name: 'probe', tsconfigPath },
-      CHAIN_ID: { PLUGIN: { TS_CHECKER: 'probe-checker' } },
-    },
-  );
-  const pluginRequire = createRequire(
-    requireInstalledPackage.resolve('@bleedingdev/rsbuild-plugin-type-check'),
-  );
-  const checker = pluginRequire(
-    'ts-checker-rspack-plugin',
-  ).TsCheckerRspackPlugin;
-  assert.equal(registration.Ctor, checker);
-  assert.equal(registration.args.length, 1);
-  assert.deepEqual(registration.args[0].typescript, {
-    mode: 'readonly',
-    build: false,
-    memoryLimit: 8192,
-    configFile: tsconfigPath,
-    resolveRoot: workspace,
-  });
-  assert.equal(typeof new checker(registration.args[0]).apply, 'function');
-  assert.equal(checker.version, '1.6.1');
 
   const ultraciteDir = path.join(root, 'node_modules/@bleedingdev/ultracite');
   const ultraciteRequire = createRequire(

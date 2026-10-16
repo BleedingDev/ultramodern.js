@@ -23,8 +23,8 @@ import {
 import { validateOctaneModuleManifest } from './manifest';
 import {
   createOctaneRequestHandler,
-  createOctaneRouterInjection,
   createSsrStreamResponse,
+  getSsrStatus,
   OctaneRouterServer,
 } from './router-server';
 import { renderOctaneApplication, renderOctaneCSRDocument } from './server';
@@ -100,7 +100,7 @@ export function createNativeServerEntry(
         serialization: { forbiddenValues },
       })(async ({ router, responseHeaders }) => {
         const metadata = mergeDataResponseMetadata(outcomes, {
-          status: router.state.statusCode ?? 200,
+          status: getSsrStatus(router),
         });
         // Route headers() take precedence over loader singleton fields; list
         // fields keep both.
@@ -127,7 +127,7 @@ export function createNativeServerEntry(
               }),
           document,
           federation: options.federation,
-          injection: createOctaneRouterInjection(router, session),
+          router,
         });
         return createSsrStreamResponse(router, rendered);
       });

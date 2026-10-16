@@ -87,7 +87,7 @@
     "@web-std/stream": "^1.0.3",
     "cloneable-readable": "^3.0.0",
     "flatted": "^3.4.4",
-    "hono": "^4.13.12",
+    "hono": "^4.13.13",
     "ts-deepmerge": "8.0.0"
   },
   "devDependencies": {
@@ -97,7 +97,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.5",
     "http-proxy-middleware": "^4.2.0",
     "typescript": "7.0.2"
   },

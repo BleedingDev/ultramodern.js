@@ -11,13 +11,13 @@ import {
 const cwd = '/benchmark/checkout';
 const checkout = 'a'.repeat(40);
 const eventSha = 'b'.repeat(40);
-const mise = '[tools]\nnode = "26.10.0"\npnpm = "12.8.1"\n';
+const mise = '[tools]\nnode = "26.12.0"\npnpm = "12.11.2"\n';
 const lockfile = "lockfileVersion: '9.0'\n";
 const hash = text => createHash('sha256').update(text).digest('hex');
 
 function fixture({ env = {}, host = {}, files = {}, run } = {}) {
   const fileContents = new Map([
-    [path.join(cwd, 'package.json'), '{"packageManager":"pnpm@12.8.1"}'],
+    [path.join(cwd, 'package.json'), '{"packageManager":"pnpm@12.11.2"}'],
     [path.join(cwd, '.mise.toml'), mise],
     [path.join(cwd, 'pnpm-lock.yaml'), lockfile],
     [
@@ -31,8 +31,8 @@ function fixture({ env = {}, host = {}, files = {}, run } = {}) {
     calls,
     options: {
       cwd,
-      nodeVersion: '26.10.0',
-      pnpmVersion: '12.8.1',
+      nodeVersion: '26.12.0',
+      pnpmVersion: '12.11.2',
       env: {
         GITHUB_SHA: eventSha,
         GITHUB_REPOSITORY: 'ultramodernjs/ultramodern.js',
@@ -86,7 +86,7 @@ test('runner evidence records the actual checkout separately from the event SHA 
       repositoryId: '1151231350',
       workflowRef: options.env.GITHUB_WORKFLOW_REF,
     },
-    tools: { node: '26.10.0', pnpm: '12.8.1' },
+    tools: { node: '26.12.0', pnpm: '12.11.2' },
     runner: {
       os: {
         platform: 'linux',
@@ -185,7 +185,7 @@ test('missing or mismatched required toolchain and input files fail before any e
     { ...fixture().options, nodeVersion: '26.11.1' },
     { ...fixture().options, pnpmVersion: '12.9.0' },
     { ...fixture().options, pnpmVersion: undefined },
-    { ...fixture().options, pnpmVersion: 'secret-token\n12.8.1' },
+    { ...fixture().options, pnpmVersion: 'secret-token\n12.11.2' },
     fixture({ files: { [path.join(cwd, '.mise.toml')]: undefined } }).options,
     fixture({ files: { [path.join(cwd, 'pnpm-lock.yaml')]: undefined } })
       .options,
@@ -232,7 +232,7 @@ test('Windows evidence uses the shell-supplied verified pnpm version without lau
   });
   const evidence = collectRunnerEvidence(options);
   assert.equal(evidence.runner.os.platform, 'win32');
-  assert.equal(evidence.tools.pnpm, '12.8.1');
+  assert.equal(evidence.tools.pnpm, '12.11.2');
   assert.deepEqual(
     calls.map(call => call.command),
     ['git'],

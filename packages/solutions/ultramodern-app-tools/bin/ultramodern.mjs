@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 26 || (major === 26 && minor < 10)) {
   console.error(
-    `UltraModern.js requires Node.js >=26.10.0; detected v${process.versions.node}.`,
+    `UltraModern.js requires Node.js >=26.12.0; detected v${process.versions.node}.`,
   );
   process.exit(1);
 }

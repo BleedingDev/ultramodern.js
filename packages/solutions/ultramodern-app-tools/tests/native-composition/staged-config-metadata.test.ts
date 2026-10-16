@@ -39,7 +39,7 @@ it('evaluates staged entries with the original installed router identity', async
         `module.exports = globalThis[${JSON.stringify(token)}];`,
       );
     }
-    // Consumer overrides differ from the framework's declared 1.170.41/1.171.34.
+    // Consumer overrides differ from the framework's declared 1.170.44/1.171.37.
     const owner = install(originalApp, '@modern-js/plugin-tanstack', '3.9.3');
     const router = install(owner, '@tanstack/react-router', '1.170.39');
     install(router, '@tanstack/router-core', '1.171.32');

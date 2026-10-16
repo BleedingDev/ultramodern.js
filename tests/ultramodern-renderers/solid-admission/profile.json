@@ -3,8 +3,8 @@
   "status": "preview",
   "auditedAt": "2026-10-03",
   "registryObservedAt": "2026-10-03T00:33:09Z",
-  "runtime": "2.0.0-rc.13",
-  "compiler": "2.0.0-rc.13",
+  "runtime": "2.0.0-rc.15",
+  "compiler": "2.0.0-rc.15",
   "router": "@modern-js/renderer-solid@3.8.3",
   "routerApi": "@modern-js/renderer-solid/router",
   "routerBindingSource": {
@@ -12,13 +12,13 @@
     "commit": "4fbd65c5c3b40be87a6248867c22021c1c19bba8",
     "sourcePath": "packages/solid-router/src"
   },
-  "routerCore": "1.171.34",
-  "history": "1.162.4",
+  "routerCore": "1.171.37",
+  "history": "1.162.5",
   "nativeSerializer": "1.6.8",
   "nativeSerializerPlugins": "1.6.8",
   "rsbuild": "2.2.11",
   "rspack": "2.2.8",
-  "nodeMinimum": "26.10.0",
+  "nodeMinimum": "26.12.0",
   "jsxImportSource": "@solidjs/web",
   "exportConditions": {
     "client": ["solid", "browser", "import", "default"],

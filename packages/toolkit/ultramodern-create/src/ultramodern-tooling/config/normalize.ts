@@ -7,7 +7,7 @@ import {
 } from '../../ultramodern-workspace/descriptors';
 import { readModuleFederationExposePaths } from '../../ultramodern-workspace/mf-validation';
 import { toEnvSegment } from '../../ultramodern-workspace/naming';
-import { appSupportsFederation } from '../../ultramodern-workspace/renderer-profile';
+import { getRendererGenerationProfile } from '../../ultramodern-workspace/renderer-profile';
 import type { WorkspaceApp } from '../../ultramodern-workspace/types';
 import { readJsonObject } from './json';
 import { packageScopeFromRoot, readWorkspacePackageSource } from './metadata';
@@ -201,7 +201,13 @@ export function normalizeWorkspaceInputs(
         routerBindings: app.routerBindings,
         rendererCapabilities: app.rendererCapabilities,
         ...(app.surfaceProfile === 'api-only' ||
-        (app.renderer !== undefined && !appSupportsFederation(app))
+        // Membership is read before authoritative app configs can refresh the
+        // persisted renderer tuple. Select capabilities without validating that
+        // derived snapshot; resolved workspace validation still checks it.
+        (app.renderer !== undefined &&
+          (app.renderer === 'none' ||
+            !getRendererGenerationProfile(app.renderer).capabilities
+              .federation))
           ? {}
           : {
               moduleFederation: {

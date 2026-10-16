@@ -1,6 +1,6 @@
-import { createElement, hookSlots, useEffect, useState } from 'octane';
+import { createElement, hookSlots, useSyncExternalStore } from 'octane';
 import { I18nContext } from './context';
-import type { I18nContextValue, I18nInstanceLike } from './types';
+import type { I18nContextValue } from './types';
 
 export interface I18nProviderProps extends Omit<I18nContextValue, 'language'> {
   children?: unknown;
@@ -22,27 +22,18 @@ export interface I18nProviderProps extends Omit<I18nContextValue, 'language'> {
  */
 // Plain TypeScript is not rewritten by the Octane compiler, so each hook call
 // site carries its own stable slot, like `OctaneRouterRoot`.
-const languageStateSlot = Symbol(hookSlots(1));
-const languageSubscriptionSlot = Symbol(hookSlots(1));
+const languageStoreSlot = Symbol(hookSlots(1));
 
 export function I18nProvider(props: I18nProviderProps) {
-  const [language, setLanguage] = useState(
-    () => props.instance.language,
-    languageStateSlot,
-  );
-
-  useEffect(
-    () => {
-      const instance: I18nInstanceLike = props.instance;
-      setLanguage(instance.language);
-      const handleLanguageChanged = (lng: string) => setLanguage(lng);
-      instance.on?.('languageChanged', handleLanguageChanged);
-      return () => {
-        instance.off?.('languageChanged', handleLanguageChanged);
-      };
+  const instance = props.instance;
+  const language = useSyncExternalStore(
+    notify => {
+      instance.on?.('languageChanged', notify);
+      return () => instance.off?.('languageChanged', notify);
     },
-    [props.instance],
-    languageSubscriptionSlot,
+    () => instance.language,
+    () => instance.language,
+    languageStoreSlot,
   );
 
   const value: I18nContextValue = {

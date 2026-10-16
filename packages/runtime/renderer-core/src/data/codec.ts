@@ -1,7 +1,7 @@
 import { fromJSON, toJSON } from 'seroval';
 import { validateSerializedData } from './tree';
 
-export const DATA_CODEC = 'seroval-json@1.6.8' as const;
+export const DATA_CODEC = 'seroval-json@1.6.9' as const;
 export const MAX_DATA_BYTES = 1024 * 1024;
 const MAX_DEPTH = 100;
 const MAX_NODES = 20_000;

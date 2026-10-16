@@ -507,7 +507,7 @@ test('renderer package tuples reject partial, ranged, URL, and malformed SemVer 
       /exact version/u,
     );
   }
-  for (const version of ['0.0.0', '2.0.0-rc.13', '1.2.3-alpha.0+build.001']) {
+  for (const version of ['0.0.0', '2.0.0-rc.15', '1.2.3-alpha.0+build.001']) {
     const value = envelope();
     value.ui.rendererProfile.compiler.version = version;
     assert.equal(

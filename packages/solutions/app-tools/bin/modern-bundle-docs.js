@@ -6,7 +6,7 @@ if (
   (+nodeVersion[1] === 26 && +nodeVersion[2] < 10)
 ) {
   console.error(
-    `UltraModern.js requires Node.js >=26.10.0; detected v${process.versions.node}. Legacy Node runtimes and transpiler fallbacks are unsupported.`,
+    `UltraModern.js requires Node.js >=26.12.0; detected v${process.versions.node}. Legacy Node runtimes and transpiler fallbacks are unsupported.`,
   );
   process.exit(1);
 }

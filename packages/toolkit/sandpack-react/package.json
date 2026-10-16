@@ -40,8 +40,8 @@
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
     "@swc/helpers": "^0.5.23",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@modern-js/codesmith": "2.6.9",
@@ -50,7 +50,7 @@
     "@modern-js/create": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/recursive-readdir": "^2.2.4",

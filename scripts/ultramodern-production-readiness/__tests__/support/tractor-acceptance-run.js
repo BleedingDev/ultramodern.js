@@ -233,7 +233,7 @@ async function runTractorAcceptanceFixture({
         devDependencies: {
           effect: '4.0.0',
           '@effect/opentelemetry': '4.0.0',
-          '@effect/tsgo': '0.53.0',
+          '@effect/tsgo': '0.53.1',
           react: '19.3.0',
           'react-dom': '19.3.0',
           '@types/react': '19.3.0',

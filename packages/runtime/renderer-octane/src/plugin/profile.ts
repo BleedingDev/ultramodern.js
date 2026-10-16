@@ -4,7 +4,7 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
   renderer: 'octane',
   status: 'preview',
   protocolVersion: 1,
-  minimumNode: '26.10.0',
+  minimumNode: '26.12.0',
   hmr: {
     editedBoundary: 'may-reset',
     unaffectedComponents: 'preserved',
@@ -12,28 +12,30 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
     roots: 'single',
     cleanup: 'exactly-once',
   },
-  compiler: { name: '@octanejs/rspack-plugin', version: '0.1.55' },
+  compiler: { name: '@octanejs/rspack-plugin', version: '0.2.4' },
   hydration: {
     name: 'octane',
-    version: '0.7.1+ultramodern.1331985ea3b0',
+    version: '0.13.8',
   },
   router: {
     name: '@octanejs/tanstack-router',
-    version: '0.1.60+ultramodern.0b9f76ee3003',
+    version: '0.2.10',
     coreName: '@tanstack/router-core',
-    coreVersion: '1.171.15',
+    coreVersion: '1.171.34',
   },
   sourceExtensions: ['.tsx', '.tsrx', '.ts', '.js'],
   jsxImportSource: 'octane',
   dependencies: {
+    '@tsrx/oxc': '0.20.0',
     octane:
-      'https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz',
+      'https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octane-0.13.8.tgz',
     '@octanejs/tanstack-router':
-      'https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz',
-    '@octanejs/rspack-plugin': '0.1.55',
+      'https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octanejs-tanstack-router-0.2.10.tgz',
+    '@octanejs/rspack-plugin':
+      'https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octanejs-rspack-plugin-0.2.4.tgz',
     '@modern-js/renderer-octane': '3.8.3',
-    seroval: '1.6.8',
-    'seroval-plugins': '1.6.8',
+    seroval: '1.6.9',
+    'seroval-plugins': '1.6.9',
   },
   capabilities: {
     worker: true,

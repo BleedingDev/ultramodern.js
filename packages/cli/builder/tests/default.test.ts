@@ -337,6 +337,7 @@ describe('builder rspack', () => {
           workerSSR: {
             output: {
               target: 'web-worker',
+              externals: { react: 'MyReact' },
             },
           },
         },
@@ -363,6 +364,7 @@ describe('builder rspack', () => {
       },
       target: ['webworker', 'es5'],
     });
+    expect(config.externals).toBeUndefined();
     expect(
       config.plugins?.some(
         (plugin: any) => plugin?.constructor?.name === 'HtmlRspackPlugin',

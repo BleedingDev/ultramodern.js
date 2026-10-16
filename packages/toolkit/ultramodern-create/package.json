@@ -22,7 +22,7 @@
   ],
   "type": "module",
   "engines": {
-    "node": ">=26.10.0"
+    "node": ">=26.12.0"
   },
   "version": "3.8.3",
   "types": "./dist/types/index.d.ts",
@@ -92,7 +92,7 @@
     "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@babel/parser": "^8.0.6",
+    "@babel/parser": "^8.0.7",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/backend-federation-contracts": "workspace:*",
@@ -100,10 +100,10 @@
     "@modern-js/i18n-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "esbuild": "^0.28.2",
-    "miniflare": "5.20260930.0-alpha",
-    "oxfmt": "0.71.0",
+    "miniflare": "5.20261012.0-beta",
+    "oxfmt": "0.73.0",
     "tsx": "^4.23.15",
-    "ultracite": "7.12.2",
+    "ultracite": "8.0.1",
     "@modern-js/renderer-core": "workspace:*",
     "@modern-js/renderer-octane": "workspace:*",
     "@modern-js/renderer-solid": "workspace:*",
@@ -115,28 +115,28 @@
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@module-federation/modern-js-v3": "npm:@bleedingdev/mf-modern-js-v3@2.9.4",
-    "zephyr-rspack-plugin": "1.4.2",
+    "zephyr-rspack-plugin": "1.6.0",
     "@rsbuild/plugin-tailwindcss": "2.0.3",
     "tailwindcss": "4.3.3",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "i18next": "26.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "i18next": "26.4.6",
     "@babel/core": "7.29.7",
     "typescript": "7.0.2",
-    "@effect/tsgo": "0.53.0",
+    "@effect/tsgo": "0.53.1",
     "@typescript/native": "npm:typescript@7.0.2"
   },
   "devDependencies": {
-    "@solidjs/compiler": "2.0.0-rc.13",
-    "@solidjs/babel-plugin": "2.0.0-rc.13",
-    "@octanejs/rspack-plugin": "0.1.55",
-    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
+    "@solidjs/compiler": "2.0.0-rc.15",
+    "@octanejs/rspack-plugin": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octanejs-rspack-plugin-0.2.4.tgz",
+    "octane": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octane-0.13.8.tgz",
     "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3",
-    "js-yaml": "5.4.2"
+    "@types/node": "^26.6.5",
+    "js-yaml": "5.5.0",
+    "@tsrx/oxc": "0.20.0"
   },
   "publishConfig": {
     "main": "./dist/esm-node/index.js",

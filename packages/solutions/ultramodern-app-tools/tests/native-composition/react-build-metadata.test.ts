@@ -907,7 +907,7 @@ describe('React metadata in the existing CLI build hooks', () => {
     const tanstack = {
       framework: 'tanstack',
       name: '@tanstack/react-router',
-      version: '1.171.34',
+      version: '1.171.37',
       coreName: '@tanstack/router-core',
       coreVersion: '1.171.15',
     };

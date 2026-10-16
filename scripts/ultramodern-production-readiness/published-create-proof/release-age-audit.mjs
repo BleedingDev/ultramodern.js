@@ -6,10 +6,10 @@ import { mergePnpmLockfileDocuments } from '../../lib/pnpm-lockfile-documents.mj
 import { run } from './process.mjs';
 
 const YAML_NAME = 'js-yaml';
-const YAML_VERSION = '5.4.2';
+const YAML_VERSION = '5.5.0';
 const YAML_SPECIFIER = `${YAML_NAME}@${YAML_VERSION}`;
 const YAML_INTEGRITY =
-  'sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==';
+  'sha512-paNr4LFIFPjeeSmwNYdrb8FafLLG/Cr2Af3GjbsHJ5CxIjH4r0c2emlmRdAtpPAieP1gRVzk6buBbVP5gBMGAg==';
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
 const releaseAgePolicySchema = 'bleedingdev.ultramodern.release-age-exceptions';
 const releaseAgePolicySchemaVersion = 2;

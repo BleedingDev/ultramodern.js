@@ -18,9 +18,9 @@ export const reactReleaseUi = (
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: '@tanstack/react-router',
-      version: '1.170.41',
+      version: '1.170.44',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.34',
+      coreVersion: '1.171.37',
     },
   },
   routerBindings: {
@@ -30,17 +30,17 @@ export const reactReleaseUi = (
       defaultProvider: {
         framework: 'tanstack',
         name: '@tanstack/react-router',
-        version: '1.170.41',
+        version: '1.170.44',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.34',
+        coreVersion: '1.171.37',
       },
       providers: [
         {
           framework: 'tanstack',
           name: '@tanstack/react-router',
-          version: '1.170.41',
+          version: '1.170.44',
           coreName: '@tanstack/router-core',
-          coreVersion: '1.171.34',
+          coreVersion: '1.171.37',
         },
       ],
     },

@@ -1,8 +1,8 @@
 export default [
   {
     packageName: 'ultracite',
-    version: '7.12.2',
-    path: 'patches/ultracite@7.12.2.patch',
+    version: '8.0.1',
+    path: 'patches/ultracite@8.0.1.patch',
     sha256: 'a18b2c7be68a6823a793f0def8ce13d7655c67c56c2200978a2be600cb29ba74',
     repository: false,
     workspace: null,

@@ -210,12 +210,12 @@ async function createApp(renderer) {
         [`@modern-js/renderer-${renderer}`]: 'workspace',
         '@modern-js/renderer-core': 'workspace',
         '@modern-js/i18n-runtime-extensions': 'workspace',
-        i18next: '26.4.2',
+        i18next: '26.4.6',
         ...(renderer === 'solid'
           ? {
-              'solid-js': '2.0.0-rc.13',
-              '@solidjs/web': '2.0.0-rc.13',
-              '@solidjs/signals': '2.0.0-rc.13',
+              'solid-js': '2.0.0-rc.15',
+              '@solidjs/web': '2.0.0-rc.15',
+              '@solidjs/signals': '2.0.0-rc.15',
             }
           : {
               octane: 'maintained',

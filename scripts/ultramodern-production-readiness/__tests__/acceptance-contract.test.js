@@ -26,10 +26,10 @@ test('pinned YAML file parsing keeps lockfile document merging by default', asyn
     '../published-create-proof/release-age-audit.mjs'
   );
   const packageManager = {
-    importers: { '.': { packageManagerDependencies: { pnpm: '12.8.1' } } },
+    importers: { '.': { packageManagerDependencies: { pnpm: '12.11.2' } } },
     lockfileVersion: '9.0',
-    packages: { 'pnpm@12.8.1': {} },
-    snapshots: { 'pnpm@12.8.1': {} },
+    packages: { 'pnpm@12.11.2': {} },
+    snapshots: { 'pnpm@12.11.2': {} },
   };
   const workspace = {
     importers: { '.': { dependencies: { effect: '3.19.0' } } },
@@ -215,9 +215,9 @@ function operationalEvidence(options) {
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.41',
+        version: '1.170.44',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.34',
+        coreVersion: '1.171.37',
       },
     },
     routerBindings: {
@@ -227,17 +227,17 @@ function operationalEvidence(options) {
         defaultProvider: {
           framework: 'tanstack',
           name: '@tanstack/react-router',
-          version: '1.170.41',
+          version: '1.170.44',
           coreName: '@tanstack/router-core',
-          coreVersion: '1.171.34',
+          coreVersion: '1.171.37',
         },
         providers: [
           {
             framework: 'tanstack',
             name: '@tanstack/react-router',
-            version: '1.170.41',
+            version: '1.170.44',
             coreName: '@tanstack/router-core',
-            coreVersion: '1.171.34',
+            coreVersion: '1.171.37',
           },
         ],
       },

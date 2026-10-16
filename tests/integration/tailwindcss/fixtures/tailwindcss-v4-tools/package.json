@@ -13,9 +13,9 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
-    "postcss": "^8.5.28",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "postcss": "^8.5.30",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "tailwindcss": "^4.3.3"
   }
 }
