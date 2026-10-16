@@ -30,18 +30,18 @@ export async function createRunOptions({
     throw new Error(`
   ${chalk.bgRed.white.bold(' UNSUPPORTED NODE.JS RUNTIME ')}
 
-  ${chalk.red.bold(`UltraModern.js requires Node.js >=26.10.0; detected v${nodeVersion}.`)}
+  ${chalk.red.bold(`UltraModern.js requires Node.js >=26.12.0; detected v${nodeVersion}.`)}
   ${chalk.red('- Legacy Node runtimes and TypeScript transpiler fallbacks are unsupported.')}
 
   ${chalk.yellow('▸ Detected Runtime:')}  ${chalk.yellow.bold(`Node.js v${nodeVersion}`)}
-  ${chalk.green('▸ Required Minimum:')} ${chalk.green.bold('Node.js v26.10.0 or higher')}
-  ${chalk.green('▸ Pinned Runtime:')} ${chalk.green.bold('Node.js v26.10.0')}
+  ${chalk.green('▸ Required Minimum:')} ${chalk.green.bold('Node.js v26.12.0 or higher')}
+  ${chalk.green('▸ Pinned Runtime:')} ${chalk.green.bold('Node.js v26.12.0')}
 
   ${chalk.cyan('Immediate Action Required:')}
     ${chalk.gray('├──')} ${chalk.yellow('Recommended Upgrade')}
        ${chalk.bold('mise install && mise exec -- node --version')}
     ${chalk.gray('├──')} ${chalk.yellow('Manual Installation')}
-       ${chalk.underline('https://nodejs.org/download/release/v26.10.0/')}
+       ${chalk.underline('https://nodejs.org/download/release/v26.12.0/')}
      ${chalk.gray('└──')} ${chalk.yellow('Environment Verification')}
        ${chalk.bold('node -v && npm -v')}
 

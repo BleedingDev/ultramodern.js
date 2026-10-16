@@ -253,8 +253,8 @@ function releaseFixture(
     },
     'plugin-tanstack': {
       dependencies: {
-        '@tanstack/react-router': '1.170.41',
-        '@tanstack/router-core': '1.171.34',
+        '@tanstack/react-router': '1.170.44',
+        '@tanstack/router-core': '1.171.37',
       },
       peerDependencies: { 'react-server-dom-rspack': '0.1.0' },
     },
@@ -823,8 +823,8 @@ test('consumer inputs authenticate mapped tar bytes and retain their exact pins 
     'react-dom': '19.3.0',
     'react-server-dom-rspack': '0.1.0',
     'rsbuild-plugin-rsc': '0.1.1',
-    '@tanstack/react-router': '1.170.41',
-    '@tanstack/router-core': '1.171.34',
+    '@tanstack/react-router': '1.170.44',
+    '@tanstack/router-core': '1.171.37',
     'react-router': '7.18.4',
   });
   assert.equal(inputs.manifest.devDependencies['rsbuild-plugin-rsc'], '0.1.1');

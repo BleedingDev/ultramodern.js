@@ -258,7 +258,7 @@ test('external linked package trees cannot satisfy packed installation', async t
 
 test('qualification checks accepted Node, npm, and pnpm before allocating a consumer', async () => {
   const { assertQualificationToolchain } = await load();
-  const tools = { node: process.version, npm: '11.19.1', pnpm: '12.8.1' };
+  const tools = { node: process.version, npm: '11.19.1', pnpm: '12.11.2' };
   const command = tool => Buffer.from(`${tools[tool]}\n`);
   assert.doesNotThrow(() => assertQualificationToolchain(tools, command));
   assert.throws(

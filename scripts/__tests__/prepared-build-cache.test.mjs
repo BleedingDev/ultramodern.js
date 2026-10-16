@@ -29,7 +29,7 @@ function fixture(t) {
   return {
     root,
     write,
-    inputs: () => buildInputs(root, { CI: 'true' }, { pnpm: '12.8.1' }),
+    inputs: () => buildInputs(root, { CI: 'true' }, { pnpm: '12.11.2' }),
   };
 }
 
@@ -57,7 +57,7 @@ test('identity changes with source, lockfile, shared build scripts and toolchain
     buildInputs(
       root,
       { CI: 'true', NODE_ENV: 'production' },
-      { pnpm: '12.8.1' },
+      { pnpm: '12.11.2' },
     ).key,
     original,
   );
@@ -189,12 +189,12 @@ test('prepared verification rejects new untracked source while accepting covered
   write('packages/example/dist/index.js', 'compiled');
   snapshotBuild(root, baseline);
   assert.equal(
-    verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.8.1' }),
+    verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.11.2' }),
     1,
   );
   write('packages/example/src/new.ts', 'new source');
   assert.throws(
-    () => verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.8.1' }),
+    () => verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.11.2' }),
     /Untracked/u,
   );
 });

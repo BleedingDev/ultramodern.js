@@ -292,7 +292,7 @@ if (prepareSourceHost) {
     fs.readFileSync(path.join(serovalRoot, 'package.json')),
   );
   assert.equal(serovalManifest.name, 'seroval');
-  assert.equal(serovalManifest.version, '1.6.8');
+  assert.equal(serovalManifest.version, '1.6.9');
   assert.ok(
     serovalRoot.startsWith(`${sourceHost}${path.sep}node_modules${path.sep}`),
   );

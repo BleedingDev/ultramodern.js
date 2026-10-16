@@ -9,11 +9,11 @@ lockfileVersion: '9.0'
 importers:
   .:
     packageManagerDependencies:
-      pnpm: {specifier: 12.8.1, version: 12.8.1}
+      pnpm: {specifier: 12.11.2, version: 12.11.2}
 packages:
-  pnpm@12.8.1: {resolution: {integrity: manager}}
+  pnpm@12.11.2: {resolution: {integrity: manager}}
 snapshots:
-  pnpm@12.8.1: {}
+  pnpm@12.11.2: {}
 ---
 lockfileVersion: '9.0'
 settings: {autoInstallPeers: false}
@@ -27,16 +27,16 @@ snapshots:
   effect@4.0.0: {}
 `);
   assert.deepEqual(Object.keys(lockfile.packages), [
-    'pnpm@12.8.1',
+    'pnpm@12.11.2',
     'effect@4.0.0',
   ]);
   assert.deepEqual(Object.keys(lockfile.snapshots), [
-    'pnpm@12.8.1',
+    'pnpm@12.11.2',
     'effect@4.0.0',
   ]);
   assert.equal(
     lockfile.importers['.'].packageManagerDependencies.pnpm.version,
-    '12.8.1',
+    '12.11.2',
   );
   assert.equal(lockfile.importers['.'].dependencies.effect.version, '4.0.0');
   assert.equal(lockfile.settings.autoInstallPeers, false);

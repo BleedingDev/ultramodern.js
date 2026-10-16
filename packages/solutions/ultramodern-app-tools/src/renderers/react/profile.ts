@@ -4,7 +4,7 @@ export const reactProfile: RendererBuildProfile<'react'> = {
   renderer: 'react',
   status: 'stable',
   protocolVersion: 1,
-  minimumNode: '26.10.0',
+  minimumNode: '26.12.0',
   hmr: {
     editedBoundary: 'may-reset',
     unaffectedComponents: 'preserved',

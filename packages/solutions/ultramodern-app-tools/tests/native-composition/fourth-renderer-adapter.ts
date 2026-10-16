@@ -13,7 +13,7 @@ export function createFourthAdapter(): NativeRendererAdapter {
     renderer: 'solid',
     status: 'preview',
     protocolVersion: 1,
-    minimumNode: '26.10.0',
+    minimumNode: '26.12.0',
     hmr: {
       editedBoundary: 'may-reset',
       unaffectedComponents: 'preserved',
@@ -27,7 +27,7 @@ export function createFourthAdapter(): NativeRendererAdapter {
       name: '@fixture/fourth-router',
       version: '1.0.0',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.34',
+      coreVersion: '1.171.37',
     },
     sourceExtensions: ['.tsx', '.ts'],
     jsxImportSource: 'fourth-runtime',

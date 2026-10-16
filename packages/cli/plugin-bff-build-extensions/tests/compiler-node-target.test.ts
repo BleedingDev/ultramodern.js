@@ -6,8 +6,8 @@ import { compile } from '../../../server/utils/src';
 
 describe('BFF Node compiler', () => {
   test.each([
-    ['commonjs', '>=26.10.0'],
-    ['module', '^26.10.0 || >=28'],
+    ['commonjs', '>=26.12.0'],
+    ['module', '^26.12.0 || >=28'],
   ] as const)(
     'compiles and runs %s output with the %s Node engine',
     async (moduleType, nodeEngine) => {

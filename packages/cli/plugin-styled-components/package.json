@@ -39,16 +39,16 @@
     "@modern-js/runtime": "workspace:*",
     "@rslib/core": "1.0.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.5",
     "@types/styled-components": "^5.1.36",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "styled-components": "^6.5.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "styled-components": "^6.6.0",
     "typescript": "7.0.2"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "styled-components": "^6.5.3"
+    "react": "^19.3.1",
+    "styled-components": "^6.6.0"
   },
   "exports": {
     ".": {

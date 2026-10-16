@@ -69,7 +69,7 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/connect-history-api-fallback": "^1.5.4",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "node-mocks-http": "^1.18.1",
     "tsconfig-paths": "4.2.0",

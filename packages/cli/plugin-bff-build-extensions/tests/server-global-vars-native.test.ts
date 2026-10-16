@@ -116,7 +116,7 @@ await writeFile(strictFilename, "'use strict';\\nmodule.exports = function () { 
 const untouchedFilename = path.join(nested, 'readme.txt');
 await writeFile(untouchedFilename, 'ULTRAMODERN_BUILD_MARKER');
 const expected = {
-  marker: 'catalog-build-2026.10.03+"exact"',
+  marker: 'catalog-build-2026.12.03+"exact"',
   revision: 'release/erp-10@4f2a9c7',
   release: '1.2.3-release.4',
   settings: { nullable: null, enabled: true, labels: ['tractor', 'český'] },

@@ -18,9 +18,9 @@ const reactRouter = {
 const tanstackRouter = {
   framework: 'tanstack',
   name: '@tanstack/react-router',
-  version: '1.170.41',
+  version: '1.170.44',
   coreName: '@tanstack/router-core',
-  coreVersion: '1.171.34',
+  coreVersion: '1.171.37',
 };
 type RouterEntrypoint = Entrypoint & {
   __modernRoutesOwner?: string;

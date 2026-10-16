@@ -82,9 +82,9 @@ function createEnvelopeFixture(
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.41',
+        version: '1.170.44',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.34',
+        coreVersion: '1.171.37',
       },
     },
   };

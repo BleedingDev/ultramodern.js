@@ -139,11 +139,11 @@ export async function assertNativePackageGraph(consumerDirectory) {
     ),
   );
   assert.equal(manifest.version, '3.8.3');
-  assert.equal(manifest.dependencies['@tanstack/router-core'], '1.171.34');
-  assert.equal(manifest.dependencies['@tanstack/history'], '1.162.4');
+  assert.equal(manifest.dependencies['@tanstack/router-core'], '1.171.37');
+  assert.equal(manifest.dependencies['@tanstack/history'], '1.162.5');
   assert.equal(manifest.dependencies.isbot, '5.2.2');
-  assert.equal(manifest.dependencies.seroval, '1.6.8');
-  assert.equal(manifest.dependencies['seroval-plugins'], '1.6.8');
+  assert.equal(manifest.dependencies.seroval, '1.6.9');
+  assert.equal(manifest.dependencies['seroval-plugins'], '1.6.9');
   assert.equal(manifest.dependencies['@tanstack/solid-router'], undefined);
   const nativeResolve = createRequire(router);
   const versions = {};
@@ -164,14 +164,14 @@ export async function assertNativePackageGraph(consumerDirectory) {
     throw new Error(`Installed native package escaped the consumer: ${name}`);
   }
   for (const [name, expected] of Object.entries({
-    'solid-js': '2.0.0-rc.13',
-    '@solidjs/web': '2.0.0-rc.13',
-    '@solidjs/signals': '2.0.0-rc.13',
-    '@tanstack/router-core': '1.171.34',
-    '@tanstack/history': '1.162.4',
+    'solid-js': '2.0.0-rc.15',
+    '@solidjs/web': '2.0.0-rc.15',
+    '@solidjs/signals': '2.0.0-rc.15',
+    '@tanstack/router-core': '1.171.37',
+    '@tanstack/history': '1.162.5',
     isbot: '5.2.2',
-    seroval: '1.6.8',
-    'seroval-plugins': '1.6.8',
+    seroval: '1.6.9',
+    'seroval-plugins': '1.6.9',
   })) {
     const installed = await installedManifest(name, nativeResolve);
     assert.equal(
@@ -182,10 +182,10 @@ export async function assertNativePackageGraph(consumerDirectory) {
     versions[name] = installed.manifest.version;
   }
   for (const [name, expected] of Object.entries({
-    '@solidjs/compiler': '2.0.0-rc.13',
+    '@solidjs/compiler': '2.0.0-rc.15',
     '@rsbuild/core': '2.2.11',
     '@babel/core': '7.29.7',
-    playwright: '1.63.0',
+    playwright: '1.64.1',
     typescript: '7.0.2',
   })) {
     const installed = await installedManifest(name, resolve);
@@ -211,12 +211,12 @@ export async function assertNativePackageGraph(consumerDirectory) {
   );
   assert.equal(
     (await installedManifest('seroval', pluginResolve)).manifest.version,
-    '1.6.8',
+    '1.6.9',
     'Native router serializer plugin resolved an incompatible Seroval',
   );
   assert.equal(
     (await installedManifest('seroval', coreResolve)).manifest.version,
-    '1.6.8',
+    '1.6.9',
     'Native router resolved an incompatible Seroval',
   );
   const installed = await readdir(

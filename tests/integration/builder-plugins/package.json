@@ -3,12 +3,12 @@
   "name": "integration-builder-plugins",
   "version": "2.66.0",
   "dependencies": {
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.3"
+    "@types/node": "^26.6.5"
   }
 }

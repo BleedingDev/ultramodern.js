@@ -2,11 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { rspack } from '@rsbuild/core';
-import { MissingCopyContextPlugin } from '../../src/builder/generator/adapterCopy';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function watchCopy(withPlugin: boolean) {
+async function watchCopy() {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'missing-copy-context-')),
   );
@@ -31,7 +30,6 @@ async function watchCopy(withPlugin: boolean) {
           },
         ],
       }),
-      ...(withPlugin ? [new MissingCopyContextPlugin([upload])] : []),
     ],
   });
   const builds: { removed: string[]; assets: string[] }[] = [];
@@ -53,20 +51,9 @@ async function watchCopy(withPlugin: boolean) {
   };
 }
 
-describe('MissingCopyContextPlugin', () => {
-  it('reproduces the extra rebuild for an absent copy context without the plugin', async () => {
-    const run = await watchCopy(false);
-    try {
-      await sleep(1500);
-      expect(run.builds.length).toBe(2);
-      expect(run.builds[1].removed).toEqual([run.upload]);
-    } finally {
-      await run.close();
-    }
-  });
-
+describe('native copy context watching', () => {
   it('builds once for an absent copy context and still copies it once created', async () => {
-    const run = await watchCopy(true);
+    const run = await watchCopy();
     try {
       await sleep(1500);
       expect(run.builds.length).toBe(1);

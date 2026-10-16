@@ -147,15 +147,15 @@
     "@swc/helpers": "^0.5.23",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-chained-backend": "^5.0.6",
-    "i18next-fs-backend": "^2.6.8",
-    "i18next-http-backend": "^4.0.2",
+    "i18next-fs-backend": "^2.6.9",
+    "i18next-http-backend": "^4.0.3",
     "i18next-http-middleware": "^3.9.9"
   },
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.9.3",
     "i18next": ">=25.10.10",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-i18next": ">=15.7.4"
   },
   "peerDependenciesMeta": {
@@ -173,12 +173,12 @@
     "@modern-js/runtime-extensions": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3",
+    "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
-    "i18next": "26.4.2",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-i18next": "17.0.15",
+    "i18next": "26.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "17.0.18",
     "ts-node": "^10.9.2",
     "typescript": "7.0.2"
   },

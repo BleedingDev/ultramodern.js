@@ -130,7 +130,7 @@
     "test": "rstest"
   },
   "engines": {
-    "node": ">=26.10.0"
+    "node": ">=26.12.0"
   },
   "dependencies": {
     "@modern-js/renderer-core": "workspace:*",
@@ -140,7 +140,7 @@
   },
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.9.3",
-    "react": "^19.2.8",
+    "react": "^19.3.1",
     "i18next": ">=25.7.4"
   },
   "peerDependenciesMeta": {
@@ -159,10 +159,10 @@
     "@modern-js/runtime": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3",
-    "i18next": "26.4.2",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "@types/node": "^26.6.5",
+    "i18next": "26.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "sideEffects": false,
   "publishConfig": {

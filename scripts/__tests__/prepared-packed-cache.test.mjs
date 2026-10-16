@@ -15,7 +15,7 @@ import {
 } from '../ci/prepared-build-cache.mjs';
 
 const environment = { CI: 'true' };
-const toolchain = { pnpm: '12.8.1' };
+const toolchain = { pnpm: '12.11.2' };
 const generatedTracked = [
   'packages/runtime/plugin-runtime/static/modern-inline.js',
   'packages/runtime/plugin-runtime/static/modern-run-router-data-fn.js',

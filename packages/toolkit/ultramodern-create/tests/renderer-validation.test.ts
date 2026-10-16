@@ -382,12 +382,12 @@ test('authored renderer ABI pins resolve explicit catalogs and reject mismatches
       assertAuthoredRendererDependencyPins(
         {
           ...manifest,
-          devDependencies: { '@solidjs/compiler': '^2.0.0-rc.13' },
+          devDependencies: { '@solidjs/compiler': '^2.0.0-rc.15' },
         },
         generation,
         catalogs,
       ),
-    /declared renderer ABI \^2.0.0-rc.13 disagrees/,
+    /declared renderer ABI \^2.0.0-rc.15 disagrees/,
   );
   assert.throws(
     () =>
@@ -522,8 +522,8 @@ test('native federation admission stays closed across every dependency group and
           `npm:@module-federation/runtime@${ULTRAMODERN_PACKAGE_PINS.appDependencies['@module-federation/runtime']}`,
           /declared federation ABI/u,
         ],
-        ['wrangler', '4.145.0', /unsupported .* capability/u],
-        ['worker-tools', 'npm:wrangler@4.145.0', /unsupported .* capability/u],
+        ['wrangler', '4.151.0', /unsupported .* capability/u],
+        ['worker-tools', 'npm:wrangler@4.151.0', /unsupported .* capability/u],
       ] as const) {
         const manifest = {
           name: `@fixture/${renderer}`,

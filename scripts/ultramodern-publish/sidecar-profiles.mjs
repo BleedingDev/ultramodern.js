@@ -3,13 +3,10 @@
 export const sidecarPublishBefore = '@bleedingdev/modern-js-utils';
 export const sidecarRecipeIds = Object.freeze([
   'braces',
-  'chokidar',
   'fast-glob',
   'find-workspaces',
   'micromatch',
   'rsbuild-plugin-source-build',
-  'rsbuild-plugin-type-check',
-  'ts-checker-rspack-plugin',
   'ultracite',
 ]);
 export const sidecarQualificationProbeKeys = Object.freeze([
@@ -17,8 +14,6 @@ export const sidecarQualificationProbeKeys = Object.freeze([
   'braces-api',
   'braces-depth-guard',
   'glob-api',
-  'chokidar-api',
-  'type-check-api',
   'ultracite-api',
 ]);
 export const sidecarProfiles = Object.freeze({

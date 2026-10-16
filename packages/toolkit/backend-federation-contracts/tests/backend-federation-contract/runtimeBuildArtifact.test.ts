@@ -32,9 +32,9 @@ const reactProfile: RendererProfile = {
   hydration: { name: 'react-dom', version: '19.3.0' },
   router: {
     name: '@tanstack/react-router',
-    version: '1.170.41',
+    version: '1.170.44',
     coreName: '@tanstack/router-core',
-    coreVersion: '1.171.34',
+    coreVersion: '1.171.37',
   },
 };
 
@@ -42,8 +42,8 @@ const nativeProfiles: RendererProfile[] = [
   {
     renderer: 'solid',
     protocolVersion: 1,
-    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-    hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+    hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
     router: {
       name: '@tanstack/solid-router',
       version: '2.0.0-rc.8',

@@ -128,7 +128,7 @@ function solidCandidate(): RendererBuildProfile {
     renderer: 'solid',
     status: 'preview',
     protocolVersion: 1,
-    minimumNode: '26.10.0',
+    minimumNode: '26.12.0',
     hmr: {
       editedBoundary: 'may-reset',
       unaffectedComponents: 'preserved',
@@ -136,13 +136,13 @@ function solidCandidate(): RendererBuildProfile {
       roots: 'single',
       cleanup: 'exactly-once',
     },
-    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-    hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+    hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
     router: {
       name: solidPackage,
       version: '3.8.3',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.34',
+      coreVersion: '1.171.37',
     },
     sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
     jsxImportSource: '@solidjs/web',
@@ -150,8 +150,8 @@ function solidCandidate(): RendererBuildProfile {
       [solidPackage]: '3.8.3',
       '@modern-js/renderer-core': '3.8.3',
       '@modern-js/builder': '3.9.0',
-      '@solidjs/compiler': '2.0.0-rc.13',
-      '@solidjs/web': '2.0.0-rc.13',
+      '@solidjs/compiler': '2.0.0-rc.15',
+      '@solidjs/web': '2.0.0-rc.15',
     }),
     capabilities: {
       worker: false,
@@ -280,14 +280,14 @@ describe('physical installed framework profile identities', () => {
         name: solidPackage,
         version: installedVersion,
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.34',
+        coreVersion: '1.171.37',
       });
       expect(metadata.profile.dependencies).toEqual({
         [solidPackage]: installedVersion,
         '@modern-js/renderer-core': installedVersion,
         '@modern-js/builder': installedVersion,
-        '@solidjs/compiler': '2.0.0-rc.13',
-        '@solidjs/web': '2.0.0-rc.13',
+        '@solidjs/compiler': '2.0.0-rc.15',
+        '@solidjs/web': '2.0.0-rc.15',
       });
       expect(
         Object.hasOwn(metadata.profile.dependencies, mappedSolidPackage),

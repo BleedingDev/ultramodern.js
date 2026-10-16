@@ -163,7 +163,7 @@ test('packed utils contains generated bundles and works without workspace source
           const commander = await load('@modern-js/utils/commander');
           assert.equal(new commander.Command().name('packed').name(), 'packed');
           const semver = await load('@modern-js/utils/semver');
-          assert.equal((semver.default ?? semver).satisfies('26.10.0', '>=26'), true);
+          assert.equal((semver.default ?? semver).satisfies('26.12.0', '>=26'), true);
           const ansi = await load('@modern-js/utils/strip-ansi');
           assert.equal(ansi.default('\\u001b[31mpacked\\u001b[39m'), 'packed');
           const lodash = await load('@modern-js/utils/lodash');
@@ -196,7 +196,7 @@ test('packed utils contains generated bundles and works without workspace source
         import semver from '@modern-js/utils/semver';
         const command: Command = new Command();
         const files: Promise<string[]> = glob('*.json');
-        const valid: boolean = semver.satisfies('26.10.0', '>=26');
+        const valid: boolean = semver.satisfies('26.12.0', '>=26');
         const execution = execa('node', ['--version']);
         void command; void files; void valid; void execution;
       `,

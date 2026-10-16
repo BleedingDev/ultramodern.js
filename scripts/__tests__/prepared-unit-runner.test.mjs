@@ -52,7 +52,7 @@ if (process.env.RUNNER_TEST_HOLD === 'true') {
 `,
   );
   const environment = { ...process.env, CI: 'true', npm_execpath: entry };
-  const toolchain = { pnpm: '12.8.1' };
+  const toolchain = { pnpm: '12.11.2' };
   if (prepared) {
     const inputs = buildInputs(root, environment, toolchain);
     write('.ci-build-cache/inputs.json', JSON.stringify(inputs));
@@ -217,7 +217,7 @@ if (process.platform !== 'win32') {
     fs.writeFileSync(
       wrapper,
       `import { runPreparedUnitTests } from ${JSON.stringify(new URL('../ci/run-prepared-unit-tests.mjs', import.meta.url).href)};
-process.exitCode = await runPreparedUnitTests(process.argv[2], ['--shard=1/4'], { toolchain: { pnpm: '12.8.1' } });
+process.exitCode = await runPreparedUnitTests(process.argv[2], ['--shard=1/4'], { toolchain: { pnpm: '12.11.2' } });
 `,
     );
     const child = spawn(process.execPath, [wrapper, f.root], {

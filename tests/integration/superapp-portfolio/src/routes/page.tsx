@@ -1,8 +1,10 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import {
   Effect,
+  type HttpApiEndpoint,
   makeEffectHttpApiClient,
   runEffectRequest,
+  type Schema,
 } from '@modern-js/bff-effect/effect-client';
 import { useMatch } from '@modern-js/plugin-tanstack/runtime';
 import { useEffect, useState } from 'react';
@@ -17,9 +19,10 @@ import type {
 } from '../../shared/portfolio-state';
 
 const client = makeEffectHttpApiClient(portfolioApi, { baseUrl: '/bff-api' });
-type PortfolioClient = Effect.Success<typeof client>;
-type BootstrapData = Effect.Success<
-  ReturnType<PortfolioClient['portfolio']['bootstrap']>
+type BootstrapData = Schema.Schema.Type<
+  HttpApiEndpoint.Success<
+    typeof portfolioApi.groups.portfolio.endpoints.bootstrap
+  >
 >;
 
 const pilotChaosModes: PilotChaosMode[] = [

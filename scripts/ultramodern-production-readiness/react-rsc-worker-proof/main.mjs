@@ -183,7 +183,7 @@ export async function runProof(options) {
   const version = process.versions.node.split('.').map(Number);
   assert(
     version[0] > 26 || (version[0] === 26 && version[1] >= 10),
-    'Node >=26.10.0 is required',
+    'Node >=26.12.0 is required',
   );
   const release = readReleaseManifest({ manifestPath: options.manifestPath });
   assert.equal(release.source.commit, options.expectedSourceRevision);

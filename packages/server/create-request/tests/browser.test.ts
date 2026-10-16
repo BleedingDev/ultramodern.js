@@ -1,8 +1,28 @@
-import nock from 'nock';
+import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { configure, createRequest } from '../src/browser';
 
 describe('configure', () => {
-  const url = 'http://localhost:8080';
+  let url: string;
+  const server = createServer((_request, result) => {
+    result.writeHead(200, { 'Content-Type': 'application/json' });
+    result.end(JSON.stringify(response));
+  });
+
+  beforeAll(async () => {
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Missing server port');
+    url = `http://127.0.0.1:${address.port}`;
+    window.happyDOM.setURL(url);
+  });
+
+  afterAll(async () => {
+    server.close();
+    await once(server, 'close');
+  });
   const path = '/api';
   const method = 'GET';
   const response = {
@@ -12,18 +32,7 @@ describe('configure', () => {
     },
   };
 
-  // TODO: 如果 disableNetConnect 之后，会影响到其他的 testcase 偶发性的出现 NetConnectNotAllowedError: Nock: Disallowed net connect for "127.0.0.1:49552/" 的错误
-  // beforeEach(() => {
-  //   nock.disableNetConnect();
-  // });
-
-  // afterEach(() => {
-  //   nock.cleanAll();
-  // });
-
   test('should support custom request', async () => {
-    nock(url).get(path).reply(200, response);
-
     const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
@@ -44,13 +53,6 @@ describe('configure', () => {
   });
 
   test('query should support array', async () => {
-    nock(url)
-      .get(path)
-      .query({
-        users: ['foo', 'bar'],
-      })
-      .reply(200, response);
-
     const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
@@ -74,8 +76,6 @@ describe('configure', () => {
   });
 
   test('should support interceptor', async () => {
-    nock(url).get(path).reply(200, response);
-
     const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
@@ -95,8 +95,6 @@ describe('configure', () => {
   });
 
   test('should has correct order', async () => {
-    nock(url).get(path).reply(200, response);
-
     const customRequest = rs.fn((requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return fetch(finalUrl);
@@ -123,8 +121,6 @@ describe('configure', () => {
   });
 
   test('should support params', async () => {
-    nock(url).get(`${path}/modernjs`).reply(200, response);
-
     const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);
@@ -143,8 +139,6 @@ describe('configure', () => {
   });
 
   test('should support params with schema', async () => {
-    nock(url).get(`${path}/modernjs`).reply(200, response);
-
     const interceptor = rs.fn(request => (requestPath: RequestInfo) => {
       const finalUrl = `${url}${requestPath as string}`;
       return request(finalUrl);

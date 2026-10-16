@@ -11,7 +11,7 @@ const runnerPromise = import('../tractor-downstream/main.mjs');
 const producerEffectDependencies = {
   effect: '4.0.0',
   '@effect/opentelemetry': '4.0.0',
-  '@effect/tsgo': '0.53.0',
+  '@effect/tsgo': '0.53.1',
 };
 const producerReactDependencies = {
   react: '19.3.0',
@@ -119,7 +119,7 @@ const release = {
   aliases: {
     '@modern-js/runtime': '@bleedingdev/modern-js-runtime',
   },
-  tools: { node: process.version, pnpm: '12.8.1' },
+  tools: { node: process.version, pnpm: '12.11.2' },
   release: {
     version: '3.5.0-ultramodern.50',
   },
@@ -431,7 +431,7 @@ test('Tractor children use the acceptance Node despite an older mise Node on PAT
   );
   const { env } = createTractorPackageManagerContext({
     createPackage: packageManagerOptions().createPackage,
-    expectedPnpmVersion: '12.8.1',
+    expectedPnpmVersion: '12.11.2',
     environment: {
       ...process.env,
       PATH: `${staleBin}${path.delimiter}${process.env.PATH}`,
@@ -1546,7 +1546,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
     assert.deepEqual(
       JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).devDependencies,
       {
-        '@effect/tsgo': '0.53.0',
+        '@effect/tsgo': '0.53.1',
         '@types/react': '19.3.0',
         '@types/react-dom': '19.3.0',
       },
@@ -1570,12 +1570,12 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       {
         ...JSON.parse(beforeManifest),
         devDependencies: producerReactDependencies,
-        packageManager: 'pnpm@12.8.1',
+        packageManager: 'pnpm@12.11.2',
       },
     );
     assert.equal(
       fs.readFileSync(path.join(root, '.mise.toml'), 'utf8'),
-      `[tools]\nnode = "${process.version.slice(1)}"\npnpm = "12.8.1"\n`,
+      `[tools]\nnode = "${process.version.slice(1)}"\npnpm = "12.11.2"\n`,
     );
     assert.equal(
       fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
@@ -1636,7 +1636,7 @@ test('cohort installation adopts exact bundle and toolchain without changing aut
       { ...producerEffectDependencies, '@effect/opentelemetry': '4.0.1' },
       {
         ...producerEffectDependencies,
-        '@effect/tsgo': 'npm:@bleedingdev/tsgo@0.53.0',
+        '@effect/tsgo': 'npm:@bleedingdev/tsgo@0.53.1',
       },
     ]) {
       assert.throws(

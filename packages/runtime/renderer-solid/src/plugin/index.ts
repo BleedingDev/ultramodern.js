@@ -64,7 +64,6 @@ export const rendererAdapter: NativeRendererAdapter<'solid'> =
         },
         devDependencies: {
           [profile.compiler.name]: profile.compiler.version,
-          '@solidjs/babel-plugin': profile.compiler.version,
         },
       }),
       generateAppSources: generateSolidAppSources,

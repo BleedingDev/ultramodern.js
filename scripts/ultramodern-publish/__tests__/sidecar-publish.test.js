@@ -228,20 +228,6 @@ test('recipe-only sidecar closure records exact publication identities and alias
     ['braces', '3.0.4', {}],
     ['micromatch', '4.0.8', { braces: 'npm:@bleedingdev/braces@3.0.4' }],
     ['fast-glob', '3.3.3', { micromatch: 'npm:@bleedingdev/micromatch@4.0.8' }],
-    ['chokidar', '3.6.0', { braces: 'npm:@bleedingdev/braces@3.0.4' }],
-    [
-      'ts-checker-rspack-plugin',
-      '1.6.1',
-      { chokidar: 'npm:@bleedingdev/chokidar@3.6.0' },
-    ],
-    [
-      'rsbuild-plugin-type-check',
-      '1.6.0',
-      {
-        'ts-checker-rspack-plugin':
-          'npm:@bleedingdev/ts-checker-rspack-plugin@1.6.1',
-      },
-    ],
     [
       'rsbuild-plugin-source-build',
       '1.0.7',
@@ -254,7 +240,7 @@ test('recipe-only sidecar closure records exact publication identities and alias
     ],
     [
       'ultracite',
-      '7.12.2',
+      '8.0.1',
       {
         'fast-glob': 'npm:@bleedingdev/fast-glob@3.3.3',
         'find-workspaces': 'npm:@bleedingdev/find-workspaces@0.3.1',
@@ -277,7 +263,7 @@ test('recipe-only sidecar closure records exact publication identities and alias
     byName.get(`@bleedingdev/${name}`),
   );
   const closureOrder = sidecarsModule.sidecarPublishOrder(closure);
-  assert.equal(closureOrder.length, 9);
+  assert.equal(closureOrder.length, 6);
   sidecarsModule.validateAliasConsistency([], closureOrder);
   publication.assertSidecarPublishOrder(closureOrder);
   assert.throws(

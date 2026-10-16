@@ -247,7 +247,7 @@ test('a scaffold the generator wrote differently fails and names the files', asy
 test('release-age closure includes pnpm 12 toolchain and configuration dependencies', async () => {
   const { buildDependencyClosure } = await api();
   const fixture = lock([
-    { name: 'pnpm', version: '12.8.1' },
+    { name: 'pnpm', version: '12.11.2' },
     { name: 'config-plugin', version: '1.0.0' },
     { name: 'effect', version: '4.0.0' },
   ]);

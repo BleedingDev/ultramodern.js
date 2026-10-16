@@ -9,7 +9,7 @@ import {
   useMatch,
   useRouter,
 } from '@octanejs/tanstack-router';
-import { createSubSlot, useCallback, useEffect, useRef } from 'octane';
+import { createSubSlot, useCallback, useLayoutEffect, useRef } from 'octane';
 import { assertOctaneIdentity } from './bootstrap';
 import { resolveRouteData } from './routes';
 
@@ -161,7 +161,7 @@ export function useOctaneRouteAction(...args: unknown[]) {
   const identity = useApplicationIdentity();
   const routeId = useApplicationRouteId();
   const owner = useRef<AbortController | null>(null, actionSlot(slot, 'owner'));
-  useEffect(
+  useLayoutEffect(
     () => {
       const controller = new AbortController();
       owner.current = controller;

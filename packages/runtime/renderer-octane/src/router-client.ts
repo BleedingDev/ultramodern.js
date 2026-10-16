@@ -64,7 +64,7 @@ function waitForCommittedMatches(
   signal?: AbortSignal,
 ): Promise<void> {
   signal?.throwIfAborted();
-  const matchesId = router.stores.matchesId;
+  const matchesId = router.stores.ids;
   if (matchesId.get().length > 0) return Promise.resolve();
   if (!isReactiveMatchIds(matchesId)) {
     throw new Error(

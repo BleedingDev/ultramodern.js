@@ -4,19 +4,19 @@
   "type": "module",
   "devDependencies": {
     "@modern-js/renderer-octane": "workspace:*",
-    "@rsbuild/core": "2.2.11",
-    "@tsrx/oxc": "0.20.0",
-    "@types/node": "26.6.4",
-    "playwright-core": "1.63.0"
+    "@rsbuild/core": "2.2.13",
+    "@tsrx/oxc": "0.21.0",
+    "@types/node": "26.6.5",
+    "playwright-core": "1.64.1"
   },
   "dependencies": {
-    "@octanejs/rspack-plugin": "0.1.55",
-    "@octanejs/tanstack-router": "0.1.60",
-    "@rspack/core": "2.2.8",
-    "@tanstack/router-core": "1.171.15",
-    "octane": "0.7.1",
-    "seroval": "1.6.8",
-    "seroval-plugins": "1.6.8",
+    "@octanejs/rspack-plugin": "0.2.4",
+    "@octanejs/tanstack-router": "0.2.10",
+    "@rspack/core": "2.2.9",
+    "@tanstack/router-core": "1.171.37",
+    "octane": "0.13.8",
+    "seroval": "1.6.9",
+    "seroval-plugins": "1.6.9",
     "typescript": "7.0.2"
   }
 }

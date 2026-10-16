@@ -75,10 +75,10 @@
     "validate:supply": "node scripts/ultramodern-supply/sync-patches.mjs && node scripts/ultramodern-supply/verify-sidecars.mjs"
   },
   "engines": {
-    "node": ">=26.10.0",
+    "node": ">=26.12.0",
     "pnpm": ">=12"
   },
-  "packageManager": "pnpm@12.8.1",
+  "packageManager": "pnpm@12.11.2",
   "lint-staged": {
     "!(*.gen).{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"
@@ -93,12 +93,12 @@
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
-    "@babel/plugin-transform-modules-commonjs": "^8.0.1",
+    "@babel/plugin-transform-modules-commonjs": "^7.29.7",
     "@biomejs/biome": "2.5.15",
     "@changesets/cli": "^3.0.3",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
-    "@effect/tsgo": "0.53.0",
+    "@effect/tsgo": "0.53.1",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
@@ -110,8 +110,8 @@
     "check-dependency-version-consistency": "6.0.0",
     "husky": "^9.1.7",
     "lint-staged": "~17.6.0",
-    "nx": "^23.2.1",
-    "oxfmt": "0.71.0",
+    "nx": "^23.3.0",
+    "oxfmt": "0.73.0",
     "rimraf": "^6.1.3",
     "typescript": "7.0.2"
   },

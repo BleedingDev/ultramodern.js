@@ -171,8 +171,8 @@
     "lru-cache": "^11.5.3"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-router": "^7.18.4"
   },
   "peerDependenciesMeta": {
@@ -191,12 +191,12 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.8",
-    "@types/node": "^26.6.3",
-    "happy-dom": "^20.14.5",
-    "ioredis": "^5.11.1",
+    "@types/node": "^26.6.5",
+    "happy-dom": "^21.0.3",
+    "ioredis": "^6.0.0",
     "ioredis-mock": "^8.13.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "7.0.2",
     "react-router": "7.18.4"
   },

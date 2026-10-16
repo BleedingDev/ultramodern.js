@@ -126,16 +126,16 @@ jobs:
       # accepted manifest recorded - and that manifest was written under this
       # exact version. The acceptance runner projects the manifest's Node.js
       # and pnpm versions into Tractor before installing the cohort.
-      - name: Setup Node.js 26.10.0
+      - name: Setup Node.js 26.12.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.10.0'
+          node-version: '26.12.0'
 
       - name: Bind the pinned acceptance interpreter
         run: |
           acceptance_node="$(command -v node)"
           [[ -x "$acceptance_node" ]]
-          [[ "$("$acceptance_node" --version)" == "v26.10.0" ]]
+          [[ "$("$acceptance_node" --version)" == "v26.12.0" ]]
           echo "ULTRAMODERN_ACCEPTANCE_NODE=$acceptance_node" >> "$GITHUB_ENV"
 
       - name: Setup mise
