@@ -210,15 +210,15 @@
   },
   "devDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
-    "@octanejs/rspack-plugin": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octanejs-rspack-plugin-0.2.4.tgz",
-    "@octanejs/tanstack-router": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octanejs-tanstack-router-0.2.10.tgz",
+    "@octanejs/rspack-plugin": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octanejs-rspack-plugin-0.2.4.tgz",
+    "@octanejs/tanstack-router": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octanejs-tanstack-router-0.2.10.tgz",
     "@modern-js/tsconfig": "workspace:*",
     "@rsbuild/core": "2.2.13",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.5",
     "happy-dom": "^21.0.3",
-    "octane": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octane-0.13.8.tgz",
+    "octane": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-d5988dd93614/octane-0.13.8.tgz",
     "typescript": "7.0.2",
     "@tsrx/oxc": "0.20.0"
   },
