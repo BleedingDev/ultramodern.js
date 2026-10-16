@@ -21,7 +21,7 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
     name: '@octanejs/tanstack-router',
     version: '0.2.10',
     coreName: '@tanstack/router-core',
-    coreVersion: '1.171.37',
+    coreVersion: '1.171.34',
   },
   sourceExtensions: ['.tsx', '.tsrx', '.ts', '.js'],
   jsxImportSource: 'octane',
