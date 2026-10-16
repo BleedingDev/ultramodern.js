@@ -9,6 +9,8 @@ import {
   type ResponsePolicy,
   untilAborted,
 } from '@modern-js/renderer-core/session';
+import type { AnyRouter } from '@octanejs/tanstack-router';
+import { transformReadableStreamWithRouter } from '@octanejs/tanstack-router/ssr/server';
 import {
   createElement,
   earlySignalBootstrapScript,
@@ -56,6 +58,8 @@ export interface RenderOctaneApplicationOptions<
   readonly props?: unknown;
   /** Native router serialization, owned by this request's router SSR context. */
   readonly injection?: StreamOptions['injection'];
+  readonly router?: AnyRouter;
+  readonly routerSerializationTimeoutMs?: number;
   /** This server compilation's native Module Federation runtime. */
   readonly federation?: NativeFederationBinding;
 }
@@ -292,7 +296,18 @@ export async function renderOctaneApplication<Bindings extends object>(
       },
       { highWaterMark: 0 },
     );
-    return session.respond(body);
+    return session.respond(
+      input.router
+        ? transformReadableStreamWithRouter(input.router, body, {
+            signal: session.signal,
+            rendererSafePoint: 'script-close',
+            timeoutMs: input.routerSerializationTimeoutMs,
+            onAbort: reason => {
+              void session.fail(reason);
+            },
+          })
+        : body,
+    );
   } catch (error) {
     await session.fail(error);
     throw error;

@@ -5,8 +5,6 @@ import { createElement, type ServerRenderNode } from 'octane/server';
 export * from '@octanejs/tanstack-router/ssr/server';
 export type { OctaneRequestHandlerOptions } from './router-handler';
 export { createOctaneRequestHandler } from './router-handler';
-export type { OctaneRouterInjectionOptions } from './router-injection';
-export { createOctaneRouterInjection } from './router-injection';
 export type {
   OctaneRouterSerializationGuard,
   OctaneRouterSerializationOptions,

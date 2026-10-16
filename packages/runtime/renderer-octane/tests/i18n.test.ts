@@ -1,6 +1,6 @@
 import { createNativeI18n } from '@modern-js/i18n-runtime-extensions/native';
 import { createI18nUrlRewrite } from '@modern-js/i18n-runtime-extensions/urlRewrite';
-import { createElement, createRoot, flushSync } from 'octane';
+import { act, createElement, createRoot, flushSync } from 'octane';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { LocalizedLink } from '../src/i18n/LocalizedLink';
 import type { I18nInstanceLike } from '../src/i18n/types';
@@ -479,7 +479,7 @@ describe('Octane i18n binding', () => {
         expect(sameLanguageHref(root)).toBe('/en/products');
         if (rewrite) expect(router.state.location.pathname).toBe('/dashboard');
 
-        flushSync(() => instance.emit('cs'));
+        await act(async () => instance.emit('cs'));
 
         expect(text(root, 'language')).toBe('cs');
         expect(text(root, 'greeting')).toBe('Ahoj');

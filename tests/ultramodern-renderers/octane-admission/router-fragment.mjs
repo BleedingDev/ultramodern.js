@@ -444,7 +444,7 @@ if (prepareSourceHost) {
       sourceExport('@modern-js/renderer-core/session', 'createRequestSession') +
         sourceExport(
           path.join(adapter, 'src/router-server.ts'),
-          'createOctaneRequestHandler, createOctaneRouterInjection, createSsrStreamResponse, OctaneRouterServer',
+          'createOctaneRequestHandler, createSsrStreamResponse, OctaneRouterServer',
         ) +
         sourceExport(
           path.join(adapter, 'src/server.ts'),
