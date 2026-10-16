@@ -89,7 +89,9 @@ export const rendererAdapter: NativeRendererAdapter<'octane'> =
         ],
         dependencies: nativeRendererDependencies(profile),
         devDependencies: {
-          [profile.compiler.name]: profile.compiler.version,
+          [profile.compiler.name]:
+            profile.dependencies[profile.compiler.name] ??
+            profile.compiler.version,
           typescript: typescriptVersion,
         },
         typecheckCommand: 'octane-tsc --noEmit --project tsconfig.json',

@@ -128,14 +128,15 @@
   },
   "devDependencies": {
     "@solidjs/compiler": "2.0.0-rc.15",
-    "@octanejs/rspack-plugin": "0.1.55",
-    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
+    "@octanejs/rspack-plugin": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octanejs-rspack-plugin-0.2.4.tgz",
+    "octane": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octane-0.13.8.tgz",
     "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.5",
-    "js-yaml": "5.5.0"
+    "js-yaml": "5.5.0",
+    "@tsrx/oxc": "0.20.0"
   },
   "publishConfig": {
     "main": "./dist/esm-node/index.js",

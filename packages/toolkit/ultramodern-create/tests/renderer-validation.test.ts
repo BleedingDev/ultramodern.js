@@ -1043,6 +1043,7 @@ test('maintained Octane distribution pins match the generated requests exactly',
     assertAuthoredRendererDependencyPins(manifest, generation),
   );
   for (const profile of [
+    generation.profile.compiler,
     generation.profile.hydration,
     generation.profile.router,
   ]) {

@@ -3,8 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveSourceFederationDependencies } from '../../../scripts/ultramodern-renderers/native-federation-source-dependencies.mjs';
 
-const octaneVersion = '0.7.1+ultramodern.1331985ea3b0';
-const routerVersion = '0.1.60+ultramodern.0b9f76ee3003';
+const octaneVersion = '0.13.8';
+const routerVersion = '0.2.10';
 
 /** Decode only server segments that Octane completed in the same document. */
 export function decodeOctaneSSRDocument(html) {
@@ -59,6 +59,7 @@ export async function linkOctaneFederationDependencies({
       root,
       'packages/runtime/renderer-core',
     ),
+    '@tsrx/oxc': await real(renderer, '@tsrx/oxc'),
     octane: await real(renderer, 'octane'),
     '@octanejs/tanstack-router': await real(
       renderer,
@@ -105,9 +106,10 @@ export function createOctaneFederationFixtures({
         '@modern-js/renderer-core': 'workspace',
         '@module-federation/enhanced': '2.9.2',
         '@module-federation/node': '2.7.52',
+        '@tsrx/oxc': '0.20.0',
         octane: octaneVersion,
         '@octanejs/tanstack-router': routerVersion,
-        '@octanejs/rspack-plugin': '0.1.55',
+        '@octanejs/rspack-plugin': '0.2.4',
       },
     });
   const tsconfig = JSON.stringify({

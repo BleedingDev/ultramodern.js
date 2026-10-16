@@ -10,11 +10,11 @@
     "playwright-core": "1.64.1"
   },
   "dependencies": {
-    "@octanejs/rspack-plugin": "0.1.55",
-    "@octanejs/tanstack-router": "0.1.60",
+    "@octanejs/rspack-plugin": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octanejs-rspack-plugin-0.2.4.tgz",
+    "@octanejs/tanstack-router": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octanejs-tanstack-router-0.2.10.tgz",
     "@rspack/core": "2.2.9",
-    "@tanstack/router-core": "1.171.37",
-    "octane": "0.7.1",
+    "@tanstack/router-core": "1.171.34",
+    "octane": "https://github.com/BleedingDev/octane/releases/download/ultramodern-octane-ec0a01239bed/octane-0.13.8.tgz",
     "seroval": "1.6.9",
     "seroval-plugins": "1.6.9",
     "typescript": "7.0.2"
