@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // owned-temp-dir --run navigation-installed -- node navigation-installed.mjs \
-//   --cohort-dir <prepared-cohort> --store-dir <external-store> --pnpm <pnpm>
+//   --cohort-dir <prepared-cohort> --store-dir <external-store> --pnpm <pnpm> \
+//   --expected-native-tuples <accepted-native-tuples.json>
 // A source-only lane can use --toolchain-root <installed-checkout> for harness
 // dependencies. Application code always comes from the authenticated cohort.
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { assertLocalizedNavigation } from './navigation-browser.mjs';
 import { localizedNavigationFixture } from './navigation-fixtures.mjs';
+import { assertInstalledNavigationTuple } from './navigation-tuple.mjs';
 
 const readJson = filename => JSON.parse(fs.readFileSync(filename, 'utf8'));
 const writeJson = (filename, value) =>
@@ -23,10 +25,16 @@ const { values } = parseArgs({
     pnpm: { type: 'string' },
     'toolchain-root': { type: 'string' },
     'browser-executable': { type: 'string' },
+    'expected-native-tuples': { type: 'string' },
     renderers: { type: 'string', default: 'solid,octane' },
   },
 });
-for (const option of ['cohort-dir', 'store-dir', 'pnpm'])
+for (const option of [
+  'cohort-dir',
+  'store-dir',
+  'pnpm',
+  'expected-native-tuples',
+])
   assert(values[option], `Missing --${option}`);
 assert(process.env.OWNED_TEMP_DIR, 'Run through owned-temp-dir');
 const temporary = fs.realpathSync(process.env.OWNED_TEMP_DIR);
@@ -72,6 +80,9 @@ const { launchServer, ready, reservePort } = await harness(
 );
 
 const renderers = values.renderers.split(',');
+// The integrator derives this input from the exact accepted native cohort.
+// Keep the separate original Solid and Octane router request identities.
+const expectedNativeTuples = readJson(values['expected-native-tuples']);
 assert(renderers.length > 0 && new Set(renderers).size === renderers.length);
 for (const renderer of renderers)
   assert(
@@ -279,6 +290,14 @@ try {
       });
       await command(pnpm, ['install'], workspaceRoot, `${renderer}-install`);
       checkInstalledCohort({ appRoot, cohort });
+      const nativeTuple = assertInstalledNavigationTuple({
+        appRoot,
+        renderer,
+        expected: expectedNativeTuples[renderer],
+      });
+      process.stdout.write(
+        `Installed ${renderer} navigation tuple: ${JSON.stringify(nativeTuple)}\n`,
+      );
       await command(
         process.execPath,
         [createBin, 'ultramodern', 'sync-delivery-unit'],
