@@ -14,7 +14,15 @@ export function installedPackage(ownerRoot, request) {
   } catch (error) {
     if (error.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error;
     let directory = path.dirname(fs.realpathSync(require.resolve(request)));
-    while (!fs.existsSync(path.join(directory, 'package.json'))) {
+    while (true) {
+      const candidate = path.join(directory, 'package.json');
+      if (fs.existsSync(candidate)) {
+        const manifest = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+        if (typeof manifest.name === 'string' && manifest.name.length > 0) {
+          filename = candidate;
+          break;
+        }
+      }
       const parent = path.dirname(directory);
       assert.notEqual(
         parent,
@@ -23,7 +31,6 @@ export function installedPackage(ownerRoot, request) {
       );
       directory = parent;
     }
-    filename = path.join(directory, 'package.json');
   }
   filename = fs.realpathSync(filename);
   return {
@@ -84,6 +91,16 @@ export function assertInstalledNavigationTuple({
     expected.routerCore,
   );
   const history = check(core.directory, '@tanstack/history', expected.history);
+  const directHistory = check(
+    routerOwner.directory,
+    '@tanstack/history',
+    expected.history,
+  );
+  assert.equal(
+    directHistory.directory,
+    history.directory,
+    `${renderer} must share the router history instance`,
+  );
   const result = { routerCore: core.manifest, history: history.manifest };
   if (renderer === 'octane') return result;
 
@@ -98,17 +115,24 @@ export function assertInstalledNavigationTuple({
     name: '@solidjs/compiler',
     version: solidVersion,
   });
-  for (const name of ['solid-js', '@solidjs/signals']) {
-    const fromWeb = check(native['@solidjs/web'].directory, name, {
-      name,
-      version: solidVersion,
-    });
-    assert.equal(
-      fromWeb.directory,
-      native[name].directory,
-      `${name} must share the web runtime instance`,
-    );
-  }
+  const webSolid = check(native['@solidjs/web'].directory, 'solid-js', {
+    name: 'solid-js',
+    version: solidVersion,
+  });
+  assert.equal(
+    webSolid.directory,
+    native['solid-js'].directory,
+    'solid-js must share the web runtime instance',
+  );
+  const solidSignals = check(native['solid-js'].directory, '@solidjs/signals', {
+    name: '@solidjs/signals',
+    version: solidVersion,
+  });
+  assert.equal(
+    solidSignals.directory,
+    native['@solidjs/signals'].directory,
+    '@solidjs/signals must share the Solid runtime instance',
+  );
   for (const name of ['seroval', 'seroval-plugins']) {
     const fromSolid = check(native['solid-js'].directory, name, {
       name,
