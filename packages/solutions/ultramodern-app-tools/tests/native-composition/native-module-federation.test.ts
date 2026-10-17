@@ -148,6 +148,27 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
   const versions = (renderer: NativeRenderer = 'solid') =>
     resolveNativeSharedVersions(renderer, path.resolve(__dirname, '../..'));
 
+  it.each(['client', 'server'] as const)(
+    'keeps %s native serializer resolution outside global federation aliases',
+    environment => {
+      const bindings = resolveNativeSharedBindings(
+        'solid',
+        path.resolve(__dirname, '../..'),
+        environment,
+      );
+      for (const name of ['seroval', 'seroval-plugins']) {
+        expect(bindings.aliases).not.toHaveProperty(`${name}$`);
+        expect(bindings.imports).not.toHaveProperty(name);
+        expect(bindings.versions).not.toHaveProperty(name);
+      }
+      expect(bindings.versions['solid-js']).toBe('2.0.0-rc.15');
+      expect(bindings.versions['@solidjs/web']).toBe('2.0.0-rc.15');
+      expect(bindings.aliases['@solidjs/web$']).toBe(
+        bindings.imports['@solidjs/web'],
+      );
+    },
+  );
+
   it.each(nativeRenderers)(
     '%s pins singletons to installed versions, not manifest ranges',
     renderer => {

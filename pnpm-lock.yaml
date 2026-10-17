@@ -2456,12 +2456,6 @@ importers:
       isbot:
         specifier: 5.2.2
         version: 5.2.2
-      seroval:
-        specifier: 1.6.9
-        version: 1.6.9
-      seroval-plugins:
-        specifier: 1.6.9
-        version: 1.6.9(seroval@1.6.9)
       solid-js:
         specifier: 2.0.0-rc.15
         version: 2.0.0-rc.15
@@ -6016,12 +6010,6 @@ importers:
       '@solidjs/web':
         specifier: 2.0.0-rc.15
         version: 2.0.0-rc.15(solid-js@2.0.0-rc.15)
-      seroval:
-        specifier: 1.6.9
-        version: 1.6.9
-      seroval-plugins:
-        specifier: 1.6.9
-        version: 1.6.9(seroval@1.6.9)
       solid-js:
         specifier: 2.0.0-rc.15
         version: 2.0.0-rc.15
