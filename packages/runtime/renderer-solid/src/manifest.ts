@@ -5,7 +5,7 @@ import {
   readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
 
-export const SOLID_COMPILER_VERSION = '2.0.0-rc.13';
+export const SOLID_COMPILER_VERSION = '2.0.0-rc.15';
 export function solidModuleManifestFilename(entryName: string): string {
   return nativeModuleManifestFilename('solid', entryName);
 }
@@ -124,7 +124,7 @@ function requireStrings(
   }
 }
 
-/** Validate the same path concatenation used by the native rc13 asset resolver. */
+/** Validate the same path concatenation used by the native rc15 asset resolver. */
 function validateAssetUrl(base: string | undefined, file: string): void {
   const prefix = base || '/';
   const joined = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(file)

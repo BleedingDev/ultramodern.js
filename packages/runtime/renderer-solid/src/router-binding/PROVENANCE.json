@@ -16,7 +16,7 @@
       "upstreamVersion": "1.170.36",
       "routerCoreVersion": "1.171.34",
       "files": ["Scripts.tsx", "link.tsx"],
-      "adaptation": "Native body-script composition and positional search equality are ported from the matching router-core release. The owned binding retains Solid 2 RC.13 JSX, NoHydration, keyed public match transfer and its module-keyed client-assets resolver."
+      "adaptation": "Native body-script composition and positional search equality are ported from the matching router-core release. The owned binding retains Solid 2 RC.15 JSX, NoHydration, keyed public match transfer and its module-keyed client-assets resolver."
     }
   ],
   "upstreamFileSha256": {
@@ -69,11 +69,11 @@
   "localChanges": [
     "The public router surface omits InjectedHtmlEntry, isPlainArray and isPlainObject, which router-core 1.171.34 no longer exports. SSR options use the current top-level serializationAdapters contract and the public Solid 2 option types without legacy fallbacks or type assertions.",
     "Authored JSX types import @solidjs/web and have explicit return annotations for Solid 2 declaration generation.",
-    "Hydration state and keyed match transfer use Solid 2 RC.13 public isHydrating, isHydratable, getHydrationWriter and takeHydrationValue APIs.",
+    "Hydration state and keyed match transfer use Solid 2 RC.15 public isHydrating, isHydratable, getHydrationWriter and takeHydrationValue APIs.",
     "Explicit public beforeLoad results transfer after canonical validation; private request context stays in owner closures. Initial hydration inherits checked server beforeLoad contributions, invokes the native client route-context callback and preserves client options context without rerunning initial beforeLoad callbacks or loaders.",
     "Public native route/view data is projected into deeply frozen canonical plain or null-prototype records, arrays and scalars. Date, RegExp, Map and Set are unsupported at this immutable native UI boundary; the shared HTTP data codec retains its rich-data contract. Authored originals remain untouched.",
     "Owner-scoped alias caches preserve shared critical objects and checked flat deferred transports. Promise fulfillments and rejections are freshly validated, cloned and frozen; unsupported values fail their owning scope. Request preflight captures stable public match snapshots before response commit, excluding known private request identities.",
-    "Fresh checked Promise handles are sealed with controlled nonenumerable s/v accessors matching the audited Solid RC.13 state protocol. Status accepts undefined, 0, 1 or 2; assigned values receive the same descriptor-safe immutable public/error projection and private-reference checks. Unsupported AsyncIterable state and unsafe annotations fail the owning scope. Authored Promise handles remain unchanged.",
+    "Fresh checked Promise handles are sealed with controlled nonenumerable s/v accessors matching the Solid RC.15 state protocol. Status accepts undefined, 0, 1 or 2; assigned values receive the same descriptor-safe immutable public/error projection and private-reference checks. Unsupported AsyncIterable state and unsafe annotations fail the owning scope. Authored Promise handles remain unchanged.",
     "Only the native keyed hydration receiver admits decoded Promise metadata: exact native prototypes, own s/v data descriptors and documented states 0, 1 or 2. Settled states require a checked public value; symbols, accessors, extra fields and AsyncIterable metadata reject before atomic publication. A detached controlled transport adopts valid settled metadata synchronously before native views consume it. General authored Promise validation remains metadata-free and decoded originals remain untouched.",
     "Managed route-tree owners apply the same public projection before native client hydration commits. The owning native store publisher validates the complete offered chain, rewrites composed-context fields to checked public references and freezes the same native context root before publication. Registry claiming consumes the complete matched chain and owns pending rejections before choosing atomic fallback.",
     "Inside UltraModern request-owned SSR, the native provider and match serializer reject unregistered custom native routers before rendering or transfer; managed filesystem/application factories own the immutable public boundary and route-tree owner registration remains internal. Bare native rendering without an UltraModern request remains an ABI probe and does not claim framework privacy qualification.",
@@ -88,7 +88,8 @@
       "observed": "Native inline resolver scripts reject registry Promises without a rejection handler; browser page errors occur before router construction. Binding claims cannot retroactively handle those errors.",
       "supportedProducer": "The maintained match producer writes only settled synchronous records and excludes pending matches. Critical public-data failures are rejected before headers; unsupported deferred values fail the owning session and abort native serialization.",
       "diagnostic": "ULTRAMODERN_SOLID_RAW_PROTOCOL_DIAGNOSTIC=1 node tests/ultramodern-renderers/solid-admission/run.mjs",
-      "qualification": "The raw injection is an opt-in unsupported native-protocol diagnostic, excluded from the maintained producer qualification; its failure remains visible and unsuppressed."
+      "qualification": "The raw injection is an opt-in unsupported native-protocol diagnostic, excluded from the maintained producer qualification; its failure remains visible and unsuppressed.",
+      "observationStatus": "historical RC13 observation; RC15 raw protocol behavior has not been re-observed"
     }
   ]
 }

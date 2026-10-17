@@ -1004,8 +1004,8 @@ describe('native renderer share tuple', () => {
     profile: {
       renderer: 'solid',
       protocolVersion: 1,
-      compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-      hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+      compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+      hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
       router: {
         name: '@modern-js/renderer-solid',
         version: '3.8.3',
@@ -1013,14 +1013,14 @@ describe('native renderer share tuple', () => {
         coreVersion: '1.171.34',
       },
     },
-    runtime: { name: 'solid-js', version: '2.0.0-rc.13' },
+    runtime: { name: 'solid-js', version: '2.0.0-rc.15' },
     bootstrap: { name: '@modern-js/renderer-solid', version: '3.8.3' },
   };
 
   test('derives exact versions from the native tuple instead of React packages', () => {
     expect(Object.fromEntries(rendererShareVersions(solid))).toEqual({
-      'solid-js': '2.0.0-rc.13',
-      '@solidjs/web': '2.0.0-rc.13',
+      'solid-js': '2.0.0-rc.15',
+      '@solidjs/web': '2.0.0-rc.15',
       '@modern-js/renderer-solid': '3.8.3',
       '@tanstack/router-core': '1.171.34',
     });
@@ -1049,7 +1049,7 @@ describe('native renderer share tuple', () => {
       resolver: () => ({ shared: { version: '2.0.0-rc.12' } }),
     });
     expect(() => args.resolver()).toThrow(
-      'shared solid-js version must be 2.0.0-rc.13',
+      'shared solid-js version must be 2.0.0-rc.15',
     );
     const react = plugin.resolveShare({
       pkgName: 'react',

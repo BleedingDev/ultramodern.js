@@ -83,19 +83,17 @@
     "@babel/core": "7.29.7",
     "@jridgewell/remapping": "2.3.5",
     "@modern-js/renderer-core": "workspace:*",
-    "@solidjs/signals": "2.0.0-rc.13",
-    "@solidjs/web": "2.0.0-rc.13",
+    "@solidjs/signals": "2.0.0-rc.15",
+    "@solidjs/web": "2.0.0-rc.15",
     "@tanstack/history": "1.162.4",
     "@tanstack/router-core": "1.171.34",
     "isbot": "5.2.2",
-    "seroval": "1.6.8",
-    "seroval-plugins": "1.6.8",
-    "solid-js": "2.0.0-rc.13"
+    "solid-js": "2.0.0-rc.15"
   },
   "peerDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:^3.8.3",
     "@rsbuild/core": "2.2.11",
-    "@solidjs/compiler": "2.0.0-rc.13",
+    "@solidjs/compiler": "2.0.0-rc.15",
     "i18next": ">=25.7.4"
   },
   "peerDependenciesMeta": {
@@ -118,7 +116,7 @@
     "@rsbuild/core": "2.2.11",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@solidjs/compiler": "2.0.0-rc.13",
+    "@solidjs/compiler": "2.0.0-rc.15",
     "@types/node": "^26.6.3"
   },
   "sideEffects": false,

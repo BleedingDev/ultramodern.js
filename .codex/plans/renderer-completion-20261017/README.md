@@ -12,6 +12,10 @@ Excluded work remains in separate conversations/issues: all Ontos application ed
 
 Read the referenced source in each plan, run the original failing consumer, implement at its owning layer, then run the next real consumer. Do not spend turns repeating unchanged CI or replacing implementation with bookkeeping. Preserve strict minimumReleaseAge1440. Use CEST in user updates. Never delete pre-existing outputs under the guise of disk optimization.
 
+## Required Solid target
+
+Solid application implementation and release acceptance target Solid 2.0.0-rc.15, including the matching @solidjs/web, @solidjs/signals and compiler. The runtime and web package declare Seroval and seroval-plugins 1.6.7 exactly. Requalify the actual installed application, generated entry, streaming/hydration, navigation and development refresh against this tuple. Historical RC13 results remain historical evidence. Native TanStack Solid 1 baseline tests and the mistakenly produced Solid 1.9.17 fork do not qualify Solid 2 and must not become the application dependency. Track this correction under modernjs-dnpv3.58.19. Preserve useful renderer-neutral router changes; never mechanically upgrade upstream-owned Solid 1 packages to Solid 2 or hide their test failures.
+
 ## Reproduce the graph
 
 Run `python3 -S graph.py validate`, `python3 -S graph.py dag --format mermaid`, `python3 -S graph.py frontier --lanes 4 --max-depth 1`, or `python3 -S graph.py summary --format json` from this directory. Add `--read-only` to omit saved-state writes, for example `python3 -S graph.py validate --read-only`. graph.py only calls the installed plan-graph CLI with this exact selection and edge set; it does not implement another parser. The saved graph identity and selection hash are in handoff.json. Re-run in a new checkout to regenerate absolute paths and selection hash. This plan directory is intentionally committed despite the global .codex ignore so the implementation and its execution plan cannot be lost.

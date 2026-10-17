@@ -325,7 +325,7 @@ describe('SSR native Promise serialization candidate', () => {
         match => match[0],
       );
     };
-    // RC13 emits its native recovery templates here; the owning browser fixture
+    // RC15 emits its native recovery templates here; the owning browser fixture
     // qualifies eventual hydration rather than inferring it from server text.
     const baseline = await run(false);
     expect(await run(true)).toEqual(baseline);

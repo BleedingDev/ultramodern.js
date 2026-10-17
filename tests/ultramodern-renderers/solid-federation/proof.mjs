@@ -131,9 +131,9 @@ const packageJson = name =>
       '@module-federation/node':
         packedContext?.packageRequests['@module-federation/node'] ??
         sourceFederation.node.version,
-      'solid-js': '2.0.0-rc.13',
-      '@solidjs/web': '2.0.0-rc.13',
-      '@solidjs/signals': '2.0.0-rc.13',
+      'solid-js': '2.0.0-rc.15',
+      '@solidjs/web': '2.0.0-rc.15',
+      '@solidjs/signals': '2.0.0-rc.15',
     },
   });
 
@@ -262,7 +262,7 @@ async function waitFor(check, label, timeout = 30_000) {
 const shareScopeSource = `(() => {
   const instance = globalThis.__FEDERATION__.__INSTANCES__.find(item => item.name === 'host');
   const scope = instance.shareScopeMap.default;
-  return Object.fromEntries(['solid-js', '@solidjs/web', '@solidjs/signals'].map(name => [
+  return Object.fromEntries(['solid-js', '@solidjs/web', '@solidjs/signals', 'seroval', 'seroval-plugins'].map(name => [
     name,
     Object.entries(scope[name] ?? {}).map(([version, shared]) => ({ version, from: shared.from, loaded: Boolean(shared.loaded || shared.lib) })),
   ]));
@@ -309,8 +309,14 @@ async function exerciseRemoteWidget(result) {
   assert.equal(result.labelAfter, 'relabelled');
   assert.equal(result.color, 'rgb(1, 2, 3)', 'the remote stylesheet applies');
   assert.match(result.reactRejected, /Renderer federation manifest contract/u);
-  for (const [name, versions] of Object.entries(result.shareScope))
-    assert.equal(versions.length, 1, `${name} has exactly one shared version`);
+  for (const [name, versions] of Object.entries(result.shareScope)) {
+    const independentCodec = name === 'seroval' || name === 'seroval-plugins';
+    assert.equal(
+      versions.length,
+      independentCodec ? 0 : 1,
+      `${name} respects native runtime and HTTP codec ownership`,
+    );
+  }
   assert.equal(result.pageErrors, '', 'no uncaught page errors');
   assert.doesNotMatch(result.console, /hydrat/iu, 'no hydration diagnostics');
 }

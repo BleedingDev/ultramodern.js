@@ -115,8 +115,9 @@ async function initialize() {
     new URL('./binding-fixture/solid-loader.cjs', import.meta.url),
   );
   const compilerPath = resolve.resolve('@solidjs/compiler');
-  const preserveImports = fileURLToPath(
-    new URL('./fixture/preserve-import-loader.cjs', import.meta.url),
+  const preserveImports = path.join(
+    path.dirname(resolve.resolve('@modern-js/renderer-solid/package.json')),
+    'src/plugin/preserve-import-loader.cjs',
   );
   const rsbuild = await createRsbuild({
     cwd: fixture,

@@ -180,7 +180,7 @@ function projectDeferred(
   promises.set(promise, observation);
   promises.set(projection, observation);
   projectedPromises.add(projection);
-  // RC.13 annotates native Promise handles with s then v. Keep that protocol
+  // RC.15 annotates native Promise handles with s then v. Keep that protocol
   // while preventing metadata from becoming a second unchecked value channel.
   let status: 0 | 1 | 2 | undefined;
   let settledValue: unknown;

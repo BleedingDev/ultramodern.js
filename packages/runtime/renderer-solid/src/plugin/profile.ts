@@ -12,8 +12,8 @@ export const solidProfile: RendererBuildProfile<'solid'> = {
     roots: 'single',
     cleanup: 'exactly-once',
   },
-  compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-  hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+  compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+  hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
   router: {
     name: '@modern-js/renderer-solid',
     version: '3.8.3',
@@ -23,13 +23,11 @@ export const solidProfile: RendererBuildProfile<'solid'> = {
   sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
   jsxImportSource: '@solidjs/web',
   dependencies: {
-    'solid-js': '2.0.0-rc.13',
-    '@solidjs/web': '2.0.0-rc.13',
-    '@solidjs/signals': '2.0.0-rc.13',
-    '@solidjs/compiler': '2.0.0-rc.13',
+    'solid-js': '2.0.0-rc.15',
+    '@solidjs/web': '2.0.0-rc.15',
+    '@solidjs/signals': '2.0.0-rc.15',
+    '@solidjs/compiler': '2.0.0-rc.15',
     '@modern-js/renderer-solid': '3.8.3',
-    seroval: '1.6.8',
-    'seroval-plugins': '1.6.8',
   },
   capabilities: {
     worker: true,

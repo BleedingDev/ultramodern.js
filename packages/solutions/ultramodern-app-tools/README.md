@@ -63,7 +63,7 @@ endpoints live in `@modern-js/renderer-core/entry-client` and
 
 ## Supported preview profile
 
-Solid **2.0.0-rc.13** and Octane are Node previews with CSR, native streaming SSR,
+Solid **2.0.0-rc.15** and Octane are Node previews with CSR, native streaming SSR,
 hydration, route loading and actions. Their exact compiler, runtime and router
 pins come from `resolveRendererProfile` exported by this package. Octane uses
 the maintained [BleedingDev release artifacts](https://github.com/bleedingdev/octane/releases)

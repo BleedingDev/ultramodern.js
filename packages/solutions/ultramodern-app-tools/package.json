@@ -193,7 +193,7 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/runtime-renderer-extensions": "workspace:*",
-    "@solidjs/compiler": "2.0.0-rc.13",
+    "@solidjs/compiler": "2.0.0-rc.15",
     "@octanejs/rspack-plugin": "0.1.55",
     "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
     "@modern-js/renderer-solid": "workspace:*",

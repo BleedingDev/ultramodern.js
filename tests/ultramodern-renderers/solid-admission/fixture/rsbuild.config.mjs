@@ -1,6 +1,13 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@rsbuild/core';
 
+const resolve = createRequire(import.meta.url);
+const preserveImports = path.join(
+  path.dirname(resolve.resolve('@modern-js/renderer-solid/package.json')),
+  'src/plugin/preserve-import-loader.cjs',
+);
 const loader = fileURLToPath(new URL('./solid-loader.cjs', import.meta.url));
 const solidPlugin = {
   name: 'ultramodern-solid-admission-compiler',
@@ -18,11 +25,7 @@ const solidPlugin = {
         config.module.rules.unshift({
           test: /[/]@solidjs[/]web[/]dist[/]web(?:\.dev)?\.js$/,
           enforce: 'pre',
-          use: [
-            fileURLToPath(
-              new URL('./preserve-import-loader.cjs', import.meta.url),
-            ),
-          ],
+          use: [preserveImports],
         });
         config.experiments = { ...config.experiments, outputModule: true };
         config.output = {

@@ -1,10 +1,10 @@
 {
   "renderer": "solid",
   "status": "preview",
-  "auditedAt": "2026-10-03",
-  "registryObservedAt": "2026-10-03T00:33:09Z",
-  "runtime": "2.0.0-rc.13",
-  "compiler": "2.0.0-rc.13",
+  "historicalRc13AuditedAt": "2026-10-03",
+  "registryObservedAt": "2026-10-17T05:22:32.535983+00:00",
+  "runtime": "2.0.0-rc.15",
+  "compiler": "2.0.0-rc.15",
   "router": "@modern-js/renderer-solid@3.8.3",
   "routerApi": "@modern-js/renderer-solid/router",
   "routerBindingSource": {
@@ -14,8 +14,8 @@
   },
   "routerCore": "1.171.34",
   "history": "1.162.4",
-  "nativeSerializer": "1.6.8",
-  "nativeSerializerPlugins": "1.6.8",
+  "nativeSerializer": "1.6.7",
+  "nativeSerializerPlugins": "1.6.7",
   "rsbuild": "2.2.11",
   "rspack": "2.2.8",
   "nodeMinimum": "26.10.0",
@@ -44,7 +44,7 @@
     "unsupportedContainers": ["Date", "RegExp", "Map", "Set"],
     "authoredValues": "Preserved unchanged; native hooks receive the checked public projection.",
     "httpDataTransport": "The shared rich codec and action HTTP transport retain their full value contract.",
-    "reason": "Solid 2 RC.13 has no public projection hook before native border serialization reads properties; freezing rich mutable internal slots does not enforce snapshot safety."
+    "reason": "The owned native boundary projects and freezes supported public values before Solid serialization reads them; rich mutable internal slots do not enforce snapshot safety."
   },
   "limitations": {
     "worker": "Not certified. Native request scoping uses @solidjs/web/storage and requires node:async_hooks AsyncLocalStorage support.",
@@ -54,7 +54,7 @@
   },
   "admission": "pending",
   "internalNativeAdmission": {
-    "status": "passed",
+    "status": "historical-passed",
     "observedAt": "2026-10-03T01:25:16Z",
     "scope": "Independently packed native API, compiler, maintained router, HMR, streaming and browser hydration mechanics",
     "finalMappedFrameworkCohort": false,
@@ -66,13 +66,15 @@
     "bindingBrowserTests": 7,
     "managedDeferredBrowserCases": 3,
     "zeroAllServerDiagnosticsClaim": false,
-    "ownedResourcesCleaned": true
+    "ownedResourcesCleaned": true,
+    "runtime": "2.0.0-rc.13",
+    "currentTargetQualification": "pending at 2.0.0-rc.15"
   },
   "blockers": {
-    "maintainedBindingQualification": "Strict owning source, current packed declarations and native matching/navigation/SSR/hydration mechanics pass. Fresh final framework cohort and the public configuration pipeline remain required.",
-    "publicRouteProjection": "The owning managed pipeline and current packed native API pass immutable public snapshot, authored-original preservation, native Promise metadata, composed-context and raw-router rejection tests. Fresh final framework artifacts must requalify the generated public route pipeline.",
-    "supportedDeferredHydration": "Managed native ESM SSR-to-browser fulfilled, held early rejection and real pending-stream late rejection pass, including native boundary reset, native router retry, cleanup and zero unhandled browser events. Fresh final-cohort and public generated-entry qualification remain required.",
-    "owningTransferControl": "The owning managed pipeline proves critical failures before commit, deferred reader failure with zero getter/private bytes and settled-only whole-match records. Fresh packed artifacts must requalify the producer contract; raw writer injection remains unsupported."
+    "maintainedBindingQualification": "Historical RC13 evidence is recorded below. RC15 packed consumer and generated public pipeline qualification remain required.",
+    "publicRouteProjection": "Historical RC13 evidence is recorded below. RC15 packed consumer and generated public pipeline qualification remain required.",
+    "supportedDeferredHydration": "Historical RC13 evidence is recorded below. RC15 packed consumer and generated public pipeline qualification remain required.",
+    "owningTransferControl": "Historical RC13 evidence is recorded below. RC15 packed consumer and generated public pipeline qualification remain required."
   },
   "nativePromiseSerialization": {
     "owner": "@modern-js/renderer-solid@3.8.3",
@@ -81,7 +83,7 @@
     "applicationCodec": "unchanged"
   },
   "managedDeferredHydration": {
-    "status": "passed",
+    "status": "historical-passed",
     "scope": "Packed managed filesystem data, native SSR, native ESM browser hydration",
     "fullNativeAdmission": false,
     "cases": [
@@ -92,6 +94,8 @@
     "zeroBrowserErrors": true,
     "baselineSolidSha256": "07f9bb515904da02c5710e8882c3ad025f8153682144c1a414378e843f2bcfc7",
     "candidateSolidSha256": "f56cd2d5733067bfebae73ca9ed7ded84d8b8f0f8c052cb2dca2aaf69302268e",
-    "rendererCoreSha256": "28bf317e3790abd9a047faa4c935b1382fea7fa66c2106a43d9190933aa2da3b"
+    "rendererCoreSha256": "28bf317e3790abd9a047faa4c935b1382fea7fa66c2106a43d9190933aa2da3b",
+    "runtime": "2.0.0-rc.13",
+    "currentTargetQualification": "pending at 2.0.0-rc.15"
   }
 }

@@ -142,8 +142,6 @@ export async function assertNativePackageGraph(consumerDirectory) {
   assert.equal(manifest.dependencies['@tanstack/router-core'], '1.171.34');
   assert.equal(manifest.dependencies['@tanstack/history'], '1.162.4');
   assert.equal(manifest.dependencies.isbot, '5.2.2');
-  assert.equal(manifest.dependencies.seroval, '1.6.8');
-  assert.equal(manifest.dependencies['seroval-plugins'], '1.6.8');
   assert.equal(manifest.dependencies['@tanstack/solid-router'], undefined);
   const nativeResolve = createRequire(router);
   const versions = {};
@@ -164,14 +162,12 @@ export async function assertNativePackageGraph(consumerDirectory) {
     throw new Error(`Installed native package escaped the consumer: ${name}`);
   }
   for (const [name, expected] of Object.entries({
-    'solid-js': '2.0.0-rc.13',
-    '@solidjs/web': '2.0.0-rc.13',
-    '@solidjs/signals': '2.0.0-rc.13',
+    'solid-js': '2.0.0-rc.15',
+    '@solidjs/web': '2.0.0-rc.15',
+    '@solidjs/signals': '2.0.0-rc.15',
     '@tanstack/router-core': '1.171.34',
     '@tanstack/history': '1.162.4',
     isbot: '5.2.2',
-    seroval: '1.6.8',
-    'seroval-plugins': '1.6.8',
   })) {
     const installed = await installedManifest(name, nativeResolve);
     assert.equal(
@@ -182,7 +178,7 @@ export async function assertNativePackageGraph(consumerDirectory) {
     versions[name] = installed.manifest.version;
   }
   for (const [name, expected] of Object.entries({
-    '@solidjs/compiler': '2.0.0-rc.13',
+    '@solidjs/compiler': '2.0.0-rc.15',
     '@rsbuild/core': '2.2.11',
     '@babel/core': '7.29.7',
     playwright: '1.63.0',
@@ -204,6 +200,51 @@ export async function assertNativePackageGraph(consumerDirectory) {
   assert.equal(rspack.manifest.version, '2.2.8', 'Rspack version drift');
   versions['@rspack/core'] = rspack.manifest.version;
   const core = await installedManifest('@tanstack/router-core', nativeResolve);
+  // Solid's hydration writer and its plugins must use one native serializer.
+  // The router's separate HTTP/SSR codec is checked below, not shared with it.
+  const web = await installedManifest('@solidjs/web', nativeResolve);
+  const webResolve = createRequire(path.join(web.directory, 'package.json'));
+  for (const name of ['seroval', 'seroval-plugins']) {
+    const installed = await installedManifest(name, webResolve);
+    assert.equal(installed.manifest.version, '1.6.7');
+    versions[name] = installed.manifest.version;
+  }
+  const serializer = await realpath(webResolve.resolve('seroval'));
+  const serializerPlugins = await realpath(
+    webResolve.resolve('seroval-plugins/web'),
+  );
+  const signals = await realpath(nativeResolve.resolve('@solidjs/signals'));
+  for (const name of ['solid-js', '@solidjs/web']) {
+    const installed = await installedManifest(name, nativeResolve);
+    const nativePackageResolve = createRequire(
+      path.join(installed.directory, 'package.json'),
+    );
+    assert.equal(
+      await realpath(nativePackageResolve.resolve('seroval')),
+      serializer,
+      `${name} resolved a different native Seroval instance`,
+    );
+    assert.equal(
+      await realpath(nativePackageResolve.resolve('seroval-plugins/web')),
+      serializerPlugins,
+      `${name} resolved different native serializer plugins`,
+    );
+  }
+  const solid = await installedManifest('solid-js', nativeResolve);
+  assert.equal(
+    await realpath(
+      createRequire(path.join(solid.directory, 'package.json')).resolve(
+        '@solidjs/signals',
+      ),
+    ),
+    signals,
+    'Solid resolved a different signals instance',
+  );
+  assert.equal(
+    await realpath(createRequire(serializerPlugins).resolve('seroval')),
+    serializer,
+    'Native serializer plugins resolved a different Seroval instance',
+  );
   const coreResolve = createRequire(path.join(core.directory, 'package.json'));
   const plugin = await installedManifest('seroval-plugins', coreResolve);
   const pluginResolve = createRequire(
@@ -212,12 +253,12 @@ export async function assertNativePackageGraph(consumerDirectory) {
   assert.equal(
     (await installedManifest('seroval', pluginResolve)).manifest.version,
     '1.6.8',
-    'Native router serializer plugin resolved an incompatible Seroval',
+    'Router HTTP serializer plugin version drift',
   );
   assert.equal(
     (await installedManifest('seroval', coreResolve)).manifest.version,
     '1.6.8',
-    'Native router resolved an incompatible Seroval',
+    'Router HTTP serializer version drift',
   );
   const installed = await readdir(
     path.join(consumerDirectory, 'node_modules/.pnpm'),
@@ -225,7 +266,7 @@ export async function assertNativePackageGraph(consumerDirectory) {
   for (const name of installed) {
     assert.doesNotMatch(
       name,
-      /^(?:@tanstack\+solid-router@|@solid-devtools\+|@solid-primitives\+|react@|react-dom@)/u,
+      /^(?:solid-js@1\.|@tanstack\+solid-router@|@solid-devtools\+|@solid-primitives\+|react@|react-dom@)/u,
       `Native dependency graph contains an unrelated or obsolete runtime: ${name}`,
     );
   }

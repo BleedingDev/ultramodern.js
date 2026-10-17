@@ -381,12 +381,12 @@ test('authored renderer ABI pins resolve explicit catalogs and reject mismatches
       assertAuthoredRendererDependencyPins(
         {
           ...manifest,
-          devDependencies: { '@solidjs/compiler': '^2.0.0-rc.13' },
+          devDependencies: { '@solidjs/compiler': '^2.0.0-rc.15' },
         },
         generation,
         catalogs,
       ),
-    /declared renderer ABI \^2.0.0-rc.13 disagrees/,
+    /declared renderer ABI \^2.0.0-rc.15 disagrees/,
   );
   assert.throws(
     () =>

@@ -136,8 +136,8 @@ function solidCandidate(): RendererBuildProfile {
       roots: 'single',
       cleanup: 'exactly-once',
     },
-    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
-    hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+    compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.15' },
+    hydration: { name: '@solidjs/web', version: '2.0.0-rc.15' },
     router: {
       name: solidPackage,
       version: '3.8.3',
@@ -150,8 +150,8 @@ function solidCandidate(): RendererBuildProfile {
       [solidPackage]: '3.8.3',
       '@modern-js/renderer-core': '3.8.3',
       '@modern-js/builder': '3.9.0',
-      '@solidjs/compiler': '2.0.0-rc.13',
-      '@solidjs/web': '2.0.0-rc.13',
+      '@solidjs/compiler': '2.0.0-rc.15',
+      '@solidjs/web': '2.0.0-rc.15',
     }),
     capabilities: {
       worker: false,
@@ -286,8 +286,8 @@ describe('physical installed framework profile identities', () => {
         [solidPackage]: installedVersion,
         '@modern-js/renderer-core': installedVersion,
         '@modern-js/builder': installedVersion,
-        '@solidjs/compiler': '2.0.0-rc.13',
-        '@solidjs/web': '2.0.0-rc.13',
+        '@solidjs/compiler': '2.0.0-rc.15',
+        '@solidjs/web': '2.0.0-rc.15',
       });
       expect(
         Object.hasOwn(metadata.profile.dependencies, mappedSolidPackage),

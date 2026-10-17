@@ -86,8 +86,9 @@ before(async () => {
   const loader = fileURLToPath(
     new URL('./binding-fixture/solid-loader.cjs', import.meta.url),
   );
-  const preserveImports = fileURLToPath(
-    new URL('./fixture/preserve-import-loader.cjs', import.meta.url),
+  const preserveImports = path.join(
+    path.dirname(resolve.resolve('@modern-js/renderer-solid/package.json')),
+    'src/plugin/preserve-import-loader.cjs',
   );
   const plugin = {
     name: 'solid-native-binding-registry-probe',

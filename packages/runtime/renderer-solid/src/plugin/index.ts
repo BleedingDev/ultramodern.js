@@ -32,8 +32,6 @@ export const rendererAdapter: NativeRendererAdapter<'solid'> =
         'solid-js',
         '@solidjs/web',
         '@solidjs/signals',
-        'seroval',
-        'seroval-plugins',
         '@modern-js/renderer-solid',
         '@modern-js/renderer-solid/client',
         '@modern-js/renderer-solid/router',

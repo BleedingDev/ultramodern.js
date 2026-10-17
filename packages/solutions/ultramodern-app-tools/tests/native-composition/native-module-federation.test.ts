@@ -124,7 +124,7 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       const installed = versions(renderer);
       const runtime = renderer === 'solid' ? 'solid-js' : 'octane';
       expect(installed[runtime]).toBe(
-        renderer === 'solid' ? '2.0.0-rc.13' : '0.7.1+ultramodern.1331985ea3b0',
+        renderer === 'solid' ? '2.0.0-rc.15' : '0.7.1+ultramodern.1331985ea3b0',
       );
       expect(installed['@modern-js/renderer-core/']).toMatch(/^\d+\.\d+\.\d+/u);
       expect(() => resolveNativeSharedVersions(renderer, os.tmpdir())).toThrow(
