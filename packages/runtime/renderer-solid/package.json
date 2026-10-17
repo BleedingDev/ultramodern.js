@@ -88,8 +88,6 @@
     "@tanstack/history": "1.162.5",
     "@tanstack/router-core": "1.171.37",
     "isbot": "5.2.2",
-    "seroval": "1.6.9",
-    "seroval-plugins": "1.6.9",
     "solid-js": "2.0.0-rc.15"
   },
   "peerDependencies": {

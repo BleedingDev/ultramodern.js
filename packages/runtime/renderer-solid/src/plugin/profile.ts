@@ -28,8 +28,6 @@ export const solidProfile: RendererBuildProfile<'solid'> = {
     '@solidjs/signals': '2.0.0-rc.15',
     '@solidjs/compiler': '2.0.0-rc.15',
     '@modern-js/renderer-solid': '3.8.3',
-    seroval: '1.6.9',
-    'seroval-plugins': '1.6.9',
   },
   capabilities: {
     worker: true,
