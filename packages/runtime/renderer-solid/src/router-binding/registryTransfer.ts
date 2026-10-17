@@ -281,6 +281,11 @@ export function primeRouterFromRegistry(router: AnyRouter): boolean {
   try {
     for (const [index, match] of matches.entries()) {
       const entry = entries[index]!;
+      const beforeLoadContext = preparePublicContextData(
+        entry.beforeLoadContext,
+        owner,
+        privateContexts,
+      ) as Record<string, unknown> | undefined;
       const checked: TransferredMatch = {
         ...entry,
         loaderData: prepareHydratedLoaderData(
@@ -288,11 +293,7 @@ export function primeRouterFromRegistry(router: AnyRouter): boolean {
           owner,
           privateContexts,
         ),
-        beforeLoadContext: preparePublicContextData(
-          entry.beforeLoadContext,
-          owner,
-          privateContexts,
-        ) as Record<string, unknown> | undefined,
+        ...(beforeLoadContext !== undefined ? { beforeLoadContext } : {}),
         error: preparePublicContextData(entry.error, owner, privateContexts),
       };
       entries[index] = checked;
@@ -369,7 +370,10 @@ function applyTransferredMatch(
     __beforeLoadContext: entry.beforeLoadContext,
   } as AnyRouteMatch;
   if ('loaderData' in entry) next.loaderData = entry.loaderData;
-  if ('ssr' in entry) next.ssr = entry.ssr;
+  if ('ssr' in entry) {
+    if (entry.ssr === undefined) delete next.ssr;
+    else next.ssr = entry.ssr;
+  }
   return next;
 }
 

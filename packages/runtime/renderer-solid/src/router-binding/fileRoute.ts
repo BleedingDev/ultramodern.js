@@ -70,7 +70,7 @@ export class FileRoute<
     public path?: TFilePath,
     _opts?: { silent: boolean },
   ) {
-    this.silent = _opts?.silent;
+    if (_opts) this.silent = _opts.silent;
   }
 
   createRoute = <
