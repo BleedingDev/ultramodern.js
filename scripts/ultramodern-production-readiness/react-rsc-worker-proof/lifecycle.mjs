@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 
 const maintenanceLockReason = 'another maintenance operation holds the lock';
 const markerName = '.disk-guardian-owner';
@@ -21,6 +22,40 @@ export function maintenanceLockFailure(error) {
     );
   } catch {
     return false;
+  }
+}
+
+/** Retries only guardian lock contention; each command gets its remaining budget. */
+export async function retryMaintenanceOperation(
+  operation,
+  {
+    timeoutMs = 30_000,
+    retryDelayMs = 250,
+    now = () => performance.now(),
+    sleep = setTimeout,
+  } = {},
+) {
+  assert(Number.isFinite(timeoutMs) && timeoutMs > 0);
+  assert(Number.isFinite(retryDelayMs) && retryDelayMs > 0);
+  const deadline = now() + timeoutMs;
+  while (true) {
+    try {
+      return await operation(Math.max(1, Math.ceil(deadline - now())));
+    } catch (error) {
+      const lock =
+        error !== null &&
+        typeof error === 'object' &&
+        maintenanceLockFailure({
+          status: error.status ?? error.code,
+          signal: error.signal || (error.killed ? 'killed' : null),
+          stdout: error.stdout,
+          stderr: error.stderr,
+        });
+      const remaining = deadline - now();
+      if (!lock || remaining <= 0) throw error;
+      await sleep(Math.min(retryDelayMs, remaining));
+      if (now() >= deadline) throw error;
+    }
   }
 }
 
