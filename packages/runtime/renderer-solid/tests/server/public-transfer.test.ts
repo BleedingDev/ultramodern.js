@@ -183,6 +183,35 @@ const mutableContainers: Array<readonly [string, () => unknown]> = [
 ];
 
 describe('native public match transfer', () => {
+  test('a caught application context override still fails before commitment', async () => {
+    const session = createSession();
+    const router = await loadedRouter(session, { critical: 'public value' });
+    const originalContext = router.options.context;
+    let reads = 0;
+    const props = Object.defineProperty({ router }, 'context', {
+      get() {
+        reads++;
+        return { private: privateMarker };
+      },
+    });
+    await expect(
+      renderDocumentApplication({
+        session,
+        view: () => {
+          try {
+            return createComponent(ApplicationRouter, props);
+          } catch {
+            return ssr('<main>caught context fallback</main>');
+          }
+        },
+      }),
+    ).rejects.toThrow(/ApplicationRouter context overrides are unsupported/);
+    expect(reads).toBe(0);
+    expect(router.options.context).toBe(originalContext);
+    expect(session.committedPolicy).toBeUndefined();
+    expect((await session.completion).state).toBe('failed');
+  });
+
   test('a caught adapter rejection still fails its owning request', async () => {
     const session = createSession();
     const router = await loadedRouter(session, { critical: 'public value' });
