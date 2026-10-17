@@ -78,8 +78,21 @@ export function registerPublicRouteDataOwner(
   });
 }
 
+/** Managed match transfer uses the immutable public-data contract, not custom adapters. */
+export function assertNativeSerializationOptions(options: object): void {
+  if ('serializationAdapters' in options) {
+    const error = new DataProtocolError(
+      'Solid serializationAdapters are unsupported by the immutable public-data profile; return public records, arrays and scalars instead',
+    );
+    const owner: RequestSession | undefined = getRequestEvent()?.locals.session;
+    owner?.fail(error);
+    throw error;
+  }
+}
+
 /** Framework SSR accepts only routers that passed its public-data factory boundary. */
 export function requireManagedPublicRouter(router: AnyRouter): void {
+  assertNativeSerializationOptions(router.options);
   const owner: RequestSession | undefined = getRequestEvent()?.locals.session;
   if (
     !owner ||
