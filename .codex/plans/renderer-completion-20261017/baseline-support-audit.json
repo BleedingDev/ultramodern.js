@@ -1542,7 +1542,7 @@
     {
       "path": "patches/@tanstack__router-core@1.171.34.patch",
       "disposition": "required_extraction",
-      "authorLane": "router-sidecars",
+      "authorLane": "navigation",
       "commitOwner": "integrator",
       "sharedIntegratorCommitRequired": true,
       "evidence": "Preserve source and ESM/CJS/declaration/source-map mask/search/document-blocker recipe; prove actual .34 baseline still fails before applying.",
@@ -1902,7 +1902,7 @@
     {
       "path": "scripts/ultramodern-supply/router-core-mask.test.mjs",
       "disposition": "required_extraction",
-      "authorLane": "router-sidecars",
+      "authorLane": "navigation",
       "commitOwner": "integrator",
       "sharedIntegratorCommitRequired": true,
       "evidence": "Preserve real registry baseline/patched CJS+ESM/declaration/source-map negative and green controls for inherited masks/search/document blockers, including .15 as historical fixture only if useful; final decision on .34.",

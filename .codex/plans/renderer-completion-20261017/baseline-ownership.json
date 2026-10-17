@@ -18,7 +18,7 @@
       "branch": "feat/renderer-worker-federation-20261017",
       "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
       "owner": "root until assigned worker lane",
-      "scope": "worker-federation subsystem, Worker compiler/publisher/config semantics, Cloudflare templates and context profiles, generated Worker consumer/proof. Tooling reviews generator mechanics; root commits shared paths.",
+      "scope": "worker-federation subsystem, Worker compiler/publisher/config semantics, Cloudflare templates and context profiles, generated Worker consumer/proof. Tooling reviews generator mechanics; root commits shared paths. Exclude publisherBoundary dev-refresh hunks from renderer-octane/federation.ts until native-refresh accepted.",
       "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
       "clean": true
     },
@@ -69,8 +69,18 @@
       "base": "d5988dd936148d70e788783a8e44cb1c82933ca4",
       "owner": "root (same native source owner)",
       "dependsOn": "native-snapshots accepted source merged before any native refresh writes; advance this clean branch to that source first",
-      "scope": "Native provider/signal/engine/compiler refresh edits, serial with snapshots. Prove both behaviors together.",
+      "scope": "Native provider/signal/engine/compiler refresh edits, serial with snapshots. Prove both behaviors together. Own publisherBoundary, publisher-boundary-protocol.ts, native-hot-owner.ts and signals/hot-declarations.ts.",
       "verifiedHead": "d5988dd936148d70e788783a8e44cb1c82933ca4",
+      "clean": true
+    },
+    "router-sidecars": {
+      "repo": "modernjs",
+      "worktree": "/Users/satan/workspace/bleedingdev/projects/modernjs/code/modernjs-renderer-integration-20261017",
+      "branch": "feat/renderer-completion-20261017",
+      "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
+      "owner": "root integrator",
+      "scope": "Router sidecar producer, verify-sidecars, asset-consumers.*, workflow.mjs and accepted publication. Navigation authors router-core patches and router-core-mask.test.mjs; root commits those on navigation branch.",
+      "verifiedHead": "e61746843a39ab6de0af397c6f58f7bae72342dd",
       "clean": true
     }
   },

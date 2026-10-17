@@ -4,7 +4,7 @@ overview: Finish mask, search and document navigation semantics in both native a
 todos:
   - id: modernjs-dnpv3.58.12.1
     content: Qualify current router-core patches and both installed native localized bindings
-    status: pending
+    status: in_progress
 isProject: false
 ---
 

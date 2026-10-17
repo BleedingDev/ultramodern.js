@@ -4,7 +4,7 @@ overview: Supply the missing runtime and router contracts needed by cross-worker
 todos:
   - id: modernjs-dnpv3.58.11.5
     content: Implement and qualify current native external and router snapshot APIs
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
@@ -17,6 +17,8 @@ Own the Octane fork source for external snapshots, router render profiles and th
 Define a versioned serializable contract and test the native capture/restore/render/dispose lifecycle. Preserve request ownership, suspended streaming, host parent context, independent remote signal/ID namespaces, router match and i18n state. Validate identifiers, unsupported values, context/profile identity and snapshot version before executing remote application code. Bound resources and reject invalid or stale snapshots. Support multiple remotes and nested host-to-A-to-B snapshots without scope collision. Prove exactly-once disposal on success, stream error, cancellation, client disconnect, rejected identity and nested partial failure.
 
 Keep the canonical native router/action invalidation and fixed listener record changes already merged through PR5/6. The old full feature merge had 146 conflicts; do not take it wholesale. One named Octane source owner performs both snapshot and signal-HMR ports in order: first snapshot contracts, then the dev-refresh native delta. That owner serializes runtime.ts, runtime.server.ts, signals/engine.ts and compiler changes and proves both behaviors after the second port. Dev-refresh owns its tests and semantic requirements but never writes the same native files concurrently. Record PR1 devalue history as a disposition; current Modern resolution already has5.9.3, so do not recreate that older fix without a current failing consumer. Produce normal local packs of the current authored source for Worker implementation, including public client/server declarations, browser types without Node globals and native TypeScript strict acceptance. Include actual CJS/ESM/runtime imports, no TS-extension dependencies and no workspace source aliases.
+
+The complete public contract list is recorded in baseline-paths.json. Runtime values must resolve through ordinary packed CJS and ESM entrypoints; type-only names and RootOptions.externalSnapshots must pass public declaration consumers. publisherBoundary and its native-hot-owner/hot-declarations/protocol files belong to native-refresh. Worker excludes those refresh hunks until native-refresh lands.
 
 ## Success criteria
 

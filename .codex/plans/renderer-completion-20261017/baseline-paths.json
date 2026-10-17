@@ -11,18 +11,52 @@
     "historicalRef": "52c14da5",
     "currentRef": "d5988dd936148d70e788783a8e44cb1c82933ca4",
     "currentAcceptedRelease": "https://github.com/BleedingDev/octane/releases/tag/ultramodern-octane-d5988dd93614",
-    "missingContracts": [
-      "prepareExternalSnapshotRequest",
-      "renderExternalSnapshot",
-      "externalSnapshotBoundary",
-      "packages/tanstack-router/src/ssr/routerRenderSnapshot.ts"
-    ],
     "historicalInputFiles": [
       "packages/octane/src/external-snapshot-protocol.ts",
       "packages/octane/src/server/external-snapshot-preparation.ts",
-      "packages/tanstack-router/src/ssr/routerRenderSnapshot.ts"
+      "packages/tanstack-router/src/ssr/routerRenderSnapshot.ts",
+      "packages/octane/src/runtime.ts",
+      "packages/octane/src/runtime.server.ts",
+      "packages/octane/src/index.ts",
+      "packages/octane/src/server/index.ts"
     ],
-    "sequencing": "native-snapshots owner root, then native-refresh owner root; never restore full old runtime/router files."
+    "sequencing": "native-snapshots owner root, then native-refresh owner root; never restore full old runtime/router files.",
+    "missingContractsByPublicEntry": {
+      "octane/server": [
+        "prepareExternalSnapshotRequest",
+        "releasePreparedExternalSnapshotRequest",
+        "renderExternalSnapshot",
+        "serializeExternalSnapshot",
+        "ExternalSnapshotRenderOptions"
+      ],
+      "octane": [
+        "ExternalSnapshotContextCodec",
+        "registerExternalSnapshotContext",
+        "decodeExternalSnapshot",
+        "externalSnapshotBoundary",
+        "serializeExternalSnapshotRequest",
+        "publisherBoundary",
+        "RootOptions.externalSnapshots"
+      ],
+      "@octanejs/tanstack-router": [
+        "assertDefaultRouterRenderHost",
+        "associateRouterRenderProfile",
+        "captureRouterRenderSnapshot",
+        "createRouterRenderRouteTree",
+        "disposeRouterRenderSnapshot",
+        "getRouterRenderProfile",
+        "registerRouterRenderProfile",
+        "restoreRouterRenderSnapshot",
+        "RouterRenderJsonRecord"
+      ]
+    },
+    "packedAcceptance": "All runtime values resolve through ordinary packed CJS and ESM public entrypoints; type-only names and RootOptions.externalSnapshots pass public declaration consumers. publisherBoundary is native-refresh-owned and excluded from Worker snapshot port until native-refresh lands.",
+    "nativeRefreshOwned": [
+      "publisherBoundary",
+      "packages/octane/src/publisher-boundary-protocol.ts",
+      "packages/octane/src/native-hot-owner.ts",
+      "packages/octane/src/signals/hot-declarations.ts"
+    ]
   },
   "sdkPrerequisite": {
     "issue": "modernjs-dnpv3.58.11.3",
@@ -30,8 +64,9 @@
     "sourceAliasStillMissing": true,
     "owner": "root integrator",
     "branch": "feat/renderer-completion-20261017",
-    "blocks": "modernjs-dnpv3.58.11.1.1",
-    "evidence": "baseline-sdk-evidence.json"
+    "blocks": "modernjs-dnpv3.58.16",
+    "evidence": "baseline-sdk-evidence.json",
+    "closeCondition": "Signed SDK alias committed in federation-runtime, local SDK patch retired or proven equal to signed bytes, pnpm lock regenerated under1440-minute policy, installed alias passes packed-mf-sdk-probe.mjs. No final-cohort downstream closure dependency."
   },
   "rootCorrections": [
     {

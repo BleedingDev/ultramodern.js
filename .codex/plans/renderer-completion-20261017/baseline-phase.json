@@ -1,6 +1,6 @@
 {
   "phase": "baseline",
-  "status": "in_progress",
+  "status": "completed",
   "base": "e61746843a39ab6de0af397c6f58f7bae72342dd",
   "snapshot": "ca61247ac2c09bc9bd1982556f15ee01b6f0e81b",
   "pathPartition": "161/161 WIP paths and906/906 older-history raw changed paths assigned with evidence; no unassigned historical behavior.",
@@ -21,8 +21,14 @@
   "review": {
     "requestedModel": "Opus5.5",
     "requiredAfterPhase": true,
-    "status": "running",
-    "taskId": "node:delegated-task:command%3Amcp%3Ae948866c-7cdc-405f-801b-0797f16b9464%3Adelegate-task%3Arenderer-baseline-20261017-opus-r1"
+    "status": "PASS with three P2 record fixes addressed",
+    "taskId": "node:delegated-task:command%3Amcp%3Ae948866c-7cdc-405f-801b-0797f16b9464%3Adelegate-task%3Arenderer-baseline-20261017-opus-r1",
+    "findings": [
+      "P2-1 SDK gate moved from Worker to cohort; concrete alias/patch/lock/public probe closure.",
+      "P2-2 All21 missing native contracts assigned; native-refresh owns publisherBoundary and Worker excludes it until available.",
+      "P2-3 Router-sidecars integrator lane added; navigation authors recipe/tests; tooling asset-consumer ownership removed."
+    ],
+    "newReviewRoundRequired": false
   },
-  "next": "Address fresh Opus5.5 baseline review, then begin native snapshots and independent navigation/tooling source implementation."
+  "next": "Native snapshots source implementation; independent navigation/tooling lanes now runnable."
 }

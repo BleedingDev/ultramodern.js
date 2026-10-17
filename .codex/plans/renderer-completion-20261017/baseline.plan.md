@@ -4,7 +4,7 @@ overview: Establish the merged dependency cohort and an explicit disposition for
 todos:
   - id: modernjs-dnpv3.58.14
     content: Verify the PR249 merge and prepare current-baseline feature branches
-    status: in_progress
+    status: completed
 isProject: false
 ---
 
